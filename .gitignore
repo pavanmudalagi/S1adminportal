@@ -3,6 +3,11 @@
 .env.*
 !.env.example
 .venv/
+.venv-build/
+build/
+dist/
+release/
+*.spec
 __pycache__/
 *.pyc
 *.pyo
