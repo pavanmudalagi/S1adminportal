@@ -1,0 +1,1662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>s1am — SentinelOne Account Manager</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b27;
+      --surface-2:  #1e2538;
+      --border:     #2a3050;
+      --primary:    #7c3aed;
+      --primary-h:  #6d28d9;
+      --primary-a:  rgba(124,58,237,.18);
+      --success:    #10b981;
+      --success-a:  rgba(16,185,129,.15);
+      --error:      #ef4444;
+      --error-a:    rgba(239,68,68,.15);
+      --warn:       #f59e0b;
+      --warn-a:     rgba(245,158,11,.15);
+      --text:       #e2e8f0;
+      --text-dim:   #94a3b8;
+      --text-muted: #4b5563;
+      --mono:       'JetBrains Mono','Fira Code','Cascadia Code',ui-monospace,monospace;
+      --radius:     6px;
+      --sidebar-w:  240px;
+      --header-h:   52px;
+    }
+
+    html, body { height: 100%; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,sans-serif; font-size: 14px; line-height: 1.5; display: flex; flex-direction: column; }
+
+    /* ── Header ── */
+    header {
+      height: var(--header-h); flex-shrink: 0;
+      background: var(--surface); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; padding: 0 16px; gap: 12px; z-index: 10;
+    }
+    .logo { font-weight: 700; font-size: 17px; letter-spacing: -.3px; color: #fff; display: flex; align-items: center; gap: 8px; }
+    .logo-icon { font-size: 20px; }
+    .version-badge { font-size: 11px; background: var(--primary-a); color: var(--primary); border: 1px solid var(--primary); border-radius: 99px; padding: 1px 8px; }
+    .spacer { flex: 1; }
+    .status-row { display: flex; gap: 6px; align-items: center; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-muted); display: inline-block; }
+    .status-dot.on  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-dot.off { background: var(--error); }
+    .status-label { font-size: 12px; color: var(--text-dim); margin-right: 8px; }
+    .btn { cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: var(--radius); padding: 5px 12px; font-size: 13px; transition: background .15s; }
+    .btn:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-h); border-color: var(--primary-h); }
+    .btn-danger { background: var(--error-a); border-color: var(--error); color: var(--error); }
+    .btn-danger:hover { background: var(--error); color: #fff; }
+    .btn-sm { padding: 3px 10px; font-size: 12px; }
+
+    /* ── Rename list ── */
+    #rename-list input { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 6px 10px; font-size: 13px; width: 100%; }
+    #rename-list input:focus { outline: none; border-color: var(--primary); }
+    #rename-list input::placeholder { color: var(--text-muted); }
+
+    /* ── Profile selector ── */
+    .profile-wrap { display: flex; align-items: center; gap: 7px; }
+    .profile-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+    #profile-select {
+      background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+      border-radius: var(--radius); padding: 4px 28px 4px 10px; font-size: 13px;
+      cursor: pointer; appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2364748b'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 9px center;
+      max-width: 200px; transition: border-color .15s;
+    }
+    #profile-select:focus { outline: none; border-color: var(--primary); }
+    #profile-select option { background: var(--surface-2); }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    nav {
+      width: var(--sidebar-w); flex-shrink: 0;
+      background: var(--surface); border-right: 1px solid var(--border);
+      overflow-y: auto; padding: 8px 0;
+    }
+    .nav-category { padding: 10px 14px 4px; font-size: 11px; font-weight: 600; letter-spacing: .6px; color: var(--text-muted); text-transform: uppercase; cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+    .nav-category:hover { color: var(--text-dim); }
+    .nav-chevron { transition: transform .2s; font-size: 10px; }
+    .nav-items { overflow: hidden; }
+    .nav-items.collapsed { display: none; }
+    .nav-item { padding: 6px 14px 6px 24px; cursor: pointer; border-radius: 0; color: var(--text-dim); display: flex; align-items: center; gap: 6px; transition: background .1s, color .1s; font-size: 13px; }
+    .nav-item:hover { background: var(--surface-2); color: var(--text); }
+    .nav-item.active { background: var(--primary-a); color: var(--primary); font-weight: 500; border-right: 2px solid var(--primary); }
+
+    /* ── Main ── */
+    main { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Card ── */
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .card-header { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-weight: 600; font-size: 15px; }
+    .card-desc { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+    .card-body { padding: 16px; }
+
+    /* ── Form ── */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+    .form-group { display: flex; flex-direction: column; gap: 5px; }
+    .form-group.full-width { grid-column: 1 / -1; }
+    label { font-size: 12px; font-weight: 500; color: var(--text-dim); }
+    label .req { color: var(--error); margin-left: 2px; }
+    input[type="text"], input[type="number"], select, textarea {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); padding: 7px 10px; font-size: 13px; font-family: inherit; width: 100%;
+      transition: border-color .15s;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+    input::placeholder, textarea::placeholder { color: var(--text-muted); }
+    textarea { resize: vertical; min-height: 80px; font-family: var(--mono); font-size: 12px; }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; cursor: pointer; font-size: 13px; color: var(--text-dim); }
+    .checkbox-row input[type="checkbox"] { accent-color: var(--primary); width: 14px; height: 14px; cursor: pointer; }
+    .form-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 4px; }
+
+    /* ── Console selector ── */
+    .console-selector { border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .console-sel-header { padding: 8px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .console-sel-count { font-size: 11px; color: var(--text-muted); }
+    .console-sel-list { max-height: 200px; overflow-y: auto; padding: 4px 0; }
+    .console-sel-item { padding: 5px 14px; transition: background .1s; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); cursor: pointer; }
+    .console-sel-item:hover { background: var(--surface-2); color: var(--text); }
+    .console-sel-item input[type="checkbox"] { accent-color: var(--primary); width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+    .console-sel-empty { padding: 12px 14px; font-size: 12px; color: var(--text-muted); }
+
+    /* ── File drop zone ── */
+    .file-drop { border: 2px dashed var(--border); border-radius: var(--radius); padding: 28px 20px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; user-select: none; }
+    .file-drop:hover, .file-drop.dragover { border-color: var(--primary); background: var(--primary-a); }
+    .file-drop-icon { font-size: 32px; margin-bottom: 8px; line-height: 1; }
+    .file-drop-text { font-size: 13px; color: var(--text-dim); }
+    .file-drop-text b { color: var(--text); }
+    .file-drop-chosen { font-size: 12px; color: var(--success); margin-top: 8px; font-family: var(--mono); display: none; }
+    .file-drop-chosen.visible { display: block; }
+
+    /* ── Results ── */
+    .result-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .result-tabs { display: flex; gap: 2px; background: var(--bg); border-radius: var(--radius); padding: 2px; }
+    .result-tab { padding: 3px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; color: var(--text-dim); border: none; background: transparent; transition: background .1s, color .1s; }
+    .result-tab.active { background: var(--surface-2); color: var(--text); }
+
+    #result-content {
+      font-family: var(--mono); font-size: 12px; line-height: 1.6;
+      background: var(--bg); border-radius: var(--radius);
+      padding: 14px; overflow: auto; max-height: 600px; white-space: pre-wrap; word-break: break-all;
+    }
+    #result-content.table-view {
+      font-family: inherit; white-space: normal; word-break: normal;
+      padding: 0; max-height: 600px; overflow-y: auto;
+    }
+
+    /* JSON colours */
+    .jk { color: #93c5fd; }   /* key */
+    .js { color: #86efac; }   /* string value */
+    .jn { color: #fbbf24; }   /* number */
+    .jb { color: #f87171; }   /* bool */
+    .jx { color: #a78bfa; }   /* null */
+
+    /* Result table */
+    #result-content.table-view { overflow-x: auto; padding: 0; }
+    .rtable { border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
+    .rtable th {
+      background: var(--surface-2); text-align: left; padding: 6px 12px;
+      font-weight: 600; color: var(--text-dim); border-bottom: 2px solid var(--border);
+      position: sticky; top: 0; z-index: 1;
+    }
+    .rtable th.col-num { color: var(--text-muted); font-weight: 400; width: 36px; text-align: right; }
+    .rtable td { padding: 5px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+    .rtable td.col-num { color: var(--text-muted); font-size: 11px; text-align: right; padding-right: 8px; user-select: none; }
+    .rtable tr:last-child td { border-bottom: none; }
+    .rtable tr:hover td { background: var(--surface-2); }
+    .table-hint { font-size: 11px; color: var(--text-muted); padding: 6px 12px 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
+    .table-hint b { color: var(--text-dim); }
+
+    /* Status badges */
+    .badge-ok  { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--success-a); color: var(--success); font-size: 12px; }
+    .badge-err { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--error-a); color: var(--error); font-size: 12px; }
+    .badge-dry { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--warn-a); color: var(--warn); font-size: 12px; }
+
+    /* CLI hint */
+    .cli-hint { font-family: var(--mono); font-size: 11px; color: var(--text-muted); background: var(--bg); border-radius: var(--radius); padding: 6px 10px; word-break: break-all; }
+    .cli-hint span { color: var(--primary); }
+
+    /* ── Spinner ── */
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Modal ── */
+    .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+    .modal-backdrop.hidden { display: none; }
+    .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; width: 480px; max-width: 95vw; padding: 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.6); }
+    .modal-title { font-size: 17px; font-weight: 700; }
+    .modal-desc { font-size: 13px; color: var(--text-dim); }
+    .modal-footer { display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px; }
+
+    /* ── Welcome ── */
+    #welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 12px; text-align: center; padding: 40px; }
+    #welcome h2 { font-size: 20px; color: var(--text-dim); }
+    #welcome p  { font-size: 13px; color: var(--text-muted); max-width: 360px; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ── Stderr box ── */
+    .stderr-box { font-family: var(--mono); font-size: 12px; background: var(--warn-a); border: 1px solid var(--warn); color: var(--warn); border-radius: var(--radius); padding: 10px; white-space: pre-wrap; margin-top: 8px; }
+
+    /* ── Total row ── */
+    .result-meta { font-size: 12px; color: var(--text-muted); }
+
+    select option { background: var(--surface-2); }
+
+    /* ── Agent Versions table ── */
+    .av-table-wrap { overflow-x: auto; }
+    .av-rtable { border-collapse: collapse; font-size: 12.5px; white-space: nowrap; min-width: 100%; }
+    .av-rtable th {
+      background: var(--surface-2); text-align: left; padding: 7px 14px;
+      font-weight: 600; color: var(--text-dim); border-bottom: 2px solid var(--border);
+      position: sticky; top: 0; z-index: 1; cursor: pointer; user-select: none;
+      white-space: nowrap;
+    }
+    .av-rtable th:hover { color: var(--text); }
+    .av-rtable th .sort-arrow { font-size: 10px; margin-left: 4px; color: var(--text-muted); }
+    .av-rtable th .sort-arrow.active { color: var(--primary); }
+    .av-rtable th.col-num { cursor: default; color: var(--text-muted); font-weight: 400; width: 36px; text-align: right; }
+    .av-rtable td { padding: 6px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    .av-rtable td.col-num { color: var(--text-muted); font-size: 11px; text-align: right; padding-right: 8px; user-select: none; }
+    .av-rtable tr:last-child td { border-bottom: none; }
+    .av-rtable tr:hover td { background: var(--surface-2); }
+    .av-search-row { padding: 8px 12px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .av-search-row input {
+      background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text); padding: 5px 10px; font-size: 12px; width: 220px;
+    }
+    .av-search-row input:focus { outline: none; border-color: var(--primary); }
+    .badge-partial { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--warn-a); color: var(--warn); font-size: 12px; }
+    .badge-fetch   { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
+    .badge-fetch .spinner { width: 12px; height: 12px; border-width: 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Credentials Modal ── -->
+<div id="cred-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cred-title">
+    <div class="modal-title" id="cred-title">🔑 Credentials</div>
+    <div class="modal-desc" id="cred-intro">Configure API credentials. Leave a token field blank to keep using the value already loaded from your config file or environment.</div>
+    <div class="form-grid" style="grid-template-columns: 1fr;">
+      <div class="form-group">
+        <label for="ci-url">Base URL <span class="req">*</span></label>
+        <input type="text" id="ci-url" placeholder="https://your-tenant.sentinelone.net">
+      </div>
+      <div class="form-group">
+        <label for="ci-token">MGMT API Token</label>
+        <input type="password" id="ci-token" placeholder="Paste to override">
+        <div id="ci-token-src" style="font-size:11px;color:var(--text-muted);margin-top:3px;"></div>
+      </div>
+      <div class="form-group">
+        <label for="ci-pq">PowerQuery Token (Metering)</label>
+        <input type="password" id="ci-pq" placeholder="Paste to override">
+        <div id="ci-pq-src" style="font-size:11px;color:var(--text-muted);margin-top:3px;"></div>
+      </div>
+      <div class="form-group">
+        <label for="ci-prefix">Auth Prefix</label>
+        <input type="text" id="ci-prefix" placeholder="APIToken" value="APIToken">
+      </div>
+    </div>
+    <div class="modal-desc" id="cred-error" style="color:var(--error);display:none;"></div>
+    <div class="modal-footer">
+      <button class="btn" id="cred-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="cred-save-btn">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Add Console Modal ── -->
+<div id="add-console-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ac-title">
+    <div class="modal-title" id="ac-title">＋ Add Console</div>
+    <div class="modal-desc">Register a SentinelOne console so you can switch between tenants from the header.</div>
+    <div class="form-grid" style="grid-template-columns: 1fr;">
+      <div class="form-group">
+        <label for="ac-name">Console Name <span class="req">*</span></label>
+        <input type="text" id="ac-name" placeholder="e.g. CACE1, USEA1, EUCE1">
+      </div>
+      <div class="form-group">
+        <label for="ac-url">Base URL <span class="req">*</span></label>
+        <input type="text" id="ac-url" placeholder="https://your-tenant.sentinelone.net">
+      </div>
+      <div class="form-group">
+        <label for="ac-token">MGMT API Token</label>
+        <input type="password" id="ac-token" placeholder="Optional — set later in ⚙ Settings">
+      </div>
+      <div class="form-group">
+        <label for="ac-prefix">Auth Prefix</label>
+        <input type="text" id="ac-prefix" value="APIToken" placeholder="APIToken">
+      </div>
+    </div>
+    <div class="modal-desc" id="ac-error" style="color:var(--error);display:none;"></div>
+    <div class="modal-footer">
+      <button class="btn" id="ac-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="ac-save-btn">Add Console</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Rename Consoles Modal ── -->
+<div id="rename-modal" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="rename-title" style="width:520px;">
+    <div class="modal-title" id="rename-title">✏️ Rename Consoles</div>
+    <div class="modal-desc">Set a friendly display name for each console. Leave blank to use the profile ID.</div>
+    <div id="rename-list" style="display:flex;flex-direction:column;gap:8px;max-height:360px;overflow-y:auto;padding-right:4px;"></div>
+    <div class="modal-desc" id="rename-error" style="color:var(--error);display:none;"></div>
+    <div class="modal-footer">
+      <button class="btn" id="rename-cancel-btn">Cancel</button>
+      <button class="btn btn-primary" id="rename-save-btn">Save Names</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App ── -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🛡</span> s1am
+    <span class="version-badge" id="version-label">v?</span>
+  </div>
+  <div class="profile-wrap">
+    <span class="profile-label">Console</span>
+    <select id="profile-select" title="Switch console / profile">
+      <option value="">— select console —</option>
+    </select>
+    <button class="btn btn-sm" id="add-console-btn" title="Add console" style="padding:3px 9px;font-size:15px;line-height:1;">＋</button>
+    <button class="btn btn-sm" id="rename-btn" title="Rename consoles" style="padding:3px 8px;font-size:13px;">✏️</button>
+  </div>
+  <div class="spacer"></div>
+  <div class="status-row">
+    <span class="status-dot" id="mgmt-dot"></span>
+    <span class="status-label" id="mgmt-label">MGMT</span>
+    <span class="status-dot" id="pq-dot"></span>
+    <span class="status-label" id="pq-label">Metering</span>
+  </div>
+  <button class="btn btn-sm" id="settings-btn">⚙ Settings</button>
+</header>
+
+<div class="layout">
+  <!-- ── Sidebar ── -->
+  <nav id="sidebar"></nav>
+
+  <!-- ── Main ── -->
+  <main id="main">
+    <div id="welcome">
+      <h2>Select a command from the sidebar</h2>
+      <p>Click any command on the left to build and run it. Results appear below the form.</p>
+    </div>
+    <div id="command-area" style="display:none; flex-direction:column; gap:16px;">
+      <!-- Command card -->
+      <div class="card" id="cmd-card">
+        <div class="card-header">
+          <div>
+            <div class="card-title" id="cmd-title"></div>
+            <div class="card-desc" id="cmd-desc"></div>
+          </div>
+          <div id="cmd-requires" style="font-size:11px; color:var(--text-muted);"></div>
+        </div>
+        <div class="card-body">
+          <div class="form-grid" id="form-fields"></div>
+          <div class="form-actions" style="margin-top:16px;">
+            <button class="btn btn-primary" id="run-btn">▶ Run</button>
+            <div class="spinner" id="spinner" style="display:none;"></div>
+            <div class="result-meta" id="run-meta"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results card -->
+      <div class="card" id="results-card" style="display:none;">
+        <div class="card-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span id="result-status"></span>
+            <div class="result-tabs" id="result-tabs"></div>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-sm" id="copy-btn" title="Copy to clipboard">📋 Copy</button>
+            <button class="btn btn-sm" id="dl-btn" title="Download">⬇ Download</button>
+          </div>
+        </div>
+        <div class="card-body" style="padding:12px;">
+          <div class="cli-hint" id="cli-hint" style="margin-bottom:10px;display:none;">
+            <span>$</span> <span id="cli-text"></span>
+          </div>
+          <div id="result-content"></div>
+          <div id="stderr-box" class="stderr-box" style="display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+{% raw %}
+<script>
+"use strict";
+
+// ── State ──────────────────────────────────────────────────────────────────
+let COMMANDS = [];
+let activeCmd = null;
+let lastResult = null;
+let currentTab = "json";
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+(async function boot() {
+  try {
+    const [cmdRes, verRes, statusRes, profilesRes] = await Promise.all([
+      fetch("/api/commands").then(r => r.json()),
+      fetch("/api/version").then(r => r.json()),
+      fetch("/api/status").then(r => r.json()),
+      fetch("/api/profiles").then(r => r.json()),
+    ]);
+
+    COMMANDS = cmdRes;
+    document.getElementById("version-label").textContent = "v" + verRes.version;
+    updateStatus(statusRes);
+    populateProfiles(profilesRes.profiles, statusRes.active_profile);
+    renderSidebar();
+
+    // Auto-open credentials only when truly nothing is configured anywhere
+    if (!statusRes.mgmt_configured && !statusRes.pq_configured) {
+      setTimeout(openCredModal, 300);
+    }
+  } catch (e) {
+    console.error("Boot error:", e);
+  }
+})();
+
+// ── Status ─────────────────────────────────────────────────────────────────
+function updateStatus(s) {
+  setDot("mgmt-dot", s.mgmt_configured);
+  setDot("pq-dot", s.pq_configured);
+  document.getElementById("mgmt-label").textContent = s.mgmt_configured
+    ? "MGMT ✓" : "MGMT —";
+  document.getElementById("pq-label").textContent = s.pq_configured
+    ? "Metering ✓" : "Metering —";
+}
+
+function setDot(id, on) {
+  const el = document.getElementById(id);
+  el.classList.toggle("on", on);
+  el.classList.toggle("off", !on);
+}
+
+async function refreshStatus() {
+  const s = await fetch("/api/status").then(r => r.json());
+  updateStatus(s);
+}
+
+// ── Profile Selector ────────────────────────────────────────────────────────
+let _allProfiles = [];   // [{ id, name }, ...]
+
+function populateProfiles(profiles, activeProfile) {
+  _allProfiles = profiles || [];
+  const sel = document.getElementById("profile-select");
+  while (sel.options.length > 1) sel.remove(1);
+
+  for (const p of _allProfiles) {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.name;
+    if (p.id === activeProfile) opt.selected = true;
+    sel.appendChild(opt);
+  }
+
+  // Always show the console area; only hide rename when there's nothing to rename
+  document.getElementById("rename-btn").style.display = _allProfiles.length > 0 ? "" : "none";
+}
+
+document.getElementById("profile-select").addEventListener("change", async (e) => {
+  const profile = e.target.value;
+  const result = await fetch("/api/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile }),
+  }).then(r => r.json());
+
+  updateStatus(result);
+
+  if (!result.mgmt_configured && !result.pq_configured) {
+    openCredModal();
+  }
+});
+
+// ── Rename Consoles Modal ───────────────────────────────────────────────────
+document.getElementById("rename-btn").addEventListener("click", openRenameModal);
+document.getElementById("rename-cancel-btn").addEventListener("click", closeRenameModal);
+document.getElementById("rename-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("rename-modal")) closeRenameModal();
+});
+
+async function openRenameModal() {
+  const labels = await fetch("/api/profile-labels").then(r => r.json());
+  const list = document.getElementById("rename-list");
+  list.innerHTML = "";
+
+  for (const p of _allProfiles) {
+    const row = document.createElement("div");
+    row.style.cssText = "display:grid;grid-template-columns:160px 1fr;gap:10px;align-items:center;";
+
+    const profileId = document.createElement("div");
+    profileId.style.cssText = "font-family:var(--mono);font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+    profileId.title = p.id;
+    profileId.textContent = p.id;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.dataset.profileId = p.id;
+    input.value = labels[p.id] || "";
+    input.placeholder = p.id;
+
+    row.appendChild(profileId);
+    row.appendChild(input);
+    list.appendChild(row);
+  }
+
+  document.getElementById("rename-error").style.display = "none";
+  document.getElementById("rename-modal").classList.remove("hidden");
+}
+
+function closeRenameModal() {
+  document.getElementById("rename-modal").classList.add("hidden");
+}
+
+document.getElementById("rename-save-btn").addEventListener("click", async () => {
+  const inputs = document.querySelectorAll("#rename-list input[data-profile-id]");
+  const labels = {};
+  inputs.forEach(inp => {
+    const name = inp.value.trim();
+    if (name) labels[inp.dataset.profileId] = name;
+  });
+
+  await fetch("/api/profile-labels", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(labels),
+  });
+
+  // Refresh profiles so the dropdown shows new names
+  const profilesRes = await fetch("/api/profiles").then(r => r.json());
+  const activeProfile = document.getElementById("profile-select").value;
+  populateProfiles(profilesRes.profiles, activeProfile);
+
+  closeRenameModal();
+});
+
+// ── Add Console Modal ───────────────────────────────────────────────────────
+document.getElementById("add-console-btn").addEventListener("click", () => {
+  document.getElementById("ac-name").value   = "";
+  document.getElementById("ac-url").value    = "";
+  document.getElementById("ac-token").value  = "";
+  document.getElementById("ac-prefix").value = "APIToken";
+  document.getElementById("ac-error").style.display = "none";
+  document.getElementById("add-console-modal").classList.remove("hidden");
+  document.getElementById("ac-name").focus();
+});
+
+function closeAddConsoleModal() {
+  document.getElementById("add-console-modal").classList.add("hidden");
+}
+
+document.getElementById("ac-cancel-btn").addEventListener("click", closeAddConsoleModal);
+document.getElementById("add-console-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("add-console-modal")) closeAddConsoleModal();
+});
+
+document.getElementById("ac-save-btn").addEventListener("click", async () => {
+  const name   = document.getElementById("ac-name").value.trim();
+  const url    = document.getElementById("ac-url").value.trim();
+  const token  = document.getElementById("ac-token").value.trim();
+  const prefix = document.getElementById("ac-prefix").value.trim();
+  const errEl  = document.getElementById("ac-error");
+
+  if (!name || !url) {
+    errEl.textContent = "Console Name and Base URL are required.";
+    errEl.style.display = "";
+    return;
+  }
+
+  const r = await fetch("/api/console", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, base_url: url, api_token: token, auth_prefix: prefix }),
+  }).then(res => res.json());
+
+  if (!r.success) {
+    errEl.textContent = r.error || "Failed to add console.";
+    errEl.style.display = "";
+    return;
+  }
+
+  closeAddConsoleModal();
+
+  // Refresh dropdown and switch to the newly added console
+  const profilesRes = await fetch("/api/profiles").then(res => res.json());
+  populateProfiles(profilesRes.profiles, name);
+  document.getElementById("profile-select").value = name;
+
+  const switchRes = await fetch("/api/profile", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ profile: name }),
+  }).then(res => res.json());
+  updateStatus(switchRes);
+
+  if (!switchRes.mgmt_configured && !switchRes.pq_configured) openCredModal();
+});
+
+// ── Sidebar ────────────────────────────────────────────────────────────────
+const CATEGORY_ORDER = ["Accounts","Sites","Agents","Threats","Groups & Exclusions","Metering","Config","Advanced"];
+
+function renderSidebar() {
+  const nav = document.getElementById("sidebar");
+  nav.innerHTML = "";
+
+  // Group by category preserving order
+  const groups = {};
+  for (const cmd of COMMANDS) {
+    (groups[cmd.category] = groups[cmd.category] || []).push(cmd);
+  }
+
+  const order = [...CATEGORY_ORDER, ...Object.keys(groups).filter(k => !CATEGORY_ORDER.includes(k))];
+
+  for (const cat of order) {
+    if (!groups[cat]) continue;
+    const catEl = document.createElement("div");
+    catEl.className = "nav-category";
+    catEl.innerHTML = `<span>${groups[cat][0].icon || ""} ${cat}</span><span class="nav-chevron">▾</span>`;
+
+    const itemsEl = document.createElement("div");
+    itemsEl.className = "nav-items";
+
+    for (const cmd of groups[cat]) {
+      const item = document.createElement("div");
+      item.className = "nav-item";
+      item.dataset.id = cmd.id;
+      item.textContent = cmd.label;
+      item.addEventListener("click", () => selectCommand(cmd.id));
+      itemsEl.appendChild(item);
+    }
+
+    catEl.addEventListener("click", () => {
+      itemsEl.classList.toggle("collapsed");
+      catEl.querySelector(".nav-chevron").style.transform =
+        itemsEl.classList.contains("collapsed") ? "rotate(-90deg)" : "";
+    });
+
+    nav.appendChild(catEl);
+    nav.appendChild(itemsEl);
+  }
+}
+
+// ── Command Selection ───────────────────────────────────────────────────────
+function selectCommand(id) {
+  // Highlight active
+  document.querySelectorAll(".nav-item").forEach(el => {
+    el.classList.toggle("active", el.dataset.id === id);
+  });
+
+  const cmd = COMMANDS.find(c => c.id === id);
+  if (!cmd) return;
+  activeCmd = cmd;
+
+  document.getElementById("welcome").style.display = "none";
+  const area = document.getElementById("command-area");
+  area.style.display = "flex";
+
+  document.getElementById("cmd-title").textContent = cmd.label;
+  document.getElementById("cmd-desc").textContent = cmd.description;
+
+  const reqMap = { mgmt: "Requires MGMT token", pq: "Requires Metering token", both: "Requires both tokens", none: "" };
+  document.getElementById("cmd-requires").textContent = reqMap[cmd.requires] || "";
+
+  renderForm(cmd);
+
+  // Hide results when switching commands
+  document.getElementById("results-card").style.display = "none";
+  document.getElementById("run-meta").textContent = "";
+
+  // Agent Versions: change button label, restore cached data
+  if (cmd.id === "latest-agent-versions") {
+    document.getElementById("run-btn").textContent = "⟳ Refresh";
+    _avOnSelect();
+  } else {
+    document.getElementById("run-btn").textContent = "▶ Run";
+  }
+}
+
+// ── Form Rendering ──────────────────────────────────────────────────────────
+function renderForm(cmd) {
+  const container = document.getElementById("form-fields");
+  container.innerHTML = "";
+
+  for (const field of (cmd.fields || [])) {
+    if (field.type === "checkbox") {
+      const wrap = document.createElement("div");
+      wrap.className = "form-group";
+      wrap.innerHTML = `<label class="checkbox-row"><input type="checkbox" id="f_${field.id}"> ${field.label}</label>`;
+      container.appendChild(wrap);
+      continue;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "form-group" + (field.type === "textarea" ? " full-width" : "");
+
+    const req = !field.optional ? '<span class="req">*</span>' : "";
+    let input = "";
+
+    if (field.type === "select") {
+      const opts = (field.options || []).map(o =>
+        `<option value="${o}"${o === (field.default || field.options[0]) ? " selected" : ""}>${o}</option>`
+      ).join("");
+      input = `<select id="f_${field.id}">${opts}</select>`;
+    } else if (field.type === "textarea") {
+      const ph = field.placeholder || "";
+      const val = field.default || "";
+      input = `<textarea id="f_${field.id}" placeholder="${escHtml(ph)}">${escHtml(val)}</textarea>`;
+    } else if (field.type === "console-selector") {
+      wrap.classList.add("full-width");
+      input = `
+        <div class="console-selector" id="f_${field.id}">
+          <div class="console-sel-header">
+            <label class="checkbox-row" style="margin:0;font-size:13px">
+              <input type="checkbox" id="f_${field.id}_all"> <b>All Consoles</b>
+            </label>
+            <span class="console-sel-count" id="f_${field.id}_count">Loading…</span>
+          </div>
+          <div class="console-sel-list" id="f_${field.id}_list">
+            <div class="console-sel-empty">Loading consoles…</div>
+          </div>
+        </div>`;
+    } else if (field.type === "file") {
+      wrap.classList.add("full-width");
+      const accept = escHtml(field.accept || "");
+      input = `
+        <div class="file-drop" id="f_${field.id}_zone">
+          <input type="file" id="f_${field.id}" accept="${accept}" style="display:none">
+          <div class="file-drop-icon">📂</div>
+          <div class="file-drop-text">Drop <b>.xlsx</b>, <b>.xls</b>, or <b>.csv</b> here — or <b>click to browse</b></div>
+          <div class="file-drop-chosen" id="f_${field.id}_name"></div>
+        </div>`;
+    } else {
+      const ph = field.placeholder || "";
+      const val = field.default || "";
+      input = `<input type="${field.type === "number" ? "number" : "text"}" id="f_${field.id}" placeholder="${escHtml(ph)}" value="${escHtml(val)}">`;
+    }
+
+    wrap.innerHTML = `<label for="f_${field.id}_zone">${field.label}${req}</label>${input}`;
+    container.appendChild(wrap);
+  }
+
+  // Wire up console-selector pickers
+  for (const field of (cmd.fields || [])) {
+    if (field.type !== "console-selector") continue;
+    _populateConsolePicker(field.id);
+  }
+
+  // Wire up file drop zones
+  for (const field of (cmd.fields || [])) {
+    if (field.type !== "file") continue;
+    const zone = document.getElementById(`f_${field.id}_zone`);
+    const input = document.getElementById(`f_${field.id}`);
+    const nameEl = document.getElementById(`f_${field.id}_name`);
+    if (!zone || !input) continue;
+
+    const showFile = (file) => {
+      nameEl.textContent = `✓  ${file.name}  (${(file.size / 1024).toFixed(1)} KB)`;
+      nameEl.classList.add("visible");
+    };
+
+    zone.addEventListener("click", () => input.click());
+    input.addEventListener("change", () => { if (input.files[0]) showFile(input.files[0]); });
+    zone.addEventListener("dragover", (e) => { e.preventDefault(); zone.classList.add("dragover"); });
+    zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.classList.remove("dragover");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        showFile(file);
+      }
+    });
+  }
+}
+
+function getFormValues() {
+  const values = {};
+  for (const field of (activeCmd?.fields || [])) {
+    const el = document.getElementById("f_" + field.id);
+    if (!el) continue;
+    if (field.type === "checkbox") {
+      values[field.id] = el.checked;
+    } else {
+      const v = el.value.trim();
+      values[field.id] = v || (field.default || "");
+    }
+  }
+  return values;
+}
+
+// ── Console Picker ──────────────────────────────────────────────────────────
+async function _populateConsolePicker(fieldId) {
+  const list    = document.getElementById(`f_${fieldId}_list`);
+  const countEl = document.getElementById(`f_${fieldId}_count`);
+  const allBox  = document.getElementById(`f_${fieldId}_all`);
+  try {
+    const resp = await fetch("/api/profiles");
+    const { profiles } = await resp.json();
+
+    if (!profiles || profiles.length === 0) {
+      list.innerHTML = '<div class="console-sel-empty">No consoles configured. Add one via Settings.</div>';
+      countEl.textContent = "0 consoles";
+      return;
+    }
+
+    list.innerHTML = profiles.map(p =>
+      `<label class="console-sel-item">
+        <input type="checkbox" class="cs-cb-${fieldId}" value="${escHtml(p.id)}">
+        ${escHtml(p.name)}
+      </label>`
+    ).join("");
+
+    countEl.textContent = `${profiles.length} console${profiles.length !== 1 ? "s" : ""}`;
+
+    // "All" checkbox: toggles every item
+    allBox.addEventListener("change", () => {
+      document.querySelectorAll(`.cs-cb-${fieldId}`).forEach(cb => cb.checked = allBox.checked);
+    });
+
+    // Individual items: update "All" indeterminate/checked state
+    list.addEventListener("change", () => {
+      const all     = document.querySelectorAll(`.cs-cb-${fieldId}`);
+      const checked = document.querySelectorAll(`.cs-cb-${fieldId}:checked`);
+      allBox.indeterminate = checked.length > 0 && checked.length < all.length;
+      allBox.checked       = checked.length === all.length && all.length > 0;
+    });
+  } catch (e) {
+    list.innerHTML = '<div class="console-sel-empty">Failed to load consoles.</div>';
+    countEl.textContent = "";
+  }
+}
+
+// ── Console Streaming (generic — used by console-modules and agent-versions) ─
+async function _streamConsoleModules(profiles, meta, t0, streamUrl, extraBody) {
+  const card      = document.getElementById("results-card");
+  const statusEl  = document.getElementById("result-status");
+  const content   = document.getElementById("result-content");
+  const tabsEl    = document.getElementById("result-tabs");
+  const cliHint   = document.getElementById("cli-hint");
+  const stderrBox = document.getElementById("stderr-box");
+
+  card.style.display = "block";
+  stderrBox.style.display = "none";
+  cliHint.style.display = "none";
+  tabsEl.innerHTML = "";
+  content.classList.add("table-view");
+  content.innerHTML = `<div style="padding:14px;color:var(--text-muted);font-size:12px">Connecting…</div>`;
+  statusEl.innerHTML = `<span class="badge-dry">⟳ Streaming</span>`;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const rows = [];
+  let total = 0;
+  let received = 0;
+
+  const rebuildTable = () => {
+    content.innerHTML = rows.length
+      ? renderTable(rows)
+      : `<div style="padding:14px;color:var(--text-muted);font-size:12px">Waiting for first result…</div>`;
+  };
+
+  try {
+    const url = streamUrl || "/api/console-modules-stream";
+    const body = Object.assign({ profiles }, extraBody || {});
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      renderResult({ success: false, error: err.error || `HTTP ${resp.status}` });
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop(); // keep any incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let payload;
+        try { payload = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (payload.__total__ !== undefined) {
+          total = payload.__total__;
+          meta.textContent = `0 / ${total} consoles`;
+          content.innerHTML = `<div style="padding:14px;color:var(--text-muted);font-size:12px">Querying ${total} console${total !== 1 ? "s" : ""} in parallel…</div>`;
+          continue;
+        }
+
+        if (payload.__done__) {
+          const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+          meta.textContent = `${elapsed}s`;
+          statusEl.innerHTML = `<span class="badge-ok">✓ Success</span>`;
+          // Hand off to the normal tab/switch infrastructure
+          lastResult = { success: true, data: rows, preferred_view: "table" };
+          renderTabs(["table", "json"]);
+          switchTab("table", lastResult);
+          continue;
+        }
+
+        if (Array.isArray(payload)) {
+          rows.push(...payload);
+        } else {
+          rows.push(payload);
+        }
+        received++;
+        meta.textContent = `${received} / ${total || "?"} consoles`;
+        rebuildTable();
+      }
+    }
+  } catch (e) {
+    renderResult({ success: false, error: String(e) });
+  }
+}
+
+// ── Run Command ─────────────────────────────────────────────────────────────
+document.getElementById("run-btn").addEventListener("click", runCommand);
+
+async function runCommand() {
+  if (!activeCmd) return;
+
+  const runBtn = document.getElementById("run-btn");
+  const spinner = document.getElementById("spinner");
+  const meta = document.getElementById("run-meta");
+
+  runBtn.disabled = true;
+  spinner.style.display = "block";
+  meta.textContent = "Running…";
+
+  const t0 = Date.now();
+
+  try {
+    let resp;
+
+    if (activeCmd.file_field) {
+      // File-upload path: send multipart to the dedicated endpoint
+      const fileInput = document.getElementById("f_" + activeCmd.file_field);
+      const file = fileInput?.files?.[0];
+      if (!file) {
+        renderResult({ success: false, error: "Please select a file before running." });
+        return;
+      }
+      const fd = new FormData();
+      fd.append(activeCmd.file_field, file);
+      resp = await fetch("/api/bulk-lookup-file", { method: "POST", body: fd });
+
+    } else if (activeCmd.console_field) {
+      // Console-selector path: stream results from parallel backend threads
+      const fid    = activeCmd.console_field;
+      const allBox = document.getElementById(`f_${fid}_all`);
+      const boxes  = document.querySelectorAll(`.cs-cb-${fid}`);
+      let profiles;
+      if (allBox.checked) {
+        profiles = "__all__";
+      } else {
+        profiles = Array.from(boxes).filter(cb => cb.checked).map(cb => cb.value);
+        if (profiles.length === 0) {
+          renderResult({ success: false, error: "Please select at least one console." });
+          return;
+        }
+      }
+      // Collect non-console-selector form fields to pass as extra body params
+      const extraBody = {};
+      for (const field of (activeCmd.fields || [])) {
+        if (field.type === "console-selector") continue;
+        const el = document.getElementById("f_" + field.id);
+        if (!el) continue;
+        const v = field.type === "checkbox" ? el.checked : el.value.trim();
+        if (v !== "" && v !== false) extraBody[field.id] = v;
+      }
+
+      if (activeCmd.id === "latest-agent-versions") {
+        await _streamAgentVersions(profiles, meta, t0, extraBody);
+      } else {
+        await _streamConsoleModules(profiles, meta, t0, activeCmd.stream_url, extraBody);
+      }
+      return; // finally still runs to reset button + spinner
+
+    } else {
+      // Normal JSON path
+      const fields = getFormValues();
+      resp = await fetch("/api/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ command: activeCmd.id, fields }),
+      });
+    }
+
+    const result = await resp.json();
+    const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+    lastResult = result;
+    meta.textContent = `${elapsed}s`;
+    renderResult(result);
+  } catch (e) {
+    meta.textContent = "Network error";
+    renderResult({ success: false, error: String(e) });
+  } finally {
+    runBtn.disabled = false;
+    spinner.style.display = "none";
+  }
+}
+
+// ── Result Rendering ────────────────────────────────────────────────────────
+function renderResult(result) {
+  const card = document.getElementById("results-card");
+  card.style.display = "block";
+
+  // Status badge
+  const statusEl = document.getElementById("result-status");
+  if (!result.success) {
+    statusEl.innerHTML = '<span class="badge-err">✗ Error</span>';
+  } else if (result.stderr && result.stderr.includes("[dry-run]")) {
+    statusEl.innerHTML = '<span class="badge-dry">⬡ Dry Run</span>';
+  } else {
+    statusEl.innerHTML = '<span class="badge-ok">✓ Success</span>';
+  }
+
+  // CLI hint
+  if (result.cli) {
+    document.getElementById("cli-hint").style.display = "block";
+    document.getElementById("cli-text").textContent = result.cli;
+  } else {
+    document.getElementById("cli-hint").style.display = "none";
+  }
+
+  // Determine available tabs
+  const tabs = [];
+  if (!result.success) {
+    tabs.push("error");
+  } else {
+    const rows = extractRows(result.data);
+    if (rows && rows.length > 0) tabs.push("table");
+    if (result.data !== null && result.data !== undefined) tabs.push("json");
+    if (result.raw) tabs.push("raw");
+    if (tabs.length === 0) tabs.push("json");
+  }
+
+  // Pick the initial tab based on user's "Display As" preference
+  const pref = result.preferred_view || "table";
+  const defaultTab = tabs.includes(pref) ? pref : tabs[0];
+
+  renderTabs(tabs);
+  switchTab(defaultTab, result);
+
+  // stderr for dry-run
+  const stderrBox = document.getElementById("stderr-box");
+  if (result.stderr && !result.success) {
+    stderrBox.style.display = "none";
+  } else if (result.stderr) {
+    stderrBox.style.display = "block";
+    stderrBox.textContent = result.stderr;
+  } else {
+    stderrBox.style.display = "none";
+  }
+
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function renderTabs(tabs) {
+  const container = document.getElementById("result-tabs");
+  container.innerHTML = "";
+  for (const tab of tabs) {
+    const btn = document.createElement("button");
+    btn.className = "result-tab";
+    btn.dataset.tab = tab;
+    btn.textContent = tab.charAt(0).toUpperCase() + tab.slice(1);
+    btn.addEventListener("click", () => switchTab(tab, lastResult));
+    container.appendChild(btn);
+  }
+}
+
+function switchTab(tab, result) {
+  currentTab = tab;
+  document.querySelectorAll(".result-tab").forEach(b => {
+    b.classList.toggle("active", b.dataset.tab === tab);
+  });
+
+  const content = document.getElementById("result-content");
+  content.classList.remove("table-view");
+
+  if (tab === "error") {
+    content.innerHTML = escHtml(result.error || "Unknown error");
+    return;
+  }
+
+  if (tab === "json") {
+    const obj = result.data !== null && result.data !== undefined ? result.data : {};
+    content.innerHTML = syntaxHighlight(JSON.stringify(obj, null, 2));
+    return;
+  }
+
+  if (tab === "raw") {
+    content.textContent = result.raw || "";
+    return;
+  }
+
+  if (tab === "table") {
+    content.classList.add("table-view");
+    const rows = extractRows(result.data);
+    if (!rows || rows.length === 0) {
+      content.textContent = "(no rows)";
+      return;
+    }
+    content.innerHTML = renderTable(rows);
+    return;
+  }
+}
+
+function extractRows(data) {
+  if (!data) return null;
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data.data)) return data.data;
+  if (Array.isArray(data.events)) return data.events;
+  return null;
+}
+
+function renderTable(rows) {
+  if (!rows || rows.length === 0) return "<div style='padding:12px;color:var(--text-muted)'>(no rows returned)</div>";
+  const keys = Array.from(new Set(rows.flatMap(r => Object.keys(r || {}))));
+  const MAX_CELL = 80;
+
+  const colCount = keys.length;
+  const hint = colCount > 8
+    ? `<div class="table-hint"><span><b>${rows.length}</b> row${rows.length !== 1 ? "s" : ""} · <b>${colCount}</b> columns — scroll horizontally to see all</span><span>Tip: use <b>Columns</b> field to narrow to e.g. <b>id,name,state</b></span></div>`
+    : `<div class="table-hint"><span><b>${rows.length}</b> row${rows.length !== 1 ? "s" : ""}</span></div>`;
+
+  let html = hint + '<div style="overflow-x:auto"><table class="rtable"><thead><tr>';
+  html += '<th class="col-num">#</th>';
+  for (const k of keys) html += `<th>${escHtml(k)}</th>`;
+  html += "</tr></thead><tbody>";
+
+  rows.forEach((row, i) => {
+    html += "<tr>";
+    html += `<td class="col-num">${i + 1}</td>`;
+    for (const k of keys) {
+      let v = row[k];
+      const raw = v === null || v === undefined ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v));
+      const display = raw.length > MAX_CELL ? raw.slice(0, MAX_CELL - 1) + "…" : raw;
+      // Colour-code booleans
+      let extra = "";
+      if (v === true)  extra = " style=\"color:var(--success)\"";
+      if (v === false) extra = " style=\"color:var(--text-muted)\"";
+      html += `<td${extra} title="${escHtml(raw)}">${escHtml(display)}</td>`;
+    }
+    html += "</tr>";
+  });
+
+  html += "</tbody></table></div>";
+  return html;
+}
+
+// ── JSON Syntax Highlighter ─────────────────────────────────────────────────
+function syntaxHighlight(json) {
+  return json
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g,
+      function(match) {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) return `<span class="jk">${match}</span>`;
+          return `<span class="js">${match}</span>`;
+        }
+        if (/true|false/.test(match)) return `<span class="jb">${match}</span>`;
+        if (/null/.test(match)) return `<span class="jx">${match}</span>`;
+        return `<span class="jn">${match}</span>`;
+      }
+    );
+}
+
+// ── Copy / Download ─────────────────────────────────────────────────────────
+document.getElementById("copy-btn").addEventListener("click", () => {
+  if (!lastResult) return;
+  let text;
+  if (currentTab === "json") text = JSON.stringify(lastResult.data, null, 2);
+  else if (currentTab === "table") {
+    const rows = extractRows(lastResult.data) || [];
+    if (rows.length === 0) { text = ""; }
+    else {
+      const keys = Array.from(new Set(rows.flatMap(r => Object.keys(r || {}))));
+      text = [keys.join("\t"), ...rows.map(r => keys.map(k => r[k] ?? "").join("\t"))].join("\n");
+    }
+  }
+  else text = lastResult.raw || lastResult.error || "";
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById("copy-btn");
+    btn.textContent = "✓ Copied";
+    setTimeout(() => btn.textContent = "📋 Copy", 1500);
+  });
+});
+
+document.getElementById("dl-btn").addEventListener("click", async () => {
+  if (!lastResult) return;
+
+  // Agent Versions: export as Excel via backend
+  if (activeCmd?.id === "latest-agent-versions" && _avAllRows.length > 0) {
+    await _avExcelExport(_avAllRows);
+    return;
+  }
+
+  let text, ext;
+  if (currentTab === "json") { text = JSON.stringify(lastResult.data, null, 2); ext = "json"; }
+  else if (currentTab === "table") {
+    const rows = extractRows(lastResult.data) || [];
+    const keys = Array.from(new Set(rows.flatMap(r => Object.keys(r || {}))));
+    text = [keys.join(","), ...rows.map(r => keys.map(k => csvCell(r[k])).join(","))].join("\n");
+    ext = "csv";
+  }
+  else { text = lastResult.raw || ""; ext = "txt"; }
+
+  const blob = new Blob([text], { type: "text/plain" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `s1am-${activeCmd?.id || "result"}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+
+function csvCell(v) {
+  if (v === null || v === undefined) return "";
+  const s = typeof v === "object" ? JSON.stringify(v) : String(v);
+  if (s.includes(",") || s.includes('"') || s.includes("\n")) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// ── Credentials Modal ───────────────────────────────────────────────────────
+let credModalJustOpened = false;
+
+async function openCredModal() {
+  document.getElementById("cred-error").style.display = "none";
+  document.getElementById("ci-token").value = "";
+  document.getElementById("ci-pq").value = "";
+  document.getElementById("ci-token-src").textContent = "";
+  document.getElementById("ci-pq-src").textContent = "";
+
+  try {
+    const creds = await fetch("/api/credentials").then(r => r.json());
+
+    if (creds.base_url) document.getElementById("ci-url").value = creds.base_url;
+    if (creds.auth_prefix) document.getElementById("ci-prefix").value = creds.auth_prefix;
+
+    const srcIcon = src => src === "none" ? "" : src === "config file" ? "📄 " : src === "env" ? "🌍 " : "🔑 ";
+
+    if (creds.mgmt_set) {
+      document.getElementById("ci-token-src").innerHTML =
+        `<span style="color:var(--success)">${srcIcon(creds.mgmt_source)}Token already loaded from <b>${creds.mgmt_source}</b> — leave blank to keep it</span>`;
+    } else {
+      document.getElementById("ci-token-src").textContent = "Not set";
+    }
+
+    if (creds.pq_set) {
+      document.getElementById("ci-pq-src").innerHTML =
+        `<span style="color:var(--success)">${srcIcon(creds.pq_source)}Token already loaded from <b>${creds.pq_source}</b> — leave blank to keep it</span>`;
+    } else {
+      document.getElementById("ci-pq-src").textContent = "Not set";
+    }
+  } catch (e) {
+    // non-fatal
+  }
+
+  document.getElementById("cred-modal").classList.remove("hidden");
+  credModalJustOpened = true;
+  setTimeout(() => credModalJustOpened = false, 100);
+}
+
+function closeCredModal() {
+  document.getElementById("cred-modal").classList.add("hidden");
+}
+
+document.getElementById("settings-btn").addEventListener("click", openCredModal);
+document.getElementById("cred-cancel-btn").addEventListener("click", closeCredModal);
+
+document.getElementById("cred-modal").addEventListener("click", e => {
+  if (!credModalJustOpened && e.target === document.getElementById("cred-modal")) closeCredModal();
+});
+
+document.getElementById("cred-save-btn").addEventListener("click", async () => {
+  const url    = document.getElementById("ci-url").value.trim();
+  const token  = document.getElementById("ci-token").value.trim();
+  const pq     = document.getElementById("ci-pq").value.trim();
+  const prefix = document.getElementById("ci-prefix").value.trim() || "APIToken";
+  const errEl  = document.getElementById("cred-error");
+
+  if (!url) { errEl.textContent = "Base URL is required."; errEl.style.display = "block"; return; }
+
+  // Only send token fields if the user actually typed something;
+  // blank = keep whatever is already resolved from config file / env vars.
+  const payload = { base_url: url, auth_prefix: prefix };
+  if (token) payload.api_token = token;
+  if (pq)    payload.pq_token  = pq;
+
+  await fetch("/api/credentials", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  await refreshStatus();
+  closeCredModal();
+});
+
+// ── Keyboard shortcuts ──────────────────────────────────────────────────────
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeCredModal();
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") runCommand();
+});
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ── Agent Versions Page ──────────────────────────────────────────────────────
+
+const AV_CACHE_KEY = "s1am_av_cache_v3";
+let _avAllRows     = [];
+let _avSortKey     = null;
+let _avSortDir     = "asc";
+let _avFilter      = "";
+let _avAbortCtrl   = null;
+
+// ── Cache helpers ────────────────────────────────────────────────────────────
+
+function _avLoadCache() {
+  try {
+    const raw = localStorage.getItem(AV_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function _avSaveCache(rows) {
+  try {
+    localStorage.setItem(AV_CACHE_KEY, JSON.stringify({
+      rows,
+      saved_at: new Date().toISOString(),
+    }));
+  } catch {}
+}
+
+// Called when the user navigates to latest-agent-versions
+function _avOnSelect() {
+  _avSortKey = null; _avSortDir = "asc"; _avFilter = "";
+  const cache = _avLoadCache();
+  if (cache && Array.isArray(cache.rows) && cache.rows.length > 0) {
+    _avAllRows = cache.rows;
+    lastResult = { success: true, data: _avAllRows, preferred_view: "table" };
+    currentTab = "table";
+    const card = document.getElementById("results-card");
+    card.style.display = "block";
+    document.getElementById("result-status").innerHTML = '<span class="badge-dry">📦 Cached</span>';
+    document.getElementById("result-tabs").innerHTML = "";
+    document.getElementById("cli-hint").style.display = "none";
+    document.getElementById("stderr-box").style.display = "none";
+    document.getElementById("result-content").classList.add("table-view");
+    document.getElementById("dl-btn").title = "Export Excel";
+    document.getElementById("dl-btn").textContent = "⬇ Export Excel";
+    const savedAt = new Date(cache.saved_at);
+    document.getElementById("run-meta").textContent =
+      "Cached · " + savedAt.toLocaleString();
+    _avShowTable();
+  } else {
+    _avAllRows = [];
+  }
+}
+
+// ── Sort / Filter ────────────────────────────────────────────────────────────
+
+function _avSort(key) {
+  if (_avSortKey === key) {
+    _avSortDir = _avSortDir === "asc" ? "desc" : "asc";
+  } else {
+    _avSortKey = key;
+    _avSortDir = "asc";
+  }
+  _avShowTable();
+}
+
+// ── Table rendering ──────────────────────────────────────────────────────────
+
+const AV_COLUMNS = [
+  { key: "console", label: "Console" },
+  { key: "Windows", label: "Windows" },
+  { key: "Linux",   label: "Linux" },
+  { key: "macOS",   label: "macOS" },
+];
+
+function _avStatusBadge(s) {
+  if (s === "OK")      return '<span class="badge-ok">✓ OK</span>';
+  if (s === "Failed")  return '<span class="badge-err">✗ Failed</span>';
+  if (s === "Partial") return '<span class="badge-partial">⚠ Partial</span>';
+  if (s === "Timeout") return '<span class="badge-err">⏱ Timeout</span>';
+  if (!s || s === "Fetching")
+    return '<span class="badge-fetch"><span class="spinner"></span>Fetching</span>';
+  return escHtml(s);
+}
+
+function _avShowTable() {
+  const content = document.getElementById("result-content");
+  content.classList.add("table-view");
+
+  const lc = _avFilter.toLowerCase();
+  let rows = _avAllRows;
+  if (lc) {
+    rows = rows.filter(r =>
+      Object.values(r).some(v => String(v || "").toLowerCase().includes(lc))
+    );
+  }
+  if (_avSortKey) {
+    rows = [...rows].sort((a, b) => {
+      const va = String(a[_avSortKey] || "");
+      const vb = String(b[_avSortKey] || "");
+      const cmp = va.localeCompare(vb, undefined, { numeric: true, sensitivity: "base" });
+      return _avSortDir === "asc" ? cmp : -cmp;
+    });
+  }
+
+  const sortArrow = (key) => {
+    if (_avSortKey !== key) return '<span class="sort-arrow">⇅</span>';
+    return _avSortDir === "asc"
+      ? '<span class="sort-arrow active">▲</span>'
+      : '<span class="sort-arrow active">▼</span>';
+  };
+
+  const renderCell = (v, isFetching) => {
+    if (isFetching) return '<span class="badge-fetch"><span class="spinner"></span></span>';
+    const raw = v == null ? "—" : String(v);
+    if (raw === "Not Available") return `<span style="color:var(--text-muted)">${escHtml(raw)}</span>`;
+    if (raw === "Error")         return `<span style="color:var(--error)">${escHtml(raw)}</span>`;
+    return `<span title="${escHtml(raw)}">${escHtml(raw)}</span>`;
+  };
+
+  let html = `
+    <div class="av-search-row">
+      <input type="text" id="av-filter" placeholder="Search consoles…"
+        value="${escHtml(_avFilter)}" autocomplete="off">
+      <span style="font-size:12px;color:var(--text-muted)">
+        <b>${rows.length}</b> of <b>${_avAllRows.length}</b> console${_avAllRows.length !== 1 ? "s" : ""}
+      </span>
+    </div>
+    <div class="av-table-wrap">
+    <table class="av-rtable">
+      <thead><tr>
+        <th class="col-num">#</th>`;
+
+  for (const col of AV_COLUMNS) {
+    html += `<th onclick="_avSort('${col.key}')">${escHtml(col.label)}${sortArrow(col.key)}</th>`;
+  }
+  html += "</tr></thead><tbody>";
+
+  rows.forEach((row, i) => {
+    const fetching = !!row._fetching;
+    html += "<tr>";
+    html += `<td class="col-num">${i + 1}</td>`;
+    for (const col of AV_COLUMNS) {
+      const isFetchingCell = fetching && col.key !== "console";
+      html += `<td>${renderCell(row[col.key], isFetchingCell)}</td>`;
+    }
+    html += "</tr>";
+  });
+
+  html += "</tbody></table></div>";
+  content.innerHTML = html;
+
+  const fi = document.getElementById("av-filter");
+  if (fi) {
+    fi.addEventListener("input", (e) => { _avFilter = e.target.value; _avShowTable(); });
+  }
+}
+
+// ── Streaming ────────────────────────────────────────────────────────────────
+
+async function _streamAgentVersions(profiles, meta, t0, extraBody) {
+  const card      = document.getElementById("results-card");
+  const statusEl  = document.getElementById("result-status");
+  const content   = document.getElementById("result-content");
+  const tabsEl    = document.getElementById("result-tabs");
+  const cliHint   = document.getElementById("cli-hint");
+  const stderrBox = document.getElementById("stderr-box");
+  const dlBtn     = document.getElementById("dl-btn");
+
+  card.style.display  = "block";
+  stderrBox.style.display = "none";
+  cliHint.style.display   = "none";
+  tabsEl.innerHTML        = "";
+  dlBtn.title             = "Export Excel";
+  dlBtn.textContent       = "⬇ Export Excel";
+  content.classList.add("table-view");
+  statusEl.innerHTML = '<span class="badge-dry">⟳ Refreshing</span>';
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  // Abort any in-flight refresh
+  if (_avAbortCtrl) _avAbortCtrl.abort();
+  _avAbortCtrl = new AbortController();
+
+  const pendingSet = new Set();
+
+  try {
+    const resp = await fetch("/api/agent-versions-stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(Object.assign({ profiles }, extraBody || {})),
+      signal: _avAbortCtrl.signal,
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      renderResult({ success: false, error: err.error || `HTTP ${resp.status}` });
+      return;
+    }
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = "";
+    let total = 0;
+    let received = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith("data: ")) continue;
+        let payload;
+        try { payload = JSON.parse(line.slice(6)); } catch { continue; }
+
+        // ── Init message ──────────────────────────────────────────────────
+        if (payload.__total__ !== undefined) {
+          total = payload.__total__;
+          meta.textContent = `0 / ${total} consoles`;
+
+          if (Array.isArray(payload.__consoles__)) {
+            for (const consoleName of payload.__consoles__) {
+              pendingSet.add(consoleName);
+              const idx = _avAllRows.findIndex(r => r.console === consoleName);
+              const placeholder = {
+                console:   consoleName,
+                Windows:   "—",
+                Linux:     "—",
+                macOS:     "—",
+                _fetching: true,
+              };
+              if (idx === -1) {
+                _avAllRows.push(placeholder);
+              } else {
+                _avAllRows[idx] = { ..._avAllRows[idx], _fetching: true };
+              }
+            }
+            _avShowTable();
+          }
+          continue;
+        }
+
+        // ── Done signal ───────────────────────────────────────────────────
+        if (payload.__done__) {
+          const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
+          meta.textContent = `${elapsed}s`;
+          statusEl.innerHTML = '<span class="badge-ok">✓ Refreshed</span>';
+          lastResult = { success: true, data: _avAllRows, preferred_view: "table" };
+          currentTab = "table";
+          _avSaveCache(_avAllRows);
+          _avShowTable();
+          continue;
+        }
+
+        // ── Row result ────────────────────────────────────────────────────
+        const consoleName = payload.console;
+        pendingSet.delete(consoleName);
+        const idx = _avAllRows.findIndex(r => r.console === consoleName);
+        if (idx !== -1) {
+          _avAllRows[idx] = payload;
+        } else {
+          _avAllRows.push(payload);
+        }
+        received++;
+        meta.textContent = `${received} / ${total || "?"} consoles`;
+        _avShowTable();
+      }
+    }
+  } catch (e) {
+    if (e.name === "AbortError") return;
+    renderResult({ success: false, error: String(e) });
+  }
+}
+
+// ── Excel export ─────────────────────────────────────────────────────────────
+
+async function _avExcelExport(rows) {
+  const dlBtn = document.getElementById("dl-btn");
+  const orig  = dlBtn.textContent;
+  dlBtn.textContent = "⏳ Exporting…";
+  dlBtn.disabled = true;
+  try {
+    const resp = await fetch("/api/agent-versions-export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      alert("Excel export failed: " + (err.error || resp.status));
+      return;
+    }
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "agent-versions.xlsx";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert("Excel export error: " + e);
+  } finally {
+    dlBtn.textContent = orig;
+    dlBtn.disabled = false;
+  }
+}
+</script>
+{% endraw %}
+</body>
+</html>
