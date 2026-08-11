@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SentinelOne Account Manager — a Python CLI and browser UI for automating SentinelOne account management via the MGMT API v2.1.">
+  <title>S1 Account Manager — SentinelOne Management Portal</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #0d1117;
+      --surface:    #161b27;
+      --surface-2:  #1e2538;
+      --border:     #2a3050;
+      --primary:    #7c3aed;
+      --primary-h:  #6d28d9;
+      --primary-a:  rgba(124,58,237,.18);
+      --success:    #10b981;
+      --error:      #ef4444;
+      --warn:       #f59e0b;
+      --text:       #e2e8f0;
+      --text-dim:   #94a3b8;
+      --text-muted: #4b5563;
+      --mono:       'JetBrains Mono','Fira Code','Cascadia Code',ui-monospace,monospace;
+      --radius:     6px;
+      --max-w:      1100px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body { background: var(--bg); color: var(--text); font-family: system-ui,-apple-system,sans-serif; font-size: 15px; line-height: 1.6; }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,17,23,.92); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px; height: 56px;
+      display: flex; align-items: center; gap: 24px;
+    }
+    .nav-logo { font-weight: 700; font-size: 17px; color: #fff; display: flex; align-items: center; gap: 8px; text-decoration: none; }
+    .nav-logo-icon { font-size: 20px; }
+    .badge { font-size: 11px; background: var(--primary-a); color: var(--primary); border: 1px solid var(--primary); border-radius: 99px; padding: 1px 8px; }
+    .nav-links { display: flex; gap: 20px; margin-left: auto; }
+    .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 14px; transition: color .15s; }
+    .nav-links a:hover { color: var(--text); }
+
+    /* ── Hero ── */
+    .hero {
+      max-width: var(--max-w); margin: 0 auto; padding: 80px 24px 64px;
+      text-align: center;
+    }
+    .hero-tag { display: inline-flex; align-items: center; gap: 6px; background: var(--primary-a); border: 1px solid var(--primary); border-radius: 99px; padding: 4px 14px; font-size: 13px; color: var(--primary); margin-bottom: 24px; }
+    h1 { font-size: clamp(2rem, 5vw, 3.2rem); font-weight: 800; letter-spacing: -.5px; line-height: 1.15; margin-bottom: 20px; }
+    h1 span { background: linear-gradient(135deg, #7c3aed, #a78bfa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .hero-sub { font-size: 1.1rem; color: var(--text-dim); max-width: 560px; margin: 0 auto 36px; }
+    .hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: var(--radius); padding: 10px 20px; font-size: 14px; font-weight: 500; text-decoration: none; transition: background .15s, border-color .15s, color .15s; }
+    .btn:hover { background: var(--surface); border-color: var(--primary); color: var(--primary); }
+    .btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .btn-primary:hover { background: var(--primary-h); border-color: var(--primary-h); color: #fff; }
+
+    /* ── Code block ── */
+    .code-block {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 20px; font-family: var(--mono); font-size: 13px; line-height: 1.7;
+      text-align: left; overflow-x: auto; max-width: 640px; margin: 0 auto;
+    }
+    .code-block .c { color: var(--text-muted); }
+    .code-block .p { color: var(--success); }
+    .code-block .k { color: var(--primary); }
+
+    /* ── Section ── */
+    section { max-width: var(--max-w); margin: 0 auto; padding: 64px 24px; }
+    .section-label { font-size: 12px; font-weight: 600; letter-spacing: .8px; text-transform: uppercase; color: var(--primary); margin-bottom: 8px; }
+    h2 { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 700; margin-bottom: 12px; }
+    .section-sub { color: var(--text-dim); max-width: 520px; margin-bottom: 40px; }
+
+    /* ── Features grid ── */
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .feature-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 20px; transition: border-color .15s;
+    }
+    .feature-card:hover { border-color: var(--primary); }
+    .feature-icon { font-size: 22px; margin-bottom: 10px; }
+    .feature-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+    .feature-desc { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+    .feature-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .tag { font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 8px; color: var(--text-muted); }
+
+    /* ── Steps ── */
+    .steps { display: flex; flex-direction: column; gap: 20px; }
+    .step { display: flex; gap: 16px; }
+    .step-num { flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%; background: var(--primary-a); border: 1px solid var(--primary); color: var(--primary); font-size: 13px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 2px; }
+    .step-content h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .step-content p { font-size: 13px; color: var(--text-dim); margin-bottom: 8px; }
+    .step-content code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+    .step-code { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 16px; font-family: var(--mono); font-size: 12px; line-height: 1.7; margin-top: 8px; overflow-x: auto; }
+
+    /* ── UI preview ── */
+    .ui-preview {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .ui-preview-bar { background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 10px 14px; display: flex; align-items: center; gap: 8px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot-r { background: #ef4444; }
+    .dot-y { background: #f59e0b; }
+    .dot-g { background: #10b981; }
+    .ui-preview-url { font-family: var(--mono); font-size: 12px; color: var(--text-muted); margin-left: 8px; }
+    .ui-preview-inner { display: flex; height: 320px; }
+    .ui-sidebar { width: 220px; flex-shrink: 0; border-right: 1px solid var(--border); padding: 10px 0; overflow: hidden; }
+    .ui-cat { padding: 8px 14px 3px; font-size: 10px; font-weight: 600; letter-spacing: .6px; color: var(--text-muted); text-transform: uppercase; }
+    .ui-item { padding: 5px 14px 5px 26px; font-size: 12px; color: var(--text-dim); }
+    .ui-item.active { background: var(--primary-a); color: var(--primary); border-right: 2px solid var(--primary); font-weight: 500; }
+    .ui-main { flex: 1; padding: 16px; overflow: hidden; }
+    .ui-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 12px; margin-bottom: 10px; }
+    .ui-card-title { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+    .ui-card-desc { font-size: 11px; color: var(--text-muted); }
+    .ui-form-row { display: flex; gap: 8px; margin-top: 10px; }
+    .ui-input { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; height: 28px; font-size: 11px; padding: 0 8px; color: var(--text-dim); font-family: var(--mono); }
+    .ui-btn-run { background: var(--primary); border: none; border-radius: 4px; color: #fff; padding: 0 12px; font-size: 11px; font-weight: 600; height: 28px; white-space: nowrap; }
+    .ui-output { background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 8px; font-family: var(--mono); font-size: 11px; color: var(--success); line-height: 1.6; }
+
+    /* ── Divider ── */
+    hr { border: none; border-top: 1px solid var(--border); }
+
+    /* ── Two col ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: start; }
+    @media (max-width: 720px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── Alert box ── */
+    .alert { display: flex; gap: 12px; background: rgba(245,158,11,.08); border: 1px solid rgba(245,158,11,.3); border-radius: var(--radius); padding: 14px 16px; font-size: 13px; color: var(--text-dim); margin-top: 24px; }
+    .alert-icon { flex-shrink: 0; font-size: 16px; margin-top: 1px; }
+
+    /* ── Footer ── */
+    footer { border-top: 1px solid var(--border); padding: 32px 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+    footer a { color: var(--text-dim); text-decoration: none; }
+    footer a:hover { color: var(--primary); }
+    footer .footer-links { display: flex; gap: 20px; justify-content: center; margin-top: 8px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<nav>
+  <a href="#" class="nav-logo">
+    <span class="nav-logo-icon">🛡</span>
+    s1am
+    <span class="badge">v2.2</span>
+  </a>
+  <div class="nav-links">
+    <a href="#features">Features</a>
+    <a href="#getting-started">Get Started</a>
+    <a href="#web-ui">Web UI</a>
+    <a href="README.md">Docs</a>
+    <a href="https://github.com/pavanmudalagi/S1adminportal" target="_blank">GitHub ↗</a>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<div class="hero">
+  <div class="hero-tag">⚡ SentinelOne MGMT API v2.1</div>
+  <h1>
+    Manage <span>SentinelOne</span><br>accounts at scale
+  </h1>
+  <p class="hero-sub">
+    A Python CLI and browser-based portal for automating account, site, agent, threat, and metering operations — without writing a single API call.
+  </p>
+  <div class="hero-actions">
+    <a href="#getting-started" class="btn btn-primary">▶ Get started</a>
+    <a href="#web-ui" class="btn">🖥 Web UI preview</a>
+    <a href="https://github.com/pavanmudalagi/S1adminportal" class="btn" target="_blank">⭐ View on GitHub</a>
+  </div>
+
+  <div style="margin-top:40px;">
+    <div class="code-block">
+      <span class="c"># install &amp; run the web portal</span><br>
+      <span class="p">$</span> git clone https://github.com/pavanmudalagi/S1adminportal<br>
+      <span class="p">$</span> cd S1adminportal &amp;&amp; pip install -r requirements.txt<br>
+      <span class="p">$</span> <span class="k">./scripts/start.sh</span>
+    </div>
+  </div>
+</div>
+
+<hr>
+
+<!-- ── Features ── -->
+<section id="features">
+  <div class="section-label">Capabilities</div>
+  <h2>Everything in one place</h2>
+  <p class="section-sub">40+ operations across every major SentinelOne resource — run from a CLI or a browser form in seconds.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="feature-icon">🏢</div>
+      <div class="feature-title">Account Management</div>
+      <div class="feature-desc">List, get, create, and configure accounts. Manage policies, update settings, and switch tenants.</div>
+      <div class="feature-tags">
+        <span class="tag">list-accounts</span>
+        <span class="tag">get-account</span>
+        <span class="tag">account-policy</span>
+        <span class="tag">create-account</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🌐</div>
+      <div class="feature-title">Site Management</div>
+      <div class="feature-desc">Browse and manage all sites across your accounts. List, create, update, and delete sites.</div>
+      <div class="feature-tags">
+        <span class="tag">list-sites</span>
+        <span class="tag">create-site</span>
+        <span class="tag">update-site</span>
+        <span class="tag">delete-site</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🤖</div>
+      <div class="feature-title">Agent Operations</div>
+      <div class="feature-desc">Query agents, trigger scans, initiate decommission, move agents between sites, and manage endpoints.</div>
+      <div class="feature-tags">
+        <span class="tag">list-agents</span>
+        <span class="tag">initiate-scan</span>
+        <span class="tag">decommission</span>
+        <span class="tag">move-agents</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔴</div>
+      <div class="feature-title">Threat Response</div>
+      <div class="feature-desc">List and investigate active threats, mark as resolved, and take mitigation actions.</div>
+      <div class="feature-tags">
+        <span class="tag">list-threats</span>
+        <span class="tag">resolve-threat</span>
+        <span class="tag">threat-summary</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">📊</div>
+      <div class="feature-title">Usage Metering</div>
+      <div class="feature-desc">Pull billing-period endpoint counts, usage reports per account or site, and compare periods via PowerQuery.</div>
+      <div class="feature-tags">
+        <span class="tag">usage-report</span>
+        <span class="tag">endpoint-count</span>
+        <span class="tag">metering-summary</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🔧</div>
+      <div class="feature-title">Groups &amp; Exclusions</div>
+      <div class="feature-desc">Manage agent groups and path/process exclusions at the account or site level.</div>
+      <div class="feature-tags">
+        <span class="tag">list-groups</span>
+        <span class="tag">list-exclusions</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">⚙️</div>
+      <div class="feature-title">Config &amp; XDR</div>
+      <div class="feature-desc">Manage configuration overrides and query the XDR / Data Lake for deep endpoint telemetry.</div>
+      <div class="feature-tags">
+        <span class="tag">config-override</span>
+        <span class="tag">xdr-query</span>
+        <span class="tag">data-lake</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">🚀</div>
+      <div class="feature-title">Multi-profile Support</div>
+      <div class="feature-desc">Switch between tenants instantly with named profiles. Credentials are stored securely, never in plain config files.</div>
+      <div class="feature-tags">
+        <span class="tag">--profile</span>
+        <span class="tag">multiple tenants</span>
+        <span class="tag">session-based</span>
+      </div>
+    </div>
+
+    <div class="feature-card">
+      <div class="feature-icon">📤</div>
+      <div class="feature-title">Flexible Output</div>
+      <div class="feature-desc">Get results as a formatted table, raw JSON, or CSV. Use <code>--columns</code> to select fields, pipe into <code>jq</code> or spreadsheets.</div>
+      <div class="feature-tags">
+        <span class="tag">table</span>
+        <span class="tag">json</span>
+        <span class="tag">csv</span>
+        <span class="tag">--columns</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Getting Started ── -->
+<section id="getting-started">
+  <div class="two-col">
+    <div>
+      <div class="section-label">Installation</div>
+      <h2>Get started in minutes</h2>
+      <p class="section-sub">Runs on Python 3.9+. No external services required.</p>
+
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Clone &amp; install</h3>
+            <div class="step-code">git clone https://github.com/pavanmudalagi/S1adminportal<br>cd S1adminportal<br>python -m venv .venv &amp;&amp; source .venv/bin/activate<br>pip install -r requirements.txt</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Set credentials</h3>
+            <p>Export your SentinelOne credentials (or let the CLI prompt you):</p>
+            <div class="step-code">export S1_BASE_URL="https://your-tenant.sentinelone.net"<br>export S1_API_TOKEN="your-api-token"<br>export S1_AUTH_PREFIX="APIToken"</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Run the CLI</h3>
+            <div class="step-code">python -m s1am list-accounts<br>python -m s1am list-agents --all<br>python -m s1am --profile acme list-sites</div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">4</div>
+          <div class="step-content">
+            <h3>Or launch the Web UI</h3>
+            <div class="step-code">./scripts/start.sh<br><span style="color:var(--text-muted)"># opens http://127.0.0.1:5173</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-label" style="margin-top:4px;">Standalone Binary</div>
+      <h2>No Python needed</h2>
+      <p style="color:var(--text-dim); font-size:13px; margin-bottom:16px;">Build a self-contained executable with PyInstaller. Share with teammates who don't have Python installed.</p>
+      <div class="step-code">./scripts/build_standalone.sh<br><br><span style="color:var(--text-muted)"># Generates release/ with:</span><br><span style="color:var(--success)">release/s1am</span>          <span style="color:var(--text-muted)"># standalone binary</span><br><span style="color:var(--success)">release/README.md</span><br><span style="color:var(--success)">release/.env.example</span>  <span style="color:var(--text-muted)"># no real tokens</span><br><span style="color:var(--success)">release/QUICKSTART.txt</span></div>
+
+      <div style="margin-top:24px;">
+        <div class="section-label">Configuration</div>
+        <div style="font-size:13px; color:var(--text-dim); margin-top:8px; line-height:1.7;">
+          Credentials are resolved in priority order:<br>
+          <strong style="color:var(--text)">1.</strong> Environment variables<br>
+          <strong style="color:var(--text)">2.</strong> <code>~/.config/s1am/config</code> profile file<br>
+          <strong style="color:var(--text)">3.</strong> Interactive prompt at runtime (hidden input)<br>
+        </div>
+      </div>
+
+      <div style="margin-top:24px;">
+        <div class="section-label">Named Profiles</div>
+        <div class="step-code" style="margin-top:8px;">python -m s1am --profile acme list-accounts<br>python -m s1am --profile prod list-agents</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Web UI ── -->
+<section id="web-ui">
+  <div class="section-label">Browser Interface</div>
+  <h2>A full portal — no command line required</h2>
+  <p class="section-sub">Launch the Flask web server locally and manage SentinelOne from any browser.</p>
+
+  <!-- UI Mock -->
+  <div class="ui-preview" style="margin-bottom:32px;">
+    <div class="ui-preview-bar">
+      <span class="dot dot-r"></span>
+      <span class="dot dot-y"></span>
+      <span class="dot dot-g"></span>
+      <span class="ui-preview-url">http://127.0.0.1:5173</span>
+    </div>
+    <div class="ui-preview-inner">
+      <div class="ui-sidebar">
+        <div class="ui-cat">Accounts</div>
+        <div class="ui-item active">List Accounts</div>
+        <div class="ui-item">Get Account</div>
+        <div class="ui-item">Create Account</div>
+        <div class="ui-cat">Sites</div>
+        <div class="ui-item">List Sites</div>
+        <div class="ui-item">Create Site</div>
+        <div class="ui-cat">Agents</div>
+        <div class="ui-item">List Agents</div>
+        <div class="ui-item">Initiate Scan</div>
+        <div class="ui-cat">Threats</div>
+        <div class="ui-item">List Threats</div>
+        <div class="ui-cat">Metering</div>
+        <div class="ui-item">Usage Report</div>
+      </div>
+      <div class="ui-main">
+        <div class="ui-card">
+          <div class="ui-card-title">List Accounts</div>
+          <div class="ui-card-desc">Fetch all accounts from the SentinelOne management console</div>
+          <div class="ui-form-row">
+            <input class="ui-input" placeholder="Search by name…" readonly>
+            <input class="ui-input" placeholder="Limit" style="max-width:80px;" readonly>
+            <button class="ui-btn-run">▶ Run</button>
+          </div>
+        </div>
+        <div class="ui-output">
+          id               name              status    createdAt<br>
+          ─────────────────────────────────────────────────────<br>
+          <span style="color:var(--text)">123456789012345  Acme Corp         active    2023-01-15</span><br>
+          <span style="color:var(--text)">987654321098765  Demo Account      active    2023-06-01</span><br>
+          <span style="color:var(--text-muted)">2 accounts  ·  table view</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <h3 style="font-size:16px; margin-bottom:10px;">How to run the Web UI</h3>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Start the server</h3>
+            <div class="step-code">./scripts/start.sh<br><span style="color:var(--text-muted)"># or: python run_web.py</span><br><span style="color:var(--text-muted)"># or: ./scripts/start.sh --port 8080</span></div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Enter credentials in the UI</h3>
+            <p>The first time you open the portal, you'll be prompted for your SentinelOne base URL and API token. Credentials are stored in a signed session cookie — never written to disk.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Switch profiles</h3>
+            <p>Use the profile selector in the top bar to switch tenants. Display names are persisted in <code>~/.config/s1am/web_labels.json</code>.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div>
+      <h3 style="font-size:16px; margin-bottom:10px;">Web UI Features</h3>
+      <ul style="list-style:none; display:flex; flex-direction:column; gap:10px;">
+        <li style="display:flex; gap:10px; font-size:13px; color:var(--text-dim);">
+          <span style="color:var(--success);">✓</span>
+          <span>40+ operations across Accounts, Sites, Agents, Threats, Metering, Config, XDR</span>
+        </li>
+        <li style="display:flex; gap:10px; font-size:13px; color:var(--text-dim);">
+          <span style="color:var(--success);">✓</span>
+          <span>Table, JSON, and CSV output — copy results to clipboard in one click</span>
+        </li>
+        <li style="display:flex; gap:10px; font-size:13px; color:var(--text-dim);">
+          <span style="color:var(--success);">✓</span>
+          <span>Real-time streaming output — long-running paginated queries show progress live</span>
+        </li>
+        <li style="display:flex; gap:10px; font-size:13px; color:var(--text-dim);">
+          <span style="color:var(--success);">✓</span>
+          <span>Multi-profile — manage multiple SentinelOne tenants from the same portal</span>
+        </li>
+        <li style="display:flex; gap:10px; font-size:13px; color:var(--text-dim);">
+          <span style="color:var(--success);">✓</span>
+          <span>All operations run as CLI subprocesses — full audit trail in your terminal</span>
+        </li>
+      </ul>
+
+      <div class="alert">
+        <span class="alert-icon">⚠</span>
+        <span>
+          The web portal requires a locally running Python/Flask server. GitHub Pages serves this landing page only — to use the full portal, clone the repo and run <code>./scripts/start.sh</code> on your machine.
+        </span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr>
+
+<!-- ── Footer ── -->
+<footer>
+  <div>Built for N-able SentinelOne account management · MIT License</div>
+  <div class="footer-links">
+    <a href="README.md">README</a>
+    <a href="USER_MANUAL.md">User Manual</a>
+    <a href="RELEASE_NOTES.md">Release Notes</a>
+    <a href="https://github.com/pavanmudalagi/S1adminportal" target="_blank">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>

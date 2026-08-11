@@ -16,3 +16,4 @@ __pycache__/
 *.har
 console*.txt
 console*.json
+_site/

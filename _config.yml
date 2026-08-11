@@ -1,0 +1,26 @@
+title: "S1 Account Manager"
+description: "SentinelOne Account Management Portal — CLI and browser UI for the SentinelOne MGMT API v2.1."
+baseurl: "/S1adminportal"
+url: "https://pavanmudalagi.github.io"
+
+exclude:
+  - src/
+  - tests/
+  - scripts/
+  - docs/
+  - build/
+  - dist/
+  - release/
+  - .venv/
+  - .venv-build/
+  - .pytest_cache/
+  - .claude/
+  - requirements.txt
+  - pyproject.toml
+  - s1am.spec
+  - run_web.py
+  - run_s1am.py
+  - .env.example
+  - CLAUDE.md
+  - "*.py"
+  - "*.spec"
