@@ -1292,6 +1292,14 @@ def api_account_save():
                 return jsonify({"error": "Not saved: " + "; ".join(errors), "errors": errors}), 400
         if lic:
             pd["licenses"] = lic
+        # First-time Prompt provisioning on an existing account: the editor sends promptFields
+        # only when the account has no tenant yet. Whether they are *required* is the API's
+        # call (it knows if a tenant exists), so required=False here.
+        if body.get("promptFields"):
+            pf, pf_errors = account_fields.build_prompt_fields(body["promptFields"], required=False)
+            if pf_errors:
+                return jsonify({"error": "Not saved: " + "; ".join(pf_errors), "errors": pf_errors}), 400
+            pd["promptFields"] = pf
         result = client.request("PUT", f"accounts/{account_id}", payload={"data": pd})
         return jsonify({"success": True, "result": result})
     except Exception as exc:

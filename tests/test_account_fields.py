@@ -207,3 +207,32 @@ def test_prompt_region_sent_only_when_flag_enabled(monkeypatch):
     out, errors = af.build_prompt_fields(pf, required=True, default_region="useast")
     assert errors == [] and out["promptRegion"] == "useast"
     assert "Prompt region is required" in af.build_prompt_fields(pf, required=True)[1][0]
+
+
+def test_account_save_sends_prompt_fields_only_when_given():
+    import s1am.components.app as a
+    from s1am.api.exceptions import SentinelOneError
+    calls = []
+
+    class C:
+        def request(self, m, path, params=None, payload=None):
+            calls.append((m, path, payload)); return {"data": {}}
+
+    a._build_client_for_console = lambda c: C()
+    a._editor_target = lambda b: ("x", "1")
+    client = a.app.test_client()
+    bundles = [{"name": "prompt_employees", "surfaces": [{"name": "Total Employees", "count": 5}]}]
+
+    r = client.post("/api/account-save", json={"name": "N", "bundles": bundles, "modules": [], "settings": [],
+        "promptFields": {"promptTenantName": "n_tenant",
+                         "promptUsers": [{"promptUserName": "P", "promptUserEmail": "p@x.com"}]}})
+    assert r.status_code == 200
+    assert calls[-1][2]["data"]["promptFields"] == {
+        "promptTenantName": "n_tenant", "promptUserName": "P", "promptUserEmail": "p@x.com"}
+
+    r = client.post("/api/account-save", json={"name": "N", "bundles": bundles, "modules": [], "settings": []})
+    assert r.status_code == 200 and "promptFields" not in calls[-1][2]["data"]
+
+    r = client.post("/api/account-save", json={"name": "N",
+        "promptFields": {"promptTenantName": "bad name", "promptUsers": []}})
+    assert r.status_code == 400 and "no spaces" in r.json["error"]

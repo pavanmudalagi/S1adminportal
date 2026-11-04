@@ -31,7 +31,9 @@ docs and a sample response disagree, the Swagger schema wins. Re-verify here fir
 Consequences:
   * PUT accepts usageType and billingMode; both are editable in the modal. LOCK_ON_EDIT can
     re-lock either one with a single entry if a console turns out to reject the change.
-  * promptFields is not documented anywhere, so it is display-only: never sent on PUT.
+  * promptFields on PUT: sent only when Prompt is first added to an account that has no tenant
+    (tenant name + first users, same validation as create). Once a tenant exists it is shown
+    read-only and never re-sent — the API rejects changed values with a 400.
   * "Custom Account Identifier" is written to salesforceId (the field the sample account
     carried and the one `update-account` looks accounts up by). It is not exposed on POST,
     so externalId is the alternative if that ever needs to change.

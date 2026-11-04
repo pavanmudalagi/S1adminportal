@@ -39,7 +39,9 @@ Tenant naming: account `<account_name>`; site `<account_name>-<site_name>`.
 `apsoutheast` (the S1 region group; no `uswest`), and sending an invalid value fails that enum check —
 but sending a valid one fails too: *"prompt_region field is not available"*. Existing accounts return
 `promptRegion: null`. The table below is therefore informational: where a tenant ends up. US West is
-where the platform *hosts* US MSSP partner tenants (and the customer accounts/sites beneath them).
+where the platform *hosts* US MSSP partner tenants (and the customer accounts/sites beneath them) —
+confirmed 2026-11-04: account `amcetest` (usageType mssp, created from Staging with no region sent)
+appeared at uswest.prompt.security.
 
 | Country | S1 cloud region | Cluster | `promptRegion` (sent) | Hosted at (MSSP) | Hosted at (Customer) |
 |---|---|---|---|---|---|
@@ -63,7 +65,9 @@ token `use1`/`cac1`/… in the console hostname) and `licenses.prompt_console(re
   modules/settings, send the full lists back.
 - One Prompt tenant per account/site. `promptFields` is only needed the first time; once a tenant exists,
   bundles and counts can change without it. Re-sending the **stored values exactly** is accepted;
-  **different values return 400** ("Prompt fields cannot be changed").
+  **different values return 400** ("Prompt fields cannot be changed"). s1am's Edit Account modal shows
+  the Prompt Security form when a Prompt bundle is ticked on an account whose GET has no `promptFields`,
+  and sends them in that PUT only; otherwise it never sends them.
 - A site can only get a Prompt bundle if its parent account already has it.
 - Partner account must be `usageType: mssp`; a `customer` account lands in US East and its sites can fail
   ("This scope is not eligible to receive Prompt AI").

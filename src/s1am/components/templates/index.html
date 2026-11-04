@@ -1947,10 +1947,15 @@ function _aeFormErrors() {
   return [...new Set(errs)];
 }
 
-// Prompt Security details are entered only when creating the tenant: create mode with a
-// Prompt bundle selected. Existing tenants are read-only.
+// Prompt Security details are entered only when the tenant is first created: a Prompt bundle
+// is selected and the account has no promptFields yet (create mode, or editing an account that
+// never had Prompt). Existing tenants are read-only and never re-sent.
 const _aePromptFormActive = () =>
-  aeState?.mode === "create" && aeState.bundles.some(b => _aePrompt(b.name));
+  !!aeState && !aeState.promptFields && aeState.bundles.some(b => _aePrompt(b.name));
+
+// Guide convention for a tenant name is the account name; offer a cleaned-up version to edit.
+const _aeSuggestTenantName = name =>
+  (name || "").trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_-]/g, "").slice(0, 64);
 
 function _aeRefreshSave() {
   document.getElementById("ae-save-btn").disabled =
@@ -2103,7 +2108,7 @@ async function aeLoadAccount(target) {
       mode: "edit",
       console:     data.console,
       accountId:   acct.id,
-      promptForm:  null,
+      promptForm:  {tenantName: _aeSuggestTenantName(acct.name), users: [{name: "", email: ""}]},
       usageType:   acct.usageType   || "",
       billingMode: acct.billingMode || "",
       promptFields: acct.promptFields || null,
@@ -2379,19 +2384,14 @@ const _aePrompt = name => aeState.catalog.promptBundles.find(
 function _aeRenderPrompt(containerEl) {
   const wrap = document.createElement("div");
   wrap.style.cssText = "margin-top:10px;display:flex;flex-direction:column;gap:6px;";
-  const blocked = aeState.mode === "edit" && aeState.catalog.promptAddRequiresFields && !aeState.promptFields;
-  let anyBlocked = false;
-
   aeState.catalog.promptBundles.forEach(pb => {
     const bundle = aeState.bundles.find(b => _aePrompt(b.name) === pb);
-    const cantAdd = !bundle && blocked && !aeState.stash[pb.name];
-    anyBlocked = anyBlocked || cantAdd;
     const r = document.createElement("div");
     r.className = "sku-surf-row";
     const surf = bundle && (bundle.surfaces || []).find(s => s.name === pb.surface);
     const unl  = surf?.count === -1;
     r.innerHTML = `<label style="display:flex;gap:6px;align-items:center;">
-        <input type="checkbox" ${bundle ? "checked" : ""} ${cantAdd ? "disabled" : ""}> ${escHtml(pb.displayName)}</label>
+        <input type="checkbox" ${bundle ? "checked" : ""}> ${escHtml(pb.displayName)}</label>
       ${bundle ? `<input type="number" min="1" class="sku-count" value="${unl ? "" : Math.max(surf?.count ?? 1, 0)}"
         title="${escHtml(pb.surface)}" placeholder="count" ${unl ? "disabled" : ""}>` : "<span></span>"}
       ${bundle ? `<label><input type="checkbox" class="sku-unl" ${unl ? "checked" : ""}> Unlimited</label>` : "<span></span>"}`;
@@ -2422,14 +2422,6 @@ function _aeRenderPrompt(containerEl) {
     wrap.appendChild(r);
   });
 
-  if (anyBlocked) {
-    const n = document.createElement("div");
-    n.style.cssText = "font-size:12px;color:var(--text-muted);";
-    n.textContent = "Prompt can't be added here yet: the first time it's enabled the API requires Prompt " +
-      "Security details (tenant name and first users), and this editor has no form for them.";
-    wrap.appendChild(n);
-  }
-
   if (_aePromptFormActive()) _aeRenderPromptForm(wrap);
 
   const pf = aeState.promptFields;
@@ -2459,8 +2451,10 @@ function _aeRenderPromptForm(wrap) {
 
   const warn = document.createElement("div");
   warn.className = "ae-warn";
-  warn.innerHTML = `<span>⚠️</span><span>These fields cannot be edited after the account is created. Review them
-    carefully before saving. No welcome email is sent — tell the first users their access is ready.</span>`;
+  warn.innerHTML = `<span>⚠️</span><span>${aeState.mode === "create"
+      ? "These fields cannot be edited after the account is created."
+      : "This account has no Prompt tenant yet; saving creates one. These fields cannot be edited afterwards, and removing the SKU later does not free the tenant name."}
+    Review them carefully before saving. No welcome email is sent — tell the first users their access is ready.</span>`;
   wrap.appendChild(warn);
 
   const tenantRow = document.createElement("div");
@@ -2610,6 +2604,11 @@ async function aeSaveAccount() {
       url = "/api/account-save";
       payload = {console: aeState.console, accountId: aeState.accountId,
                  name: aeState.form.name.trim(), ..._aeDiff()};
+      if (_aePromptFormActive()) {
+        const pf = aeState.promptForm;
+        payload.promptFields = {promptTenantName: pf.tenantName.trim(),
+          promptUsers: pf.users.map(u => ({promptUserName: u.name.trim(), promptUserEmail: u.email.trim()}))};
+      }
     }
 
     const resp = await fetch(url, {

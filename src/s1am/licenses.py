@@ -29,11 +29,6 @@ PROMPT_BUNDLES = [
      "displayName": "Prompt for Employees",         "surface": "Total Employees",  "unlimited": True},
 ]
 
-# The guide says promptFields (tenant name + first users) is required the first time Prompt is
-# added, and the editor has no form for it yet, so adding Prompt to an account without a tenant
-# stays blocked. Set to False only once that form exists.
-PROMPT_ADD_REQUIRES_FIELDS = True
-
 # promptFields.promptRegion — the API enum (Staging, 2026-11: "Must be one of: useast, eunorth,
 # apsouth, apsoutheast"). It is the S1 region group; note there is NO "uswest" value.
 PROMPT_REGIONS = {
@@ -277,7 +272,6 @@ def catalog():
         "skus": SKUS,
         "addons": ADDONS,
         "promptBundles": PROMPT_BUNDLES,
-        "promptAddRequiresFields": PROMPT_ADD_REQUIRES_FIELDS,
         "promptRegions": PROMPT_REGIONS,
         "promptRegionOrder": list(PROMPT_REGIONS),   # JSON objects lose order; US East first
         "promptRegionByS1Region": PROMPT_REGION_BY_S1_REGION,
