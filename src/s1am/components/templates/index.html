@@ -2369,7 +2369,8 @@ function _aePromptConsole(region) {
 }
 function _aePromptRegionLabel() {
   const key = aeState.promptFields?.promptRegion || _aeDerivedPromptRegion();
-  if (!key) return "Unknown (console region not recognised)";
+  if (!key) return "Assigned automatically by the platform from this console's region" +
+    (aeState.form.usageType === "mssp" ? " (US MSSP partner accounts are hosted at uswest.prompt.security)" : "");
   const r = aeState.catalog.promptRegions[key];
   const host = _aePromptConsole(key).replace("https://", "");
   return r ? `${r.displayName}${host ? ` — hosted at ${host}` : ""}` : key;
@@ -2434,9 +2435,16 @@ function _aeRenderPrompt(containerEl) {
     note.style.cssText = "font-size:12px;color:var(--text-muted);";
     note.textContent = "Set when the account was created and cannot be edited.";
     wrap.appendChild(note);
-    [["Tenant Name", pf.promptTenantName], ["First User Name", pf.promptUserName],
-     ["First User Email", pf.promptUserEmail], ["Region", _aePromptRegionLabel()]]
-      .forEach(([label, v]) => wrap.appendChild(_aeReadOnly(label, v)));
+    wrap.appendChild(_aeReadOnly("Tenant Name", pf.promptTenantName));
+    // The API returns promptUsers[] (all first users) and, for compatibility, the first one
+    // again as promptUserName/promptUserEmail. Show the full list.
+    const users = (Array.isArray(pf.promptUsers) && pf.promptUsers.length)
+      ? pf.promptUsers
+      : (pf.promptUserName || pf.promptUserEmail ? [{promptUserName: pf.promptUserName, promptUserEmail: pf.promptUserEmail}] : []);
+    users.forEach((u, i) => wrap.appendChild(_aeReadOnly(
+      users.length === 1 ? "First User" : `First User ${i + 1}`,
+      `${u.promptUserName || "—"} <${u.promptUserEmail || "—"}>`)));
+    wrap.appendChild(_aeReadOnly("Region", _aePromptRegionLabel()));
   }
   containerEl.appendChild(wrap);
 }
