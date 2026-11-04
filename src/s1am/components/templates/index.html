@@ -245,6 +245,73 @@
     .badge-partial { display: inline-block; padding: 2px 10px; border-radius: 99px; background: var(--warn-a); color: var(--warn); font-size: 12px; }
     .badge-fetch   { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-muted); }
     .badge-fetch .spinner { width: 12px; height: 12px; border-width: 2px; }
+
+    /* ── Edit Account landing page ── */
+    .aeb-search { display: flex; gap: 8px; }
+    .aeb-search input { flex: 1; }
+    .aeb-table-wrap { max-height: calc(100vh - 290px); overflow-y: auto; }
+    .aeb-table { width: 100%; }
+    .aeb-table tbody tr { cursor: pointer; }
+    .aeb-table td.aeb-skus { color: var(--text-dim); font-size: 12px; max-width: 420px; }
+    .aeb-status { padding: 14px; text-align: center; font-size: 12px; color: var(--text-muted); display: flex; justify-content: center; align-items: center; gap: 8px; }
+
+    /* ── Account Editor Modal ── */
+    .ae-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: flex; align-items: center; justify-content: center; z-index: 200; }
+    .ae-backdrop.hidden { display: none; }
+    .ae-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; width: 700px; max-width: 97vw; max-height: 92vh; display: flex; flex-direction: column; box-shadow: 0 28px 90px rgba(0,0,0,.75); overflow: hidden; }
+    .ae-hdr { display: flex; align-items: center; justify-content: space-between; padding: 18px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .ae-hdr-title { font-size: 15px; font-weight: 700; }
+    .ae-hdr-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .ae-hdr-sub { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); }
+    .ae-console-badge { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text); font-size: 11px; font-weight: 600; letter-spacing: .03em; }
+    .ae-field-row input[type=text]:not(:disabled) { cursor: text; }
+    .ae-warn { display: flex; gap: 8px; align-items: flex-start; padding: 9px 12px; border-radius: 7px; font-size: 12px; background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.4); color: var(--text); }
+    .pf-user-row { display: grid; grid-template-columns: 1fr 1fr 28px; gap: 8px; align-items: center; }
+    .pf-user-row input { width: 100%; box-sizing: border-box; }
+    .ae-field-row input[type=text]:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
+    .ae-close { background: none; border: none; color: var(--text-dim); font-size: 22px; line-height: 1; cursor: pointer; padding: 2px 7px; border-radius: 5px; }
+    .ae-close:hover { background: var(--surface-2); color: var(--text); }
+    .ae-err { font-size: 12px; color: var(--error); display: none; margin-top: 4px; }
+    .ae-loading { padding: 48px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; color: var(--text-muted); font-size: 13px; }
+    .ae-loading .spinner { width: 26px; height: 26px; border-width: 3px; }
+    .ae-body { flex: 1; overflow-y: auto; }
+    .ae-section { border-bottom: 1px solid var(--border); }
+    .ae-section:last-child { border-bottom: none; }
+    .ae-section-hdr { padding: 14px 24px 6px; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .07em; }
+    .ae-section-body { padding: 6px 24px 18px; display: flex; flex-direction: column; gap: 10px; }
+    .ae-field-row { display: grid; grid-template-columns: 210px 1fr; align-items: center; gap: 12px; }
+    .ae-field-label { font-size: 13px; color: var(--text-dim); }
+    .ae-field-value { font-size: 13px; }
+    .ae-field-row input[type=text] { width: 100%; box-sizing: border-box; }
+    /* SKU cards */
+    .sku-card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+    .sku-card-hdr { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; font-size: 13px; font-weight: 600; cursor: pointer; user-select: none; }
+    .sku-card-hdr:hover { background: rgba(255,255,255,.04); }
+    .sku-card-body { padding: 12px 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px; }
+    .sku-surfaces-hdr { font-size: 12px; font-weight: 600; color: var(--text-dim); }
+    .sku-surf-row { display: grid; grid-template-columns: 1fr 100px auto; align-items: center; gap: 10px; font-size: 13px; }
+    .sku-surf-row input[type=number] { width: 100%; box-sizing: border-box; text-align: right; }
+    .sku-surf-row label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-dim); white-space: nowrap; cursor: pointer; }
+    .sku-surf-row input[type=checkbox] { accent-color: var(--primary); cursor: pointer; }
+    .sku-del { background: none; border: none; color: var(--text-muted); font-size: 15px; cursor: pointer; padding: 3px 7px; border-radius: 4px; line-height: 1; }
+    .sku-del:hover { background: rgba(255,60,60,.15); color: #ff6060; }
+    .sku-add-row { display: flex; gap: 8px; }
+    .sku-add-row input { flex: 1; }
+    /* Modules grid */
+    .mod-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 16px; }
+    @media (max-width: 560px) { .mod-grid { grid-template-columns: 1fr 1fr; } }
+    .mod-item { display: flex; align-items: flex-start; gap: 8px; font-size: 12.5px; padding: 4px 2px; cursor: pointer; }
+    .mod-item input[type=checkbox] { flex-shrink: 0; margin-top: 2px; accent-color: var(--primary); cursor: pointer; }
+    .mod-add-row { display: flex; gap: 8px; margin-top: 4px; }
+    .mod-add-row input { flex: 1; }
+    /* Settings */
+    .sett-row { display: grid; grid-template-columns: 1fr 180px; align-items: center; gap: 14px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,.05); font-size: 13px; }
+    .sett-row:last-child { border-bottom: none; }
+    .sett-label { color: var(--text-dim); }
+    .sett-row select, .sett-row input[type=text] { box-sizing: border-box; width: 100%; }
+    /* Footer */
+    .ae-footer { display: flex; align-items: center; padding: 14px 24px; border-top: 1px solid var(--border); gap: 10px; flex-shrink: 0; }
+    .ae-save-err { flex: 1; font-size: 12px; color: var(--error); }
   </style>
 </head>
 <body>
@@ -361,6 +428,40 @@
       <h2>Select a command from the sidebar</h2>
       <p>Click any command on the left to build and run it. Results appear below the form.</p>
     </div>
+    <!-- Edit Account landing page: browse / search accounts on the active console -->
+    <div id="ae-browser" style="display:none; flex-direction:column; gap:16px;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Edit Account</div>
+            <div class="card-desc" id="aeb-desc">Pick an account on the selected console, or search by account name, account ID, or Salesforce tenant.</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div id="aeb-count" style="font-size:12px; color:var(--text-muted);"></div>
+            <button class="btn btn-primary" id="aeb-new-btn">+ New Account</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <div class="aeb-search">
+            <input type="text" id="aeb-query" placeholder="Account name, account ID, or 1000_USEA1_2498094131181849447">
+            <button class="btn btn-primary" id="aeb-search-btn">Search</button>
+            <button class="btn" id="aeb-clear-btn">Clear</button>
+          </div>
+          <div class="ae-err" id="aeb-err" style="margin-top:10px;"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="aeb-table-wrap" id="aeb-table-wrap">
+          <table class="rtable aeb-table">
+            <thead><tr><th>Account Name</th><th>Account ID</th><th>State</th><th>Type</th><th>SKUs</th><th></th></tr></thead>
+            <tbody id="aeb-rows"></tbody>
+          </table>
+          <div class="aeb-status" id="aeb-status"></div>
+          <div id="aeb-sentinel" style="height:1px;"></div>
+        </div>
+      </div>
+    </div>
+
     <div id="command-area" style="display:none; flex-direction:column; gap:16px;">
       <!-- Command card -->
       <div class="card" id="cmd-card">
@@ -405,6 +506,40 @@
   </main>
 </div>
 
+<!-- ── Account Editor Modal ── -->
+<div id="ae-backdrop" class="ae-backdrop hidden">
+  <div class="ae-modal" role="dialog" aria-modal="true" aria-labelledby="ae-title">
+    <div class="ae-hdr">
+      <div class="ae-hdr-left">
+        <div class="ae-hdr-title" id="ae-title">Edit Account</div>
+        <div class="ae-hdr-sub" id="ae-subtitle" style="display:none;">
+          <span class="ae-console-badge" id="ae-console-badge"></span>
+          <span id="ae-account-id"></span>
+        </div>
+      </div>
+      <button class="ae-close" id="ae-close-btn" aria-label="Close">×</button>
+    </div>
+
+    <!-- Loading state (also shows fetch errors) -->
+    <div id="ae-loading" class="ae-loading" style="display:none;">
+      <div class="spinner" id="ae-loading-spinner"></div>
+      <div id="ae-loading-text">Loading account…</div>
+      <div class="ae-err" id="ae-fetch-err"></div>
+    </div>
+
+    <!-- Edit form (shown after fetch) -->
+    <div id="ae-form" style="display:none; flex-direction:column; flex:1; min-height:0;">
+      <div class="ae-body" id="ae-body"></div>
+      <div class="ae-footer">
+        <div class="ae-save-err" id="ae-save-err"></div>
+        <button class="btn" id="ae-cancel-btn">Cancel</button>
+        <div class="spinner" id="ae-save-spinner" style="display:none;"></div>
+        <button class="btn btn-primary" id="ae-save-btn">Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% raw %}
 <script>
 "use strict";
@@ -431,8 +566,8 @@ let currentTab = "json";
     populateProfiles(profilesRes.profiles, statusRes.active_profile);
     renderSidebar();
 
-    // Auto-open credentials only when truly nothing is configured anywhere
-    if (!statusRes.mgmt_configured && !statusRes.pq_configured) {
+    // Auto-open credentials only when no tokens exist anywhere (session, env, or any saved profile)
+    if (!statusRes.has_saved_tokens) {
       setTimeout(openCredModal, 300);
     }
   } catch (e) {
@@ -494,6 +629,8 @@ document.getElementById("profile-select").addEventListener("change", async (e) =
   if (!result.mgmt_configured && !result.pq_configured) {
     openCredModal();
   }
+  // Edit Account page lists accounts of the active console → refresh on switch
+  if (activeCmd && activeCmd.type === "account-editor") aebReload();
 });
 
 // ── Rename Consoles Modal ───────────────────────────────────────────────────
@@ -673,6 +810,19 @@ function selectCommand(id) {
 
   const cmd = COMMANDS.find(c => c.id === id);
   if (!cmd) return;
+
+  // Account editor has its own landing page (account list + search) instead of the standard form
+  const browser = document.getElementById("ae-browser");
+  if (cmd.type === "account-editor") {
+    activeCmd = cmd;
+    document.getElementById("welcome").style.display = "none";
+    document.getElementById("command-area").style.display = "none";
+    browser.style.display = "flex";
+    aebReload();
+    return;
+  }
+  browser.style.display = "none";
+
   activeCmd = cmd;
 
   document.getElementById("welcome").style.display = "none";
@@ -1654,6 +1804,830 @@ async function _avExcelExport(rows) {
   } finally {
     dlBtn.textContent = orig;
     dlBtn.disabled = false;
+  }
+}
+
+// ── Edit Account landing page ───────────────────────────────────────────────
+// Lists accounts on the active console 50 at a time; more load as the list is scrolled.
+// Search accepts an account name (contains), an account ID, or a Salesforce tenant.
+const aeb = { query: "", cursor: null, loading: false, done: false, seq: 0, total: null, count: 0 };
+
+function aebReload() {
+  aeb.query  = document.getElementById("aeb-query").value.trim();
+  aeb.cursor = null; aeb.done = false; aeb.total = null; aeb.count = 0;
+  aeb.seq++;
+  aeb.loading = false;
+  document.getElementById("aeb-rows").innerHTML = "";
+  document.getElementById("aeb-err").style.display = "none";
+  document.getElementById("aeb-count").textContent = "";
+  document.getElementById("aeb-table-wrap").scrollTop = 0;
+  aebLoadMore();
+}
+
+async function aebLoadMore() {
+  if (aeb.loading || aeb.done) return;
+  aeb.loading = true;
+  const seq    = aeb.seq;
+  const status = document.getElementById("aeb-status");
+  status.innerHTML = `<div class="spinner" style="width:14px;height:14px;border-width:2px;"></div> Loading accounts…`;
+  try {
+    const resp = await fetch("/api/accounts-browse", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({query: aeb.query, cursor: aeb.cursor}),
+    });
+    const data = await resp.json();
+    if (seq !== aeb.seq) return;            // a newer search replaced this one
+    if (data.error) {
+      aeb.done = true;
+      status.textContent = "";
+      const errEl = document.getElementById("aeb-err");
+      errEl.textContent = data.error; errEl.style.display = "";
+      return;
+    }
+    if (aeb.total == null) aeb.total = data.total;
+    aeb.cursor = data.nextCursor || null;
+    aeb.done   = !aeb.cursor;
+    aeb.count += data.accounts.length;
+    _aebAppendRows(data.console, data.accounts);
+    document.getElementById("aeb-count").textContent =
+      `${data.console} · ${aeb.count}${aeb.total != null ? " of " + aeb.total : ""} accounts`;
+    status.textContent = aeb.count === 0 ? "No accounts found." : (aeb.done ? "" : "Scroll for more…");
+  } catch (e) {
+    if (seq === aeb.seq) { aeb.done = true; status.textContent = "Network error: " + e.message; }
+  } finally {
+    if (seq === aeb.seq) aeb.loading = false;
+  }
+  // Keep filling until the list is scrollable (IntersectionObserver won't re-fire otherwise)
+  if (seq === aeb.seq && !aeb.done && _aebSentinelVisible()) aebLoadMore();
+}
+
+function _aebAppendRows(consoleCode, accounts) {
+  const tbody = document.getElementById("aeb-rows");
+  accounts.forEach(a => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${escHtml(a.name || "")}</td>
+      <td style="font-family:monospace;font-size:12px;">${escHtml(a.id || "")}</td>
+      <td>${escHtml(a.state || "")}</td>
+      <td>${escHtml(a.accountType || "")}</td>
+      <td class="aeb-skus">${escHtml((a.skus || []).join(", "))}</td>
+      <td><button class="btn btn-sm">✎ Edit</button></td>`;
+    tr.addEventListener("click", () => openAccountEditor({console: consoleCode, accountId: a.id, name: a.name}));
+    tbody.appendChild(tr);
+  });
+}
+
+function _aebSentinelVisible() {
+  if (document.getElementById("ae-browser").style.display === "none") return false;
+  const wrap = document.getElementById("aeb-table-wrap").getBoundingClientRect();
+  const sent = document.getElementById("aeb-sentinel").getBoundingClientRect();
+  return sent.top <= wrap.bottom + 200;
+}
+
+new IntersectionObserver(entries => {
+  if (entries.some(e => e.isIntersecting)) aebLoadMore();
+}, {root: document.getElementById("aeb-table-wrap"), rootMargin: "200px"})
+  .observe(document.getElementById("aeb-sentinel"));
+
+document.getElementById("aeb-search-btn").addEventListener("click", aebReload);
+document.getElementById("aeb-new-btn").addEventListener("click", openAccountCreator);
+document.getElementById("aeb-query").addEventListener("keydown", e => { if (e.key === "Enter") aebReload(); });
+document.getElementById("aeb-clear-btn").addEventListener("click", () => {
+  document.getElementById("aeb-query").value = "";
+  aebReload();
+});
+
+// ── Account Editor ──────────────────────────────────────────────────────────
+// The SKU / add-on catalog and dependency rules come from the server (s1am/licenses.py)
+// with each account fetch. Bundles and modules outside the catalog are kept unchanged on save.
+let aeState = null; // { console, accountId, form, orig, usageType, billingMode, promptFields, bundles, modules, settings, catalog }
+
+const _aeLower = s => (s || "").toLowerCase();
+const _aeHasBundle = name => aeState.bundles.some(b => _aeLower(b.name) === name);
+const _aeHasModule = name => aeState.modules.some(m => _aeLower(m.name) === name);
+const _aeSku   = name => aeState.catalog.skus.find(s => s.name === _aeLower(name));
+const _aeAddon = name => aeState.catalog.addons.find(a => a.name === _aeLower(name));
+const _aeDisplay = name => (_aeSku(name) || _aeAddon(name) || {displayName: name}).displayName;
+
+// Mirror of licenses.validate_licenses() so problems show before saving.
+function _aeRuleErrors() {
+  const errs = [];
+  for (const [sku, rule] of Object.entries(aeState.catalog.skuRules)) {
+    if (_aeHasBundle(sku) && !rule.requires_any.some(_aeHasBundle))
+      errs.push(`${_aeDisplay(sku)} requires ${rule.requires_any.map(_aeDisplay).join(" or ")}`);
+  }
+  for (const [addon, rule] of Object.entries(aeState.catalog.addonRules)) {
+    const missing = rule.requires_all.filter(n => !_aeHasModule(n));
+    if (_aeHasModule(addon) && missing.length)
+      errs.push(`${_aeDisplay(addon)} requires ${missing.map(_aeDisplay).join(", ")}`);
+  }
+  return errs;
+}
+
+// Dependency rules are checked when Save is clicked; any edit clears the previous error.
+// Basic form validity (name, expiration) is shown live and disables Save, as does "no changes".
+function _aeFormErrors() {
+  const f = aeState.form, errs = [];
+  if (!f.name.trim()) errs.push("Account name is required");
+  else if (/[<>]/.test(f.name)) errs.push("Account name cannot contain < or >");
+  if (!f.unlimited && !f.expiration) errs.push("Expiration date is required unless the account does not expire");
+  if (_aePromptFormActive()) {
+    const pf = aeState.promptForm;
+    if (!pf.tenantName.trim()) errs.push("Prompt tenant name is required");
+    else if (!/^[A-Za-z0-9_-]+$/.test(pf.tenantName.trim()))
+      errs.push("Prompt tenant name: letters, numbers, hyphens and underscores only (no spaces)");
+    const emails = new Set();
+    pf.users.forEach(u => {
+      if (!u.name.trim() || !u.email.trim()) errs.push("Each Prompt first user needs a name and an email");
+      else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(u.email.trim())) errs.push(`Invalid email: ${u.email.trim()}`);
+      else if (emails.has(u.email.trim().toLowerCase())) errs.push(`Duplicate email: ${u.email.trim()}`);
+      emails.add(u.email.trim().toLowerCase());
+    });
+  }
+  return [...new Set(errs)];
+}
+
+// Prompt Security details are entered only when creating the tenant: create mode with a
+// Prompt bundle selected. Existing tenants are read-only.
+const _aePromptFormActive = () =>
+  aeState?.mode === "create" && aeState.bundles.some(b => _aePrompt(b.name));
+
+function _aeRefreshSave() {
+  document.getElementById("ae-save-btn").disabled =
+    !aeState || _aeFormErrors().length > 0 || !_aeHasChanges();
+}
+
+function _aeCheckRules() {
+  document.getElementById("ae-save-err").textContent = aeState ? _aeFormErrors().join(" · ") : "";
+  _aeRefreshSave();
+}
+
+const _aeLocked = key => (aeState.catalog.account.lockOnEdit || []).includes(key);
+const _aeLicenseArrays = () => ({
+  bundles: aeState.bundles.map(b => {
+    const out = {name: b.name};
+    if (b.majorVersion != null) out.majorVersion = b.majorVersion;
+    out.surfaces = (b.surfaces || []).map(s => ({name: s.name, count: s.count ?? 0}));
+    return out;
+  }),
+  modules:  aeState.modules.map(m => ({name: m.name})),
+  settings: _aeActiveSettings().map(s => ({groupName: s.groupName || s.settingGroup, setting: s.setting})),
+});
+
+// Fields that differ from the loaded account. `licenses` travels as full arrays, and only
+// when something in it changed. Locked fields (usageType, billingMode) are never sent.
+function _aeDiff() {
+  const f = aeState.form, o = aeState.orig, d = {};
+  for (const key of ["accountType", "usageType", "billingMode"]) {
+    if (f[key] !== o[key] && f[key] && !_aeLocked(key)) d[key] = f[key];
+  }
+  if (f.identifier.trim() !== o.identifier.trim()) d.salesforceId = f.identifier.trim();
+  if (f.unlimited !== o.unlimited || (!f.unlimited && f.expiration !== o.expiration)) {
+    if (f.unlimited) { d.unlimitedExpiration = true; d.expiration = null; }
+    else {
+      if (f.unlimited !== o.unlimited) d.unlimitedExpiration = false;
+      d.expiration = f.expiration + "T23:59:59Z";
+    }
+  }
+  const lic = _aeLicenseArrays();
+  if (JSON.stringify(lic) !== aeState.origLicenses) Object.assign(d, lic);
+  return d;
+}
+const _aeHasChanges = () => aeState.mode === "create" ||
+  aeState.form.name.trim() !== aeState.orig.name.trim() || Object.keys(_aeDiff()).length > 0;
+
+// Settings tied to a SKU (e.g. Identity Security Posture Mode) are hidden and not saved
+// while that SKU is absent. They stay in aeState so re-adding the SKU restores them.
+function _aeActiveSettings() {
+  const req = aeState.catalog.settingRequiresSku || {};
+  return aeState.settings.filter(s => {
+    const sku = req[s.groupName || s.settingGroup];
+    return !sku || _aeHasBundle(sku);
+  });
+}
+
+function _aeKeptNote(items) {
+  const note = document.createElement("div");
+  note.style.cssText = "font-size:12px;color:var(--text-muted);";
+  note.textContent = "Also on this account, kept unchanged: " + items.join(", ");
+  return note;
+}
+
+function _aeOpenModal(title, saveLabel) {
+  aeState = null;
+  document.getElementById("ae-save-err").textContent = "";
+  document.getElementById("ae-title").textContent = title;
+  document.getElementById("ae-save-btn").textContent = saveLabel;
+  document.getElementById("ae-subtitle").style.display = "none";
+  document.getElementById("ae-backdrop").classList.remove("hidden");
+}
+
+function openAccountEditor(target) {
+  _aeOpenModal("Edit Account", "Save Changes");
+  aeLoadAccount(target);
+}
+
+// Create Account: same form as the editor with the POST defaults (Customer, Paid, Subscription)
+// and an empty license list. Prompt Security details are editable here, since the tenant is
+// created on first save; the region is derived from the console + account type.
+async function openAccountCreator() {
+  _aeOpenModal("Create Account", "Create Account");
+  _aeShowLoading();
+  try {
+    const console_ = document.getElementById("profile-select").value;
+    const resp = await fetch("/api/account-template?console=" + encodeURIComponent(console_));
+    const data = await resp.json();
+    if (data.error) { _aeShowLoading(data.error); return; }
+    aeState = {
+      mode: "create",
+      console:     data.console,
+      accountId:   null,
+      promptFields: null,
+      s1Region:    data.s1_region || null,
+      stash: {},
+      bundles: [], modules: [], settings: [],
+      catalog:  data.catalog,
+      promptForm: {tenantName: "", users: [{name: "", email: ""}]},
+    };
+    aeState.form = {name: "", identifier: "", accountType: "Paid", usageType: "customer",
+                    billingMode: "subscription", unlimited: false, expiration: ""};
+    aeState.orig = {...aeState.form};
+    aeState.origLicenses = JSON.stringify(_aeLicenseArrays());
+    document.getElementById("ae-console-badge").textContent = data.console_label || data.console;
+    document.getElementById("ae-account-id").textContent = "New account";
+    document.getElementById("ae-subtitle").style.display = "";
+    _aeRenderForm();
+    _aeShowForm();
+  } catch (e) {
+    _aeShowLoading("Network error: " + e.message);
+  }
+}
+
+function closeAccountEditor() {
+  document.getElementById("ae-backdrop").classList.add("hidden");
+}
+
+function _aeShowLoading(error) {
+  document.getElementById("ae-loading").style.display = "";
+  document.getElementById("ae-loading-spinner").style.display = error ? "none" : "";
+  document.getElementById("ae-loading-text").style.display = error ? "none" : "";
+  const errEl = document.getElementById("ae-fetch-err");
+  errEl.textContent = error || "";
+  errEl.style.display = error ? "" : "none";
+  document.getElementById("ae-form").style.display = "none";
+}
+function _aeShowForm() {
+  document.getElementById("ae-loading").style.display = "none";
+  document.getElementById("ae-form").style.display = "flex";
+}
+
+document.getElementById("ae-close-btn").addEventListener("click", closeAccountEditor);
+document.getElementById("ae-cancel-btn").addEventListener("click", closeAccountEditor);
+document.getElementById("ae-backdrop").addEventListener("click", e => {
+  if (e.target === document.getElementById("ae-backdrop")) closeAccountEditor();
+});
+document.getElementById("ae-save-btn").addEventListener("click", aeSaveAccount);
+
+async function aeLoadAccount(target) {
+  _aeShowLoading();
+  try {
+    const resp = await fetch("/api/account-fetch", {
+      method: "POST", headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({console: target.console, accountId: target.accountId}),
+    });
+    const data = await resp.json();
+    if (data.error) { _aeShowLoading(data.error); return; }
+    const acct = data.account;
+    const lic  = acct.licenses || {};
+    aeState = {
+      mode: "edit",
+      console:     data.console,
+      accountId:   acct.id,
+      promptForm:  null,
+      usageType:   acct.usageType   || "",
+      billingMode: acct.billingMode || "",
+      promptFields: acct.promptFields || null,
+      s1Region:    data.s1_region || null,
+      stash: {},   // Prompt bundles unchecked in this session, so re-checking restores the count
+      bundles:  JSON.parse(JSON.stringify(lic.bundles  || [])),
+      modules:  JSON.parse(JSON.stringify(lic.modules  || [])),
+      settings: JSON.parse(JSON.stringify(lic.settings || [])),
+      catalog:  data.catalog,
+    };
+    aeState.form = {
+      name:        acct.name || "",
+      identifier:  acct.salesforceId || "",
+      accountType: acct.accountType || "",
+      usageType:   (acct.usageType   || "").toLowerCase(),
+      billingMode: (acct.billingMode || "").toLowerCase(),
+      unlimited:   !!acct.unlimitedExpiration,
+      expiration:  (acct.expiration || "").slice(0, 10),
+    };
+    aeState.orig = {...aeState.form};
+    aeState.origLicenses = JSON.stringify(_aeLicenseArrays());
+    // Header: fixed title, console shown separately as a badge, account ID beside it.
+    document.getElementById("ae-console-badge").textContent = data.console_label || data.console;
+    document.getElementById("ae-account-id").textContent = "Account ID " + acct.id;
+    document.getElementById("ae-subtitle").style.display = "";
+    _aeRenderForm();
+    _aeShowForm();
+  } catch (e) {
+    _aeShowLoading("Network error: " + e.message);
+  }
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function _aeMakeSection(title) {
+  const sec = document.createElement("div");
+  sec.className = "ae-section";
+  const hdr = document.createElement("div");
+  hdr.className = "ae-section-hdr";
+  hdr.textContent = title;
+  const body = document.createElement("div");
+  body.className = "ae-section-body";
+  sec.appendChild(hdr);
+  sec.appendChild(body);
+  return sec;
+}
+
+function _aeReadOnly(label, value) {
+  const row = document.createElement("div");
+  row.className = "ae-field-row";
+  row.innerHTML = `<div class="ae-field-label">${escHtml(label)}</div><div class="ae-field-value">${escHtml(String(value || "—"))}</div>`;
+  return row;
+}
+
+function _aeRenderForm() {
+  const body = document.getElementById("ae-body");
+  body.innerHTML = "";
+
+  // ── General ──────────────────────────────────────────────────────────────
+  const genSec = _aeMakeSection("General");
+  const genBody = genSec.querySelector(".ae-section-body");
+  const f = aeState.form;
+  const row = (label, html) => {
+    const r = document.createElement("div");
+    r.className = "ae-field-row";
+    r.innerHTML = `<div class="ae-field-label">${label}</div>${html}`;
+    genBody.appendChild(r);
+    return r;
+  };
+  // usageType "ir" is deliberately not offered; an existing IR account shows its value as text.
+  // Radios start unselected if the API returned no value, so a missing field is visible, not guessed.
+  const radios = (key, current, opts) => `<div style="display:flex;gap:16px;align-items:center;">` +
+    opts.map(([val, lbl]) => `<label style="display:flex;gap:5px;align-items:center;"
+      title="${_aeLocked(key) ? "Read-only on existing accounts" : ""}">
+      <input type="radio" name="ae-${key}" value="${val}" ${current === val ? "checked" : ""}
+        ${_aeLocked(key) ? "disabled" : ""}> ${lbl}</label>`).join("") +
+    (current && !opts.some(o => o[0] === current) ? `<span class="ae-field-value">${escHtml(current)}</span>` : "") +
+    `</div>`;
+  row("Account Type", radios("usageType", f.usageType, [["customer", "Customer"], ["mssp", "MSSP"]]));
+  row("Account Name", `<input type="text" id="ae-name-inp" value="${escHtml(f.name)}">`);
+  row("Custom Account Identifier (Optional)", `<input type="text" id="ae-ident-inp" value="${escHtml(f.identifier)}">`);
+  const expRow = row("Expiration Date", `<div style="display:flex;gap:12px;align-items:center;">
+      <input type="date" id="ae-exp-inp" value="${escHtml(f.expiration)}" ${f.unlimited ? "disabled" : ""}>
+      <label style="display:flex;gap:5px;align-items:center;"><input type="checkbox" id="ae-unl-cb" ${f.unlimited ? "checked" : ""}> Does not expire</label>
+    </div>`);
+  row("License Type", radios("accountType", f.accountType, [["Trial", "Trial"], ["Paid", "Paid"]]));
+  row("Billing Mode", radios("billingMode", f.billingMode, [["subscription", "Subscription"], ["consumption", "Consumption"]]));
+  body.appendChild(genSec);
+
+  const bind = (id, ev, fn) => genBody.querySelector("#" + id).addEventListener(ev, fn);
+  bind("ae-name-inp",  "input",  e => { f.name = e.target.value; _aeCheckRules(); });
+  bind("ae-ident-inp", "input",  e => { f.identifier = e.target.value; _aeCheckRules(); });
+  bind("ae-exp-inp",   "input",  e => { f.expiration = e.target.value; _aeCheckRules(); });
+  bind("ae-unl-cb",    "change", e => {
+    f.unlimited = e.target.checked;
+    genBody.querySelector("#ae-exp-inp").disabled = f.unlimited;
+    _aeCheckRules();
+  });
+  for (const key of ["accountType", "usageType", "billingMode"]) {
+    genBody.querySelectorAll(`input[name="ae-${key}"]`).forEach(r =>
+      r.addEventListener("change", e => { f[key] = e.target.value; _aeCheckRules(); }));
+  }
+
+  // ── SKU's ─────────────────────────────────────────────────────────────────
+  const skuSec  = _aeMakeSection("");
+  skuSec.id     = "ae-sku-sec";
+  const skuBody = skuSec.querySelector(".ae-section-body");
+  _aeRenderBundles(skuSec.querySelector(".ae-section-hdr"), skuBody);
+  body.appendChild(skuSec);
+
+  // ── Add-ons (Modules) ─────────────────────────────────────────────────────
+  const modSec  = _aeMakeSection("Add-ons");
+  const modBody = modSec.querySelector(".ae-section-body");
+  _aeRenderModules(modBody);
+  body.appendChild(modSec);
+
+  // ── Settings ──────────────────────────────────────────────────────────────
+  const settSec  = _aeMakeSection("Singularity Platform Settings");
+  settSec.id     = "ae-sett-sec";
+  const settBody = settSec.querySelector(".ae-section-body");
+  _aeRenderSettings(settBody);
+  body.appendChild(settSec);
+
+  _aeCheckRules();
+}
+
+function _aeRerenderBundles() {
+  const sec = document.getElementById("ae-sku-sec");
+  _aeRenderBundles(sec.querySelector(".ae-section-hdr"), sec.querySelector(".ae-section-body"));
+  _aeRenderSettings(document.querySelector("#ae-sett-sec .ae-section-body"));
+  _aeCheckRules();
+}
+
+function _aeRenderBundles(hdrEl, containerEl) {
+  containerEl.innerHTML = "";
+  const shown = aeState.bundles.filter(b => _aeSku(b.name));
+  const other = aeState.bundles.filter(b => !_aeSku(b.name) && !_aePrompt(b.name));
+  hdrEl.textContent = `SKU's (${shown.length})`;
+
+  shown.forEach(bundle => {
+    const sku  = _aeSku(bundle.name);
+    const card = document.createElement("div");
+    card.className = "sku-card";
+
+    // Header row
+    const cardHdr = document.createElement("div");
+    cardHdr.className = "sku-card-hdr";
+    cardHdr.innerHTML = `
+      <span>${escHtml(sku.displayName)}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <button class="sku-del" title="Remove this SKU">🗑</button>
+        <span class="sku-chevron" style="font-size:11px;color:var(--text-muted);transition:transform .15s;">▼</span>
+      </div>`;
+    card.appendChild(cardHdr);
+
+    // Body with the SKU's unit of measurement. Other surfaces (e.g. Data Ingest's
+    // Long-Range Query Credits) aren't shown in the console, so they're kept as-is.
+    const cardBody = document.createElement("div");
+    cardBody.className = "sku-card-body";
+    bundle.surfaces = bundle.surfaces || [];
+    let surf = bundle.surfaces.find(s => s.name === sku.surface);
+    if (!surf) { surf = {name: sku.surface, count: 1}; bundle.surfaces.push(surf); }
+    const unlimited = sku.unlimited && surf.count === -1;
+
+    const surfHdr = document.createElement("div");
+    surfHdr.className = "sku-surfaces-hdr";
+    surfHdr.textContent = "Surfaces";
+    cardBody.appendChild(surfHdr);
+
+    const surfRow = document.createElement("div");
+    surfRow.className = "sku-surf-row";
+    surfRow.innerHTML = `
+      <div>${escHtml(sku.surface)}</div>
+      <input type="number" min="0" class="sku-count"
+        value="${unlimited ? "" : Math.max(surf.count ?? 0, 0)}"
+        placeholder="count" ${unlimited ? "disabled" : ""}
+        style="opacity:${unlimited ? .35 : 1}">
+      ${sku.unlimited ? `<label><input type="checkbox" class="sku-unl" ${unlimited ? "checked" : ""}> Unlimited</label>` : "<span></span>"}`;
+    cardBody.appendChild(surfRow);
+
+    const cntEl = surfRow.querySelector(".sku-count");
+    const ulCb  = surfRow.querySelector(".sku-unl");
+    if (ulCb) ulCb.addEventListener("change", () => {
+      cntEl.disabled = ulCb.checked;
+      cntEl.style.opacity = ulCb.checked ? ".35" : "1";
+      if (ulCb.checked) cntEl.value = "";
+      surf.count = ulCb.checked ? -1 : (parseInt(cntEl.value) || 0);
+      _aeCheckRules();
+    });
+    cntEl.addEventListener("input", () => { surf.count = parseInt(cntEl.value) || 0; _aeCheckRules(); });
+    card.appendChild(cardBody);
+
+    // Collapse toggle
+    cardHdr.addEventListener("click", e => {
+      if (e.target.closest(".sku-del")) return;
+      const hidden = cardBody.style.display === "none";
+      cardBody.style.display = hidden ? "" : "none";
+      cardHdr.querySelector(".sku-chevron").style.transform = hidden ? "" : "rotate(-90deg)";
+    });
+
+    // Delete button
+    cardHdr.querySelector(".sku-del").addEventListener("click", e => {
+      e.stopPropagation();
+      aeState.bundles.splice(aeState.bundles.indexOf(bundle), 1);
+      _aeRerenderBundles();
+    });
+
+    containerEl.appendChild(card);
+  });
+
+  if (other.length) containerEl.appendChild(_aeKeptNote(other.map(b => b.displayName || b.name)));
+  _aeRenderPrompt(containerEl);
+
+  // ── Add SKU row (catalog SKUs not yet on the account) ─────────────────────
+  const available = aeState.catalog.skus.filter(s => !_aeHasBundle(s.name));
+  if (!available.length) return;
+  const addRow = document.createElement("div");
+  addRow.className = "sku-add-row";
+  const sel = document.createElement("select");
+  sel.style.flex = "1";
+  sel.innerHTML = `<option value="">— select SKU to add —</option>` + available.map(s => {
+    const rule    = aeState.catalog.skuRules[s.name];
+    const blocked = rule && !rule.requires_any.some(_aeHasBundle);
+    const hint    = blocked ? ` (requires ${rule.requires_any.map(_aeDisplay).join(" or ")})` : "";
+    return `<option value="${escHtml(s.name)}"${blocked ? " disabled" : ""}>${escHtml(s.displayName + hint)}</option>`;
+  }).join("");
+  const btn = document.createElement("button");
+  btn.className = "btn btn-sm";
+  btn.textContent = "+ Add SKU";
+  btn.addEventListener("click", () => {
+    const sku = _aeSku(sel.value);
+    if (!sku) return;
+    aeState.bundles.push({name: sku.name, displayName: sku.displayName,
+                          surfaces: [{name: sku.surface, count: 1}]});
+    // Add the SKU's default settings (e.g. Identity Security Posture Mode) if the account lacks them.
+    ((aeState.catalog.skuDefaultSettings || {})[sku.name] || []).forEach(d => {
+      if (!aeState.settings.some(s => (s.groupName || s.settingGroup) === d.groupName))
+        aeState.settings.push({...d, displayName: d.setting});
+    });
+    // ...and its default add-ons (e.g. Complete → Purple AI Foundations, Unprotected Endpoints Discovery).
+    ((aeState.catalog.skuDefaultModules || {})[sku.name] || []).forEach(name => {
+      if (!_aeHasModule(name)) aeState.modules.push({name, displayName: _aeDisplay(name)});
+    });
+    _aeRerenderBundles();
+    _aeRenderModules(document.querySelector("#ae-sku-sec ~ .ae-section .ae-section-body"));
+  });
+  addRow.appendChild(sel);
+  addRow.appendChild(btn);
+  containerEl.appendChild(addRow);
+}
+
+// Prompt region is assigned by the platform from the console's S1 region and the account's
+// usage type; shown so the operator knows which regional console the tenant lands in.
+const _aeDerivedPromptRegion = () => aeState.catalog.promptRegionByS1Region[aeState.s1Region] || "";
+// Where the tenant is hosted: US MSSP partner accounts go to US West, everything else follows the region.
+function _aePromptConsole(region) {
+  if (aeState.s1Region === "us-east-1" && aeState.form.usageType === "mssp") return aeState.catalog.promptConsoleUsMssp;
+  return aeState.catalog.promptRegions[region]?.console || "";
+}
+function _aePromptRegionLabel() {
+  const key = aeState.promptFields?.promptRegion || _aeDerivedPromptRegion();
+  if (!key) return "Unknown (console region not recognised)";
+  const r = aeState.catalog.promptRegions[key];
+  const host = _aePromptConsole(key).replace("https://", "");
+  return r ? `${r.displayName}${host ? ` — hosted at ${host}` : ""}` : key;
+}
+
+const _aePrompt = name => aeState.catalog.promptBundles.find(
+  p => p.name === _aeLower(name) || p.aliases.includes(_aeLower(name)));
+
+// Prompt bundles: checkbox + count. Unchecking stashes the bundle so re-checking restores its count.
+// Prompt Security details (promptFields) are not part of the documented PUT schema, so they are
+// shown read-only and never sent; Prompt can't be newly added to an account that has none.
+function _aeRenderPrompt(containerEl) {
+  const wrap = document.createElement("div");
+  wrap.style.cssText = "margin-top:10px;display:flex;flex-direction:column;gap:6px;";
+  const blocked = aeState.mode === "edit" && aeState.catalog.promptAddRequiresFields && !aeState.promptFields;
+  let anyBlocked = false;
+
+  aeState.catalog.promptBundles.forEach(pb => {
+    const bundle = aeState.bundles.find(b => _aePrompt(b.name) === pb);
+    const cantAdd = !bundle && blocked && !aeState.stash[pb.name];
+    anyBlocked = anyBlocked || cantAdd;
+    const r = document.createElement("div");
+    r.className = "sku-surf-row";
+    const surf = bundle && (bundle.surfaces || []).find(s => s.name === pb.surface);
+    const unl  = surf?.count === -1;
+    r.innerHTML = `<label style="display:flex;gap:6px;align-items:center;">
+        <input type="checkbox" ${bundle ? "checked" : ""} ${cantAdd ? "disabled" : ""}> ${escHtml(pb.displayName)}</label>
+      ${bundle ? `<input type="number" min="1" class="sku-count" value="${unl ? "" : Math.max(surf?.count ?? 1, 0)}"
+        title="${escHtml(pb.surface)}" placeholder="count" ${unl ? "disabled" : ""}>` : "<span></span>"}
+      ${bundle ? `<label><input type="checkbox" class="sku-unl" ${unl ? "checked" : ""}> Unlimited</label>` : "<span></span>"}`;
+    r.querySelector('input[type="checkbox"]').addEventListener("change", e => {
+      if (e.target.checked) {
+        aeState.bundles.push(aeState.stash[pb.name] ||
+          {name: pb.name, displayName: pb.displayName, surfaces: [{name: pb.surface, count: 1}]});
+        delete aeState.stash[pb.name];
+      } else {
+        aeState.stash[pb.name] = bundle;
+        aeState.bundles.splice(aeState.bundles.indexOf(bundle), 1);
+      }
+      _aeRerenderBundles();
+    });
+    const cnt = r.querySelector(".sku-count"), ul = r.querySelector(".sku-unl");
+    const surfOf = () => {
+      let s = bundle.surfaces.find(x => x.name === pb.surface);
+      if (!s) { s = {name: pb.surface, count: 1}; bundle.surfaces.push(s); }
+      return s;
+    };
+    if (cnt) cnt.addEventListener("input", () => { surfOf().count = parseInt(cnt.value) || 0; _aeCheckRules(); });
+    if (ul) ul.addEventListener("change", () => {
+      cnt.disabled = ul.checked;
+      if (ul.checked) cnt.value = "";
+      surfOf().count = ul.checked ? -1 : (parseInt(cnt.value) || 1);
+      _aeCheckRules();
+    });
+    wrap.appendChild(r);
+  });
+
+  if (anyBlocked) {
+    const n = document.createElement("div");
+    n.style.cssText = "font-size:12px;color:var(--text-muted);";
+    n.textContent = "Prompt can't be added here yet: the first time it's enabled the API requires Prompt " +
+      "Security details (tenant name and first users), and this editor has no form for them.";
+    wrap.appendChild(n);
+  }
+
+  if (_aePromptFormActive()) _aeRenderPromptForm(wrap);
+
+  const pf = aeState.promptFields;
+  if (pf && aeState.bundles.some(b => _aePrompt(b.name))) {
+    const hdr = document.createElement("div");
+    hdr.className = "ae-section-hdr";
+    hdr.textContent = "Prompt Security";
+    wrap.appendChild(hdr);
+    const note = document.createElement("div");
+    note.style.cssText = "font-size:12px;color:var(--text-muted);";
+    note.textContent = "Set when the account was created and cannot be edited.";
+    wrap.appendChild(note);
+    [["Tenant Name", pf.promptTenantName], ["First User Name", pf.promptUserName],
+     ["First User Email", pf.promptUserEmail], ["Region", _aePromptRegionLabel()]]
+      .forEach(([label, v]) => wrap.appendChild(_aeReadOnly(label, v)));
+  }
+  containerEl.appendChild(wrap);
+}
+
+function _aeRenderPromptForm(wrap) {
+  const pf  = aeState.promptForm;
+  const max = aeState.catalog.account.promptMaxUsers || 10;
+  const hdr = document.createElement("div");
+  hdr.className = "ae-section-hdr";
+  hdr.textContent = "Prompt Security";
+  wrap.appendChild(hdr);
+
+  const warn = document.createElement("div");
+  warn.className = "ae-warn";
+  warn.innerHTML = `<span>⚠️</span><span>These fields cannot be edited after the account is created. Review them
+    carefully before saving. No welcome email is sent — tell the first users their access is ready.</span>`;
+  wrap.appendChild(warn);
+
+  const tenantRow = document.createElement("div");
+  tenantRow.className = "ae-field-row";
+  tenantRow.innerHTML = `<div class="ae-field-label">Tenant Name</div>
+    <input type="text" id="pf-tenant" value="${escHtml(pf.tenantName)}" placeholder="e.g. example_msp-customer_a"
+      title="Unique across all Prompt tenants. Letters, numbers, hyphens and underscores only — lowercase recommended.">`;
+  tenantRow.querySelector("input").addEventListener("input", e => { pf.tenantName = e.target.value; _aeCheckRules(); });
+  wrap.appendChild(tenantRow);
+
+  const usersHdr = document.createElement("div");
+  usersHdr.style.cssText = "font-size:12px;color:var(--text-dim);margin-top:4px;";
+  usersHdr.textContent = `First Users (${pf.users.length} of ${max}) — include at least one person from your MSSP`;
+  wrap.appendChild(usersHdr);
+
+  pf.users.forEach((u, i) => {
+    const r = document.createElement("div");
+    r.className = "pf-user-row";
+    r.innerHTML = `<input type="text" placeholder="Name" value="${escHtml(u.name)}">
+      <input type="text" placeholder="Email" value="${escHtml(u.email)}">
+      <button class="sku-del" title="Remove user" ${pf.users.length === 1 ? "disabled style='opacity:.3'" : ""}>🗑</button>`;
+    const [nameInp, emailInp] = r.querySelectorAll("input");
+    nameInp.addEventListener("input",  e => { u.name  = e.target.value; _aeCheckRules(); });
+    emailInp.addEventListener("input", e => { u.email = e.target.value; _aeCheckRules(); });
+    r.querySelector("button").addEventListener("click", () => { pf.users.splice(i, 1); _aeRerenderBundles(); });
+    wrap.appendChild(r);
+  });
+
+  if (pf.users.length < max) {
+    const add = document.createElement("button");
+    add.className = "btn btn-sm";
+    add.textContent = "+ Add User";
+    add.style.alignSelf = "flex-start";
+    add.addEventListener("click", () => { pf.users.push({name: "", email: ""}); _aeRerenderBundles(); });
+    wrap.appendChild(add);
+  }
+  // Region is assigned by the platform from the console's region (sending promptRegion is
+  // rejected: "prompt_region field is not available"), so it is shown for information only.
+  const derived = _aeDerivedPromptRegion();
+  const host = _aePromptConsole(derived).replace("https://", "");
+  const r = aeState.catalog.promptRegions[derived];
+  wrap.appendChild(_aeReadOnly("Region", derived
+    ? `${r.displayName} — assigned automatically; tenant hosted at ${host}`
+    : "Assigned automatically by the platform from this console's region" +
+      (aeState.form.usageType === "mssp" ? " (US MSSP partner accounts are hosted at uswest.prompt.security)" : "")));
+}
+
+function _aeRenderModules(containerEl) {
+  containerEl.innerHTML = "";
+  const grid = document.createElement("div");
+  grid.className = "mod-grid";
+
+  aeState.catalog.addons.forEach(addon => {
+    const enabled = _aeHasModule(addon.name);
+    const rule    = aeState.catalog.addonRules[addon.name];
+    const item = document.createElement("label");
+    item.className = "mod-item";
+    // Dependencies are enforced on Save; the tooltip just explains them.
+    if (rule) item.title = "Requires " + rule.requires_all.map(_aeDisplay).join(", ");
+    item.innerHTML = `<input type="checkbox" ${enabled ? "checked" : ""}
+        style="accent-color:var(--primary)">
+      <span>${escHtml(addon.displayName)}</span>`;
+    item.querySelector("input").addEventListener("change", e => {
+      if (e.target.checked) aeState.modules.push({name: addon.name, displayName: addon.displayName});
+      else aeState.modules = aeState.modules.filter(m => _aeLower(m.name) !== addon.name);
+      _aeRenderModules(containerEl);
+      _aeCheckRules();
+    });
+    grid.appendChild(item);
+  });
+  containerEl.appendChild(grid);
+
+  const other = aeState.modules.filter(m => !_aeAddon(m.name));
+  if (other.length) containerEl.appendChild(_aeKeptNote(other.map(m => m.displayName || m.name)));
+}
+
+function _aeRenderSettings(containerEl) {
+  containerEl.innerHTML = "";
+  const dvGroup = aeState.catalog.dvRetention.groupName;
+  const _groupOf = s => s.groupName || s.settingGroup;
+
+  // Deep Visibility Data Retention is the only editable setting. It comes with Endpoint
+  // Security - Complete: defaulted to 14 Days when Complete is present, not offered without
+  // it. An existing value on a non-Complete account is still shown and kept (never pruned).
+  const dvCfg = aeState.catalog.dvRetention;
+  const dvRow = document.createElement("div");
+  dvRow.className = "sett-row";
+  dvRow.innerHTML = `<div class="sett-label">Deep Visibility Data Retention</div>`;
+  let dv = aeState.settings.find(s => _groupOf(s) === dvGroup);
+  if (dv || _aeHasBundle(dvCfg.requiresSku)) {
+    if (!dv) {   // default for a Complete account that has no value yet
+      dv = {groupName: dvGroup, setting: dvCfg.default, settingGroupDisplayName: "Deep Visibility Data Retention"};
+      aeState.settings.push(dv);
+    }
+    const opts = [...dvCfg.options];
+    if (dv.setting && !opts.includes(dv.setting)) opts.unshift(dv.setting);
+    const sel = document.createElement("select");
+    sel.innerHTML = opts.map(o =>
+      `<option value="${escHtml(o)}"${dv.setting === o ? " selected" : ""}>${escHtml(o)}</option>`).join("");
+    sel.addEventListener("change", () => { dv.setting = sel.value; _aeCheckRules(); });
+    dvRow.appendChild(sel);
+  } else {
+    dvRow.innerHTML += `<div class="ae-field-value" style="color:var(--text-muted)">Requires ${escHtml(_aeDisplay(dvCfg.requiresSku))}</div>`;
+  }
+  containerEl.appendChild(dvRow);
+
+  // All other settings are read-only and sent back unchanged.
+  _aeActiveSettings().filter(s => _groupOf(s) !== dvGroup).forEach(s => {
+    const row = document.createElement("div");
+    row.className = "sett-row";
+    row.innerHTML = `<div class="sett-label">${escHtml(s.settingGroupDisplayName || _groupOf(s) || "")}</div>
+      <div class="ae-field-value" title="Read-only">${escHtml(s.displayName || s.setting || "")}</div>`;
+    containerEl.appendChild(row);
+  });
+}
+
+// ── Save ───────────────────────────────────────────────────────────────────
+async function aeSaveAccount() {
+  if (!aeState) return;
+  const ruleErrs = _aeRuleErrors();
+  if (ruleErrs.length) {
+    document.getElementById("ae-save-err").textContent = "Cannot save: " + ruleErrs.join(" · ");
+    return;
+  }
+  const saveBtn   = document.getElementById("ae-save-btn");
+  const spinner   = document.getElementById("ae-save-spinner");
+  const errEl     = document.getElementById("ae-save-err");
+  saveBtn.disabled  = true;
+  spinner.style.display = "";
+  errEl.textContent = "";
+
+  try {
+    let url, payload;
+    if (aeState.mode === "create") {
+      const f = aeState.form;
+      url = "/api/account-create";
+      payload = {console: aeState.console, name: f.name.trim(), accountType: f.accountType,
+                 usageType: f.usageType, billingMode: f.billingMode, externalId: f.identifier.trim(),
+                 unlimitedExpiration: f.unlimited, expiration: f.unlimited ? null : f.expiration + "T23:59:59Z",
+                 ..._aeLicenseArrays()};
+      if (_aePromptFormActive()) {
+        const pf = aeState.promptForm;
+        payload.promptFields = {promptTenantName: pf.tenantName.trim(),
+          promptUsers: pf.users.map(u => ({promptUserName: u.name.trim(), promptUserEmail: u.email.trim()}))};
+      }
+    } else {
+      url = "/api/account-save";
+      payload = {console: aeState.console, accountId: aeState.accountId,
+                 name: aeState.form.name.trim(), ..._aeDiff()};
+    }
+
+    const resp = await fetch(url, {
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) { errEl.textContent = data.error || `HTTP ${resp.status}`; return; }
+
+    const created = aeState.mode === "create" ? payload.name : null;
+    closeAccountEditor();
+    // After a create, search for the new account so it is the row shown.
+    if (created) document.getElementById("aeb-query").value = created;
+    aebReload();
+  } catch (e) {
+    errEl.textContent = "Network error: " + e.message;
+  } finally {
+    spinner.style.display = "none";
+    _aeRefreshSave();   // keeps any server error text; only re-evaluates the button
   }
 }
 </script>

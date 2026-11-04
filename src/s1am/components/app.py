@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -37,6 +38,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 _log = logging.getLogger(__name__)
 
 from s1am import __version__ as _VERSION
+from s1am import account_fields, licenses
 
 
 # ─── Field Helpers ────────────────────────────────────────────────────────────
@@ -82,6 +84,11 @@ def _report_fields():
 
 
 # ─── CLI Arg Builders ─────────────────────────────────────────────────────────
+
+def _join_lines(text):
+    """Join newline/comma-separated entries with commas (keeps spaces inside display names)."""
+    return ",".join(p.strip() for p in re.split(r"[,\n]+", text) if p.strip())
+
 
 def _out_args(f):
     # Always fetch JSON from the CLI; the browser handles table/csv rendering.
@@ -178,16 +185,109 @@ COMMANDS = [
         "category": "Accounts",
         "icon": "🔍",
         "label": "Lookup Account ID",
-        "description": "Find account ID by account name (partial or exact match).",
+        "description": (
+            "Enter an account name to search by name, or paste a Salesforce tenant "
+            "(e.g. 1000_USEA1_2498094131181849447) to fetch the account name, SKUs, and modules directly."
+        ),
         "requires": "mgmt",
         "fields": [
-            {"id": "account_name", "label": "Account Name", "type": "text",
-             "placeholder": "e.g. Acme Corp"},
-            {"id": "exact", "label": "Exact match", "type": "checkbox"},
+            {"id": "account_name", "label": "Account Name or Salesforce Tenant", "type": "text",
+             "placeholder": "e.g. Acme Corp  or  1000_USEA1_2498094131181849447"},
+            {"id": "exact", "label": "Exact match (name search only)", "type": "checkbox"},
         ] + _out_fields(include_columns=False),
         "build_args": lambda f: (
             ["lookup-account-id", f["account_name"]]
             + (["--exact"] if f.get("exact") else [])
+            + _out_args(f)
+        ),
+    },
+    {
+        "id": "edit-account",
+        "category": "Accounts",
+        "icon": "🖊️",
+        "label": "Edit Account",
+        "description": "Interactively edit an account's name, SKUs (with surface counts), add-on modules, and platform settings using a Salesforce tenant name.",
+        "requires": "mgmt",
+        "type": "account-editor",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
+        "id": "update-account",
+        "category": "Accounts",
+        "icon": "✏️",
+        "label": "Update Account",
+        "description": (
+            "Update an account's name, SKUs, add-ons and Deep Visibility retention using its Salesforce tenant name. "
+            "The API call is routed to the console matching the tenant's console code. "
+            "Changes are additive/subtractive: SKUs, add-ons and settings you don't mention are preserved. "
+            "Identity Security needs Complete or Control; Wayfinder MDR Essentials needs "
+            "Purple AI Foundations and Wayfinder Threat Hunting."
+        ),
+        "requires": "mgmt",
+        "fields": [
+            {
+                "id": "tenant",
+                "label": "Salesforce Tenant",
+                "type": "text",
+                "placeholder": "e.g. 1000_USEA1_2498094131181849447",
+            },
+            {
+                "id": "name",
+                "label": "New Account Name",
+                "type": "text",
+                "placeholder": "Leave blank to keep current name",
+                "optional": True,
+            },
+            {
+                "id": "add_skus",
+                "label": "SKUs to Add / Change Count",
+                "type": "textarea",
+                "placeholder": "unified_identity=500\nhyperautomation=unlimited\n(one per line or comma-separated: "
+                               + ", ".join(s["name"] for s in licenses.SKUS) + ")",
+                "optional": True,
+            },
+            {
+                "id": "remove_skus",
+                "label": "SKUs to Remove",
+                "type": "textarea",
+                "placeholder": "SKU_NAME\n(one per line or comma-separated — leave blank to make no change)",
+                "optional": True,
+            },
+            {
+                "id": "add_modules",
+                "label": "Add-ons to Add",
+                "type": "textarea",
+                "placeholder": "purple_ai\nwayfinder_threat_hunting\n(one per line or comma-separated: "
+                               + ", ".join(a["name"] for a in licenses.ADDONS) + ")",
+                "optional": True,
+            },
+            {
+                "id": "remove_modules",
+                "label": "Add-ons to Remove",
+                "type": "textarea",
+                "placeholder": "ADDON_NAME\n(one per line or comma-separated — leave blank to make no change)",
+                "optional": True,
+            },
+            {
+                "id": "dv_retention",
+                "label": "Deep Visibility Data Retention (blank = keep current)",
+                "type": "select",
+                "options": [""] + licenses.DV_RETENTION_OPTIONS,
+                "default": "",
+                "optional": True,
+            },
+            {"id": "dry_run", "label": "Dry Run (validate and show payload only)", "type": "checkbox"},
+        ] + _out_fields(include_columns=False),
+        "build_args": lambda f: (
+            ["update-account", f["tenant"]]
+            + (["--name", f["name"]] if f.get("name") else [])
+            + (["--add-skus", _join_lines(f["add_skus"])] if f.get("add_skus") else [])
+            + (["--remove-skus", _join_lines(f["remove_skus"])] if f.get("remove_skus") else [])
+            + (["--add-modules", _join_lines(f["add_modules"])] if f.get("add_modules") else [])
+            + (["--remove-modules", _join_lines(f["remove_modules"])] if f.get("remove_modules") else [])
+            + (["--dv-retention", f["dv_retention"]] if f.get("dv_retention") else [])
+            + (["--dry-run"] if f.get("dry_run") else [])
             + _out_args(f)
         ),
     },
@@ -297,6 +397,20 @@ COMMANDS = [
         "requires": "mgmt",
         "fields": _list_fields("Search by Computer Name", "Filter by hostname"),
         "build_args": lambda f: _list_args(["list-agents"], f),
+    },
+    {
+        "id": "agent-count",
+        "category": "Agents",
+        "icon": "📊",
+        "label": "Agent Count by Platform",
+        "description": "Health check: total installed agents per console, broken down by platform (Windows, Windows Legacy, macOS, Linux).",
+        "requires": "none",
+        "console_field": "profiles",
+        "stream_url": "/api/agent-count-stream",
+        "fields": [
+            {"id": "profiles", "type": "console-selector", "label": "Consoles to query"},
+        ],
+        "build_args": lambda f: [],
     },
     {
         "id": "export-agent-passphrases",
@@ -782,6 +896,19 @@ def get_commands():
     return jsonify(COMMANDS_JSON)
 
 
+def _any_profile_has_token() -> bool:
+    """Return True if any saved profile config file contains an api_token."""
+    try:
+        from s1am.api.config import Config
+        for profile_id in (Config.list_profiles() or []):
+            cfg = _load_config_silent(profile=profile_id)
+            if cfg and cfg.api_token:
+                return True
+    except Exception:
+        pass
+    return False
+
+
 @app.route("/api/status")
 def get_status():
     base_url, api_token, pq_token, _ = _resolved_creds()
@@ -793,6 +920,7 @@ def get_status():
         "base_url":          base_url,
         "active_profile":    _active_profile(),
         "has_session_creds": bool(session.get("api_token") or session.get("pq_token")),
+        "has_saved_tokens":  mgmt_ok or pq_ok or _any_profile_has_token(),
     })
 
 
@@ -882,6 +1010,292 @@ def add_console():
         return jsonify({"success": True, "name": name})
     except Exception as exc:
         return jsonify({"success": False, "error": str(exc)}), 500
+
+
+# ── Account Editor API ─────────────────────────────────────────────────────
+
+def _build_client_for_console(console_code):
+    """Build SentinelOneClient for a named console profile."""
+    from s1am.api.client import SentinelOneClient
+    cfg = _load_config_silent(profile=console_code)
+    if not cfg:
+        raise RuntimeError(
+            f"Console '{console_code}' not found. Add it via 'Add Console' using '{console_code}' as the name."
+        )
+    base_url  = cfg.base_url  or os.environ.get("S1_BASE_URL", "")
+    api_token = cfg.api_token or os.environ.get("S1_API_TOKEN", "")
+    if not base_url or not api_token:
+        raise RuntimeError(f"Console '{console_code}' has no base URL or API token configured.")
+    return SentinelOneClient(
+        base_url=base_url,
+        api_token=api_token,
+        api_path=getattr(cfg, "api_path", None) or "/web/api/v2.1",
+        timeout=getattr(cfg, "timeout", 120),
+        verify=getattr(cfg, "verify_ssl", True),
+        auth_prefix=cfg.auth_prefix or os.environ.get("S1_AUTH_PREFIX", ""),
+    )
+
+
+def _split_tenant(tenant):
+    """Return (console_code, account_id) or raise ValueError."""
+    parts = (tenant or "").strip().split("_", 2)
+    if len(parts) != 3 or not parts[0].isdigit() or not parts[2].isdigit():
+        raise ValueError("Invalid tenant. Expected format: 1000_CODE_<accountId>")
+    return parts[1], parts[2]
+
+
+def _editor_target(body):
+    """Return (console_code, account_id) from {console, accountId} or {tenant}; raise ValueError."""
+    if body.get("console") and body.get("accountId"):
+        account_id = str(body["accountId"]).strip()
+        if not account_id.isdigit():
+            raise ValueError("Account ID must be numeric.")
+        return body["console"], account_id
+    return _split_tenant(body.get("tenant", ""))
+
+
+_BROWSE_PAGE_SIZE = 50
+
+
+@app.route("/api/accounts-browse", methods=["POST"])
+def api_accounts_browse():
+    """List/search accounts for the Edit Account page.
+
+    POST {"query"?: name | account ID | 1000_CODE_<id>, "cursor"?: str}
+    Uses the active console, except a Salesforce tenant routes to its own console.
+    """
+    body   = request.get_json() or {}
+    query  = (body.get("query") or "").strip()
+    params = {"limit": _BROWSE_PAGE_SIZE, "sortBy": "name", "sortOrder": "asc"}
+    console_code = _active_profile()
+
+    try:
+        console_code, account_id = _split_tenant(query)
+        params["ids"] = account_id
+    except ValueError:
+        if query.isdigit():
+            params["ids"] = query
+        elif query:
+            params["name__contains"] = query
+    if not console_code:
+        return jsonify({"error": "Select a console first, or search by Salesforce tenant (1000_CODE_<id>)."}), 400
+    if body.get("cursor"):
+        params["cursor"] = body["cursor"]
+
+    try:
+        client = _build_client_for_console(console_code)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 404
+    try:
+        result = client.request("GET", "accounts", params=params)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    rows = []
+    for a in result.get("data") or []:
+        lic = a.get("licenses") or {}
+        rows.append({
+            "id":           a.get("id"),
+            "name":         a.get("name"),
+            "state":        a.get("state"),
+            "accountType":  a.get("accountType"),
+            "expiration":   a.get("expiration"),
+            "activeAgents": a.get("activeAgents"),
+            "skus":         sorted(b.get("displayName") or b.get("name") or "" for b in lic.get("bundles") or []),
+        })
+    pagination = result.get("pagination") or {}
+    return jsonify({
+        "console":    console_code,
+        "accounts":   rows,
+        "nextCursor": pagination.get("nextCursor"),
+        "total":      pagination.get("totalItems"),
+    })
+
+
+def _api_error_details(exc):
+    """The API's own error texts ("title: detail"), verbatim, from a SentinelOneError payload."""
+    payload = getattr(exc, "payload", None)
+    errors = (payload or {}).get("errors") if isinstance(payload, dict) else None
+    out = []
+    for err in errors or []:
+        if not isinstance(err, dict):
+            continue
+        detail, title = str(err.get("detail") or "").strip(), str(err.get("title") or "").strip()
+        out.append(f"{title}: {detail}" if title and detail else (detail or title or json.dumps(err)))
+    return out
+
+
+def _explain_api_error(exc):
+    """Extra guidance for API validation errors we recognise by their text, or None.
+
+    Matched on the detail text only: SentinelOne's numeric codes (e.g. 4000010) are generic
+    validation codes shared by unrelated errors, so they must not be used to classify.
+    """
+    for text in _api_error_details(exc):
+        if "not available in the parent scope" in text:
+            bundle = text.split(": ", 1)[-1].split(" ")[0]
+            hint = ("For Prompt Security SKUs, ask your SentinelOne channel team to enable them on this "
+                    "console." if licenses.is_prompt_bundle(bundle) else
+                    "Ask SentinelOne to enable it on this console.")
+            return f"{bundle} is not enabled on this console (global scope). {hint}"
+    return None
+
+
+def _account_api_error(exc):
+    """JSON error for an account call, with distinct messages for 401 and 404."""
+    status = getattr(exc, "status_code", None)
+    if status == 401:
+        return jsonify({"error": "Unauthorized (401): the API token for this console is missing, "
+                                 "invalid or expired."}), 401
+    if status == 404:
+        return jsonify({"error": "Not found (404): the account no longer exists on this console."}), 404
+    if status == 400:
+        # Always show the API's own words; add guidance only when the text is recognised.
+        details = _api_error_details(exc)
+        message = "Rejected by the API (400): " + ("; ".join(details) if details else str(exc))
+        explained = _explain_api_error(exc)
+        if explained:
+            message += f" — {explained}"
+        _log.warning("[account-editor] API 400: %s", exc)
+        return jsonify({"error": message, "detail": str(exc)}), 400
+    return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/account-fetch", methods=["POST"])
+def api_account_fetch():
+    """Fetch account data for the edit UI. POST {console, accountId} or {tenant: "1000_CODE_<id>"}"""
+    body = request.get_json() or {}
+    try:
+        console_code, account_id = _editor_target(body)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    try:
+        client = _build_client_for_console(console_code)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 404
+    try:
+        # The single-account view returns usageType/billingMode; the list view has been seen
+        # to omit them on some consoles. Fall back to the list only if the single view fails.
+        try:
+            result = client.request("GET", f"accounts/{account_id}")
+            account = result.get("data") if isinstance(result, dict) else None
+        except Exception:
+            account = None
+        if not isinstance(account, dict) or not account.get("id"):
+            result = client.request("GET", "accounts", params={"ids": account_id, "limit": 10})
+            accounts = result.get("data") or []
+            if not accounts:
+                return jsonify({"error": f"No account with ID {account_id} on console '{console_code}'"}), 404
+            account = accounts[0]
+        catalog = _editor_catalog()
+        labels = _load_labels()
+        cfg = _load_config_silent(profile=console_code)
+        return jsonify({"account": account, "console": console_code,
+                        "console_label": labels.get(console_code, console_code),
+                        "s1_region": licenses.s1_region(cfg.base_url if cfg else ""),
+                        "catalog": catalog})
+    except Exception as exc:
+        return _account_api_error(exc)
+
+
+def _editor_catalog():
+    catalog = licenses.catalog()
+    catalog["account"] = {
+        "lockOnEdit": account_fields.LOCK_ON_EDIT,
+        "usageTypes": account_fields.USAGE_TYPES,
+        "billingModes": account_fields.BILLING_MODES,
+        "accountTypes": account_fields.ACCOUNT_TYPES,
+        "promptMaxUsers": account_fields.PROMPT_MAX_USERS,
+    }
+    return catalog
+
+
+@app.route("/api/account-template", methods=["GET"])
+def api_account_template():
+    """Catalog and console context for the Create Account form. GET ?console=<profile>"""
+    console_code = (request.args.get("console") or "").strip() or _active_profile()
+    if not console_code:
+        return jsonify({"error": "Select a console first."}), 400
+    cfg = _load_config_silent(profile=console_code)
+    if not cfg:
+        return jsonify({"error": f"Console '{console_code}' not found."}), 404
+    labels = _load_labels()
+    return jsonify({
+        "console": console_code,
+        "console_label": labels.get(console_code, console_code),
+        "s1_region": licenses.s1_region(cfg.base_url or ""),
+        "catalog": _editor_catalog(),
+    })
+
+
+@app.route("/api/account-create", methods=["POST"])
+def api_account_create():
+    """Create an account. POST {console?, name, accountType?, usageType?, billingMode?, externalId?,
+    expiration?|unlimitedExpiration, bundles?, modules?, settings?, promptFields?, dry_run?}"""
+    body = request.get_json() or {}
+    console_code = (body.get("console") or "").strip() or _active_profile()
+    if not console_code:
+        return jsonify({"error": "Select a console first."}), 400
+    try:
+        client = _build_client_for_console(console_code)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 404
+
+    cfg = _load_config_silent(profile=console_code)
+    pd, errors = account_fields.build_create_payload(body, base_url=cfg.base_url if cfg else None)
+    if errors:
+        return jsonify({"error": "Not created: " + "; ".join(errors), "errors": errors}), 400
+    try:
+        # The docs recommend a name-availability check first; there is no such endpoint in the
+        # v2.1 spec, so look the exact name up instead.
+        existing = client.request("GET", "accounts", params={"name": pd["name"], "limit": 10})
+        rows = (existing.get("data") or []) if isinstance(existing, dict) else []
+        if any((a.get("name") or "").strip().lower() == pd["name"].lower() for a in rows):
+            return jsonify({"error": f"An account named '{pd['name']}' already exists on this console."}), 409
+        if body.get("dry_run"):
+            return jsonify({"success": True, "dry_run": True, "payload": {"data": pd}})
+        result = client.request("POST", "accounts", payload={"data": pd})
+        account = result.get("data") if isinstance(result, dict) else result
+        _log.info("[account-create] console=%s id=%s name=%s", console_code,
+                  (account or {}).get("id") if isinstance(account, dict) else "?", pd["name"])
+        return jsonify({"success": True, "account": account})
+    except Exception as exc:
+        return _account_api_error(exc)
+
+
+@app.route("/api/account-save", methods=["POST"])
+def api_account_save():
+    """Save account edits. POST {console, accountId} or {tenant}, plus name?, bundles?, modules?, settings?"""
+    body = request.get_json() or {}
+    try:
+        console_code, account_id = _editor_target(body)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    try:
+        client = _build_client_for_console(console_code)
+    except RuntimeError as e:
+        return jsonify({"error": str(e)}), 404
+    try:
+        pd, field_errors = account_fields.build_put_data(body)
+        if field_errors:
+            return jsonify({"error": "Not saved: " + "; ".join(field_errors), "errors": field_errors}), 400
+        lic = {}
+        if "bundles"  in body: lic["bundles"]  = body["bundles"]
+        if "modules"  in body: lic["modules"]  = body["modules"]
+        if "settings" in body: lic["settings"] = body["settings"]
+        if "bundles" in lic and "settings" in lic:
+            lic["settings"] = licenses.add_default_settings(
+                lic["bundles"], licenses.prune_settings(lic["bundles"], lic["settings"]))
+        if "bundles" in lic and "modules" in lic:
+            errors = licenses.validate_licenses(lic["bundles"], lic["modules"])
+            if errors:
+                return jsonify({"error": "Not saved: " + "; ".join(errors), "errors": errors}), 400
+        if lic:
+            pd["licenses"] = lic
+        result = client.request("PUT", f"accounts/{account_id}", payload={"data": pd})
+        return jsonify({"success": True, "result": result})
+    except Exception as exc:
+        return _account_api_error(exc)
 
 
 @app.route("/api/credentials", methods=["GET"])
@@ -1096,6 +1510,71 @@ def console_modules_stream():
             except queue.Empty:
                 row = {"console": "?", "accounts": None,
                        "bundles": "TIMEOUT", "modules": "—", "settings": "—"}
+            yield f"data: {json.dumps(row)}\n\n"
+        yield 'data: {"__done__": true}\n\n'
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _process_one_agent_count(profile, labels):
+    """Count agents per platform on one console via GET /agents/count. Never raises."""
+    from s1am.cli import _agent_counts_by_platform
+    from s1am.api.client import SentinelOneClient
+
+    display = labels.get(profile, profile) if profile else "default"
+    t0 = time.monotonic()
+    try:
+        cfg = _load_config_silent(profile=profile)
+        if not cfg or not cfg.api_token:
+            raise ValueError("No API token configured for this profile")
+        client = SentinelOneClient(
+            base_url=cfg.base_url,
+            api_token=cfg.api_token,
+            api_path=cfg.api_path,
+            timeout=cfg.timeout,
+            verify=cfg.verify_ssl,
+            auth_prefix=cfg.auth_prefix,
+        )
+        row = {"console": display}
+        row.update(_agent_counts_by_platform(client))
+        _log.info("[agent-count] console=%s total=%s elapsed=%.2fs",
+                  display, row["Total"], time.monotonic() - t0)
+        return row
+    except Exception as exc:
+        _log.error("[agent-count] console=%s error=%s", display, exc)
+        return {"console": display, "Total": f"ERROR: {exc}"}
+
+
+@app.route("/api/agent-count-stream", methods=["POST"])
+def agent_count_stream():
+    """Stream per-console agent counts by platform via SSE."""
+    data = request.get_json() or {}
+    profiles = _resolve_profiles(data.get("profiles", []))
+    if not profiles:
+        return jsonify({"success": False, "error": "No consoles selected."}), 400
+
+    labels = _load_labels()
+    result_q = queue.Queue()
+
+    def worker(profile):
+        result_q.put(_process_one_agent_count(profile, labels))
+
+    threads = [threading.Thread(target=worker, args=(p,), daemon=True) for p in profiles]
+    for t in threads:
+        t.start()
+
+    def generate():
+        total = len(profiles)
+        yield f"data: {json.dumps({'__total__': total})}\n\n"
+        for _ in range(total):
+            try:
+                row = result_q.get(timeout=180)
+            except queue.Empty:
+                row = {"console": "?", "Total": "TIMEOUT"}
             yield f"data: {json.dumps(row)}\n\n"
         yield 'data: {"__done__": true}\n\n'
 
