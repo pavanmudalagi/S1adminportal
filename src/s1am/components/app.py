@@ -1455,6 +1455,59 @@ def eap_check_stream():
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.route("/api/eap/request/<int:rid>/tenants", methods=["POST"])
+def eap_add_tenant(rid):
+    """Attach another tenant to a request: {tenant_name} or {console, account_id}. Checks it right away."""
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        svc.add_tenant(st, rid, tenant_name=body.get("tenant_name"), console=body.get("console"),
+                       account_id=body.get("account_id"), client_for=_build_client_for_console)
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"row": st.get(rid)})
+
+
+@app.route("/api/eap/tenants/<int:tid>", methods=["PATCH"])
+def eap_edit_tenant(tid):
+    from s1am.eap.store import TENANT_USER_FIELDS
+    svc, st = _eap()
+    t = st.get_tenant(tid)
+    if not t:
+        return jsonify({"error": f"No tenant row {tid}"}), 404
+    fields = {k: v for k, v in (request.get_json() or {}).items() if k in TENANT_USER_FIELDS}
+    if not fields:
+        return jsonify({"error": "No editable fields in request"}), 400
+    st.update_tenant(tid, fields)
+    if "status" not in fields:
+        status, reason = svc.tenant_status(st.get_tenant(tid))
+        st.update_tenant(tid, {"status": status, "status_reason": reason})
+    st.add_history(t["request_id"], "edit", f"{t['tenant_name']}: edited " + ", ".join(sorted(fields)))
+    return jsonify({"row": st.get(t["request_id"])})
+
+
+@app.route("/api/eap/tenants/<int:tid>", methods=["DELETE"])
+def eap_delete_tenant(tid):
+    svc, st = _eap()
+    try:
+        t = svc.remove_tenant(st, tid)
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+    return jsonify({"row": st.get(t["request_id"])})
+
+
+@app.route("/api/eap/tenants/<int:tid>/check", methods=["POST"])
+def eap_check_tenant(tid):
+    svc, st = _eap()
+    try:
+        t = svc.check_tenant(st, tid, _build_client_for_console)
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+    return jsonify({"row": st.get(t["request_id"])})
+
+
 @app.route("/api/eap/export")
 def eap_export():
     """Download the tracker as a fresh .xlsx (Summary + Customer List layout + full table)."""

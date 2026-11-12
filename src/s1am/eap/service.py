@@ -169,6 +169,8 @@ def check_all(st, client_for, ids=None, progress=None):
         else:
             message = f"No Prompt on {fields['s1_console']} account {fields['s1_account_name']}"
         st.add_history(r["id"], "s1-check", message)
+        for t in st.tenants(r["id"]):
+            check_tenant(st, t["id"], client_for)
         row = st.get(r["id"])
         out.append(row)
         if progress:
@@ -230,7 +232,8 @@ def export_rows(rows):
         out.append([
             r.get("id"), r.get("contact_name"), r.get("company"), r.get("contact_email"),
             " ".join(x for x in (r.get("super_admin_name"), r.get("super_admin_email")) if x),
-            r.get("sf_account_name"), r.get("customer_id"), r.get("country"), r.get("sf_tenant"),
+            r.get("sf_account_name"), r.get("customer_id"), r.get("country"),
+            " | ".join(x for x in [r.get("sf_tenant"), *(t.get("tenant_name") for t in r.get("extra_tenants") or [])] if x) or None,
             r.get("s1_account_name"), from_form, skus[0] if skus else None, skus[1] if len(skus) > 1 else None,
             "Wayfinder MDR Essential" if "Wayfinder MDR Essentials" in products else None,
             "Hyperautomation" if "Hyperautomation" in products else None,
@@ -249,9 +252,15 @@ def summary(rows):
         by_status[r.get("status") or "new"] = by_status.get(r.get("status") or "new", 0) + 1
     for r in enabled:
         by_console[r.get("s1_console") or "?"] = by_console.get(r.get("s1_console") or "?", 0) + 1
+    extra = [t for r in asked for t in r.get("extra_tenants") or []]
+    for t in extra:
+        if t.get("s1_prompt_enabled"):
+            by_console[t.get("console") or "?"] = by_console.get(t.get("console") or "?", 0) + 1
     return {"requests": len(rows), "asked_for_prompt": len(asked), "enabled": len(enabled),
             "pending": len(asked) - len(enabled) - by_status.get("not_eligible", 0),
-            "not_eligible": by_status.get("not_eligible", 0), "by_status": by_status, "enabled_by_console": by_console}
+            "not_eligible": by_status.get("not_eligible", 0), "by_status": by_status, "enabled_by_console": by_console,
+            "tenants": len(asked) + len(extra),
+            "tenants_enabled": len(enabled) + sum(1 for t in extra if t.get("s1_prompt_enabled"))}
 
 
 def export_workbook(st, path):
@@ -267,6 +276,8 @@ def export_workbook(st, path):
     ws.append([])
     for label, value in (("Form responses", s["requests"]), ("Asked for Prompt Security", s["asked_for_prompt"]),
                          ("Prompt enabled", s["enabled"]), ("Still pending", s["pending"]),
+                         ("Tenants to provision (incl. additional)", s["tenants"]),
+                         ("Tenants with Prompt enabled", s["tenants_enabled"]),
                          ("Not eligible / no SentinelOne", s["not_eligible"])):
         ws.append([label, value])
     ws.append([])
@@ -291,11 +302,12 @@ def export_workbook(st, path):
 
     tr = wb.create_sheet("Tracker")
     tr.append([label for label, _ in TRACKER_COLUMNS])
-    for r in rows:
+
+    def tracker_line(r, tenant_state):
         line = []
         for _, key in TRACKER_COLUMNS:
             if key == "_tenant_state":
-                value = _tenant_state(r)
+                value = tenant_state
             elif key == "_prompt":
                 value = {1: "Enabled", 0: "Not enabled"}.get(r.get("s1_prompt_enabled"), "not checked")
             elif key == "_admins":
@@ -307,7 +319,17 @@ def export_workbook(st, path):
             if isinstance(value, list):
                 value = "; ".join(str(v) for v in value)
             line.append(value)
-        tr.append(line)
+        return line
+
+    for r in rows:
+        tr.append(tracker_line(r, _tenant_state(r)))
+        for t in r.get("extra_tenants") or []:
+            # One line per additional tenant: the request's columns, with the tenant's own console data.
+            merged = dict(r, sf_tenant=t.get("tenant_name"), s1_console=t.get("console"), s1_account_id=t.get("account_id"),
+                          status=t.get("status"), status_reason=t.get("status_reason"), enabled_yn=None, notes=None,
+                          **{k: t.get(k) for k in ("s1_account_name", "s1_prompt_enabled", "s1_prompt_tenant",
+                                                   "s1_prompt_users", "s1_prompt_bundles", "s1_checked_at")})
+            tr.append(tracker_line(merged, "additional tenant"))
     for sheet in (cl, tr):
         for cell in sheet[1]:
             cell.font = Font(bold=True)
@@ -322,6 +344,83 @@ def export_workbook(st, path):
 
 def export_default_path():
     return Path.home() / "Downloads" / f"EAP - Customer List {datetime.datetime.now():%Y-%m-%d %H%M}.xlsx"
+
+
+# ── additional tenants ──────────────────────────────────────────────────────
+
+def tenant_status(t):
+    """Status of one additional tenant row → (status, reason). Added by hand, so it counts as confirmed."""
+    if t.get("s1_error"):
+        return "needs_review", f"console check: {t['s1_error']}"
+    if t.get("s1_prompt_enabled"):
+        return "provisioned", f"Prompt already on {t.get('console')} account {t.get('account_id')}"
+    if not t.get("s1_account_name"):
+        return "new", "awaiting console check"
+    if not t.get("prompt_tenant_name"):
+        return "needs_review", "prompt tenant name missing"
+    return "ready", f"{t.get('console')} account {t.get('s1_account_name')} confirmed, no Prompt yet"
+
+
+def add_tenant(st, rid, tenant_name=None, console=None, account_id=None, client_for=None):
+    """Attach another tenant (a 1000_ name, or console + account ID) to a request and check it."""
+    row = st.get(rid)
+    if row is None:
+        raise KeyError(f"No request {rid}")
+    tenant_name = (tenant_name or "").strip() or None
+    if tenant_name:
+        code, aid = enrich_mod.tenant_code(tenant_name), enrich_mod.tenant_account_id(tenant_name)
+        if not (code and aid):
+            raise ValueError("Tenant must look like 1000_<CODE>_<account id>")
+        console, account_id = code, aid
+    account_id = str(account_id or "").strip()
+    console = (console or "").strip()
+    if not (console and account_id.isdigit()):
+        raise ValueError("Give a 1000_ tenant, or a console and a numeric account ID")
+    if console not in profiles():
+        raise ValueError(f"Console '{console}' is not a saved profile")
+    primary = (enrich_mod.tenant_code(row.get("sf_tenant")), enrich_mod.tenant_account_id(row.get("sf_tenant")))
+    taken = {primary, (row.get("chosen_console"), str(row.get("chosen_account_id") or "")),
+             *((t["console"], str(t["account_id"])) for t in row.get("extra_tenants") or [])}
+    if (console, account_id) in taken:
+        raise ValueError(f"{console} account {account_id} is already on this request")
+    cand = next((c for c in row.get("sf_tenants") or [] if c.get("name") == tenant_name), {})
+    fields = {
+        "tenant_name": tenant_name or f"{console} account {account_id}", "tenant_id": cand.get("id"),
+        "console": console, "account_id": account_id, "source": "user",
+        "confirmed_at": _now(), "confirmed_by": actor(),
+        # Prompt tenant names are unique: suffix the console so two tenants of one customer don't collide.
+        "prompt_tenant_name": f"{forms.suggest_tenant_name(row.get('company'))}_{console.lower()}"[:64],
+        "first_users": row.get("first_users") or [],
+        "status": "new", "status_reason": "awaiting console check",
+    }
+    tid = st.add_tenant(rid, fields)
+    st.add_history(rid, "tenant", f"Added tenant {fields['tenant_name']} ({console} account {account_id})")
+    if client_for:
+        check_tenant(st, tid, client_for)
+    return st.get_tenant(tid)
+
+
+def check_tenant(st, tid, client_for):
+    t = st.get_tenant(tid)
+    if t is None:
+        raise KeyError(f"No tenant row {tid}")
+    fields = s1check.check_target(t["console"], t["account_id"], client_for)
+    for key in ("s1_target_source", "s1_console", "s1_account_id"):   # fixed on the tenant row
+        fields.pop(key, None)
+    st.update_tenant(tid, fields)
+    status, reason = tenant_status(st.get_tenant(tid))
+    st.update_tenant(tid, {"status": status, "status_reason": reason})
+    st.add_history(t["request_id"], "s1-check", f"{t['tenant_name']}: {reason}")
+    return st.get_tenant(tid)
+
+
+def remove_tenant(st, tid):
+    t = st.get_tenant(tid)
+    if t is None:
+        raise KeyError(f"No tenant row {tid}")
+    st.delete_tenant(tid)
+    st.add_history(t["request_id"], "tenant", f"Removed tenant {t['tenant_name']}")
+    return t
 
 
 # ── one-time seed from "EAP - Customer List.xlsx" ───────────────────────────

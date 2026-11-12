@@ -70,3 +70,65 @@ def test_manual_console_target_and_notes(api):
     row = r.json["row"]
     assert (row["chosen_console"], row["chosen_account_id"], row["notes"]) == ("USEA3", "123", "spoke to Tom")
     assert client.get("/api/eap/request/3").json["history"][0]["message"].startswith("Edited: chosen_account_id, chosen_console, notes")
+
+
+class _FakeConsole:
+    def __init__(self, accounts):
+        self.accounts = {str(a["id"]): a for a in accounts}
+
+    def request(self, method, path, params=None, payload=None):
+        if path.startswith("accounts/"):
+            a = self.accounts.get(path.split("/")[1])
+            if not a:
+                raise RuntimeError("HTTP 404")
+            return {"data": a}
+        return {"data": [a for i, a in self.accounts.items() if params and i == str(params.get("ids"))]}
+
+
+def test_additional_tenants_lifecycle(api, monkeypatch):
+    client, st = api
+    import s1am.components.app as a
+    from s1am.eap import service
+    monkeypatch.setattr(service, "profiles", lambda: {"EUCE1": "https://e1", "EUCE2": "https://e2"})
+    consoles = {"EUCE1": _FakeConsole([{"id": 11, "name": "Cheops BE", "state": "active", "licenses": {"bundles": [{"name": "complete"}]}}]),
+                "EUCE2": _FakeConsole([{"id": 22, "name": "Cheops NL", "state": "active",
+                                       "licenses": {"bundles": [{"name": "prompt_employees"}]},
+                                       "promptFields": {"promptTenantName": "cheops_nl", "promptUserName": "T", "promptUserEmail": "t@cheops.com"}}])}
+    monkeypatch.setattr(a, "_build_client_for_console", lambda code: consoles[code])
+
+    # Primary: pick the first; additional: add the second by name → checked immediately, already provisioned.
+    client.patch("/api/eap/request/3", json={"sf_tenant": "1000_EUCE1_11"})
+    r = client.post("/api/eap/request/3/tenants", json={"tenant_name": "1000_EUCE2_22"})
+    assert r.status_code == 200
+    extra = r.json["row"]["extra_tenants"][0]
+    assert (extra["console"], extra["account_id"], extra["tenant_id"]) == ("EUCE2", "22", "t2")
+    assert extra["prompt_tenant_name"] == "cheops_euce2" and extra["status"] == "provisioned"
+    assert extra["s1_prompt_tenant"] == "cheops_nl" and extra["s1_prompt_users"] == [{"name": "T", "email": "t@cheops.com"}]
+
+    # Duplicates and junk are refused; a console + account ID works too.
+    assert client.post("/api/eap/request/3/tenants", json={"tenant_name": "1000_EUCE2_22"}).status_code == 400
+    assert client.post("/api/eap/request/3/tenants", json={"tenant_name": "1000_EUCE1_11"}).status_code == 400
+    assert client.post("/api/eap/request/3/tenants", json={"console": "EUCE1", "account_id": "abc"}).status_code == 400
+    assert client.post("/api/eap/request/3/tenants", json={"console": "USEA9", "account_id": "5"}).status_code == 400
+    r = client.post("/api/eap/request/3/tenants", json={"console": "EUCE1", "account_id": "999"})
+    missing = r.json["row"]["extra_tenants"][1]
+    assert missing["status"] == "needs_review" and "not found on EUCE1" in missing["s1_error"]
+
+    # Edit the provisioning details of an additional tenant, then remove it.
+    r = client.patch(f"/api/eap/tenants/{missing['id']}", json={"prompt_tenant_name": "cheops_be2", "first_users": [{"name": "A", "email": "a@x.io"}]})
+    assert r.json["row"]["extra_tenants"][1]["prompt_tenant_name"] == "cheops_be2"
+    assert client.patch(f"/api/eap/tenants/{missing['id']}", json={"console": "X"}).status_code == 400
+    r = client.delete(f"/api/eap/tenants/{missing['id']}")
+    assert [t["tenant_name"] for t in r.json["row"]["extra_tenants"]] == ["1000_EUCE2_22"]
+    assert client.delete("/api/eap/tenants/4242").status_code == 404
+
+    # The full console check covers additional tenants, and history records the steps.
+    checked = client.post(f"/api/eap/tenants/{extra['id']}/check").json["row"]["extra_tenants"][0]
+    assert checked["s1_checked_at"] and checked["status"] == "provisioned"
+    kinds = [h["kind"] for h in client.get("/api/eap/request/3").json["history"]]
+    assert "tenant" in kinds and "s1-check" in kinds
+
+    # Summary and export count the extra tenant.
+    s = service.summary(st.list())
+    assert s["tenants"] == 2 and s["tenants_enabled"] == 1
+    assert "1000_EUCE1_11 | 1000_EUCE2_22" in service.export_rows(st.list())[0]

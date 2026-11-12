@@ -44,6 +44,21 @@ COLUMNS = [
 ]
 JSON_COLUMNS = {"products", "details", "sf_tenants", "s1_skus", "s1_prompt_bundles", "s1_prompt_users",
                 "first_users", "bundle_counts", "edited_fields"}
+
+# A request can need Prompt on more than one tenant (customer with several contract tenants).
+# The first/primary tenant lives on the request row; further ones are rows here, each with
+# its own console account, check result, provisioning details and status.
+TENANT_COLUMNS = [
+    ("request_id", "INTEGER"), ("tenant_name", "TEXT"), ("tenant_id", "TEXT"), ("console", "TEXT"),
+    ("account_id", "TEXT"), ("source", "TEXT"), ("confirmed_at", "TEXT"), ("confirmed_by", "TEXT"),
+    ("prompt_tenant_name", "TEXT"), ("first_users", "TEXT"),
+    ("s1_account_name", "TEXT"), ("s1_state", "TEXT"), ("s1_skus", "TEXT"), ("s1_prompt_enabled", "INTEGER"),
+    ("s1_prompt_bundles", "TEXT"), ("s1_prompt_tenant", "TEXT"), ("s1_prompt_users", "TEXT"),
+    ("s1_prompt_region", "TEXT"), ("s1_checked_at", "TEXT"), ("s1_error", "TEXT"),
+    ("status", "TEXT"), ("status_reason", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
+]
+TENANT_JSON_COLUMNS = {"first_users", "s1_skus", "s1_prompt_bundles", "s1_prompt_users"}
+TENANT_USER_FIELDS = {"prompt_tenant_name", "first_users", "status"}
 FORM_FIELDS = [c for c, _ in COLUMNS[:COLUMNS.index(("no_s1_claimed", "INTEGER")) + 1]]
 USER_FIELDS = {"notes", "first_contacted", "enabled_yn", "date_enabled", "enabled_by", "prompt_tenant_name",
                "first_users", "chosen_console", "chosen_account_id", "bundle_counts", "sf_tenant", "status",
@@ -72,6 +87,11 @@ class Store:
             for name, typ in COLUMNS:
                 if name not in have:
                     c.execute(f"ALTER TABLE requests ADD COLUMN {name} {typ}")
+            c.execute("CREATE TABLE IF NOT EXISTS request_tenants (id INTEGER PRIMARY KEY AUTOINCREMENT)")
+            have = {r["name"] for r in c.execute("PRAGMA table_info(request_tenants)")}
+            for name, typ in TENANT_COLUMNS:
+                if name not in have:
+                    c.execute(f"ALTER TABLE request_tenants ADD COLUMN {name} {typ}")
             c.execute("CREATE TABLE IF NOT EXISTS history (id INTEGER PRIMARY KEY AUTOINCREMENT, request_id INTEGER, "
                       "ts TEXT, kind TEXT, message TEXT, data TEXT)")
             c.execute("CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT, actor TEXT, "
@@ -79,13 +99,13 @@ class Store:
             c.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
 
     @staticmethod
-    def _encode(fields):
-        return {k: (json.dumps(v) if k in JSON_COLUMNS and v is not None else v) for k, v in fields.items()}
+    def _encode(fields, json_cols=JSON_COLUMNS):
+        return {k: (json.dumps(v) if k in json_cols and v is not None else v) for k, v in fields.items()}
 
     @staticmethod
-    def _decode(row):
+    def _decode(row, json_cols=JSON_COLUMNS):
         d = dict(row)
-        for k in JSON_COLUMNS:
+        for k in json_cols:
             if isinstance(d.get(k), str):
                 try:
                     d[k] = json.loads(d[k])
@@ -98,11 +118,50 @@ class Store:
     def get(self, request_id):
         with self._conn() as c:
             row = c.execute("SELECT * FROM requests WHERE id = ?", (request_id,)).fetchone()
-        return self._decode(row) if row else None
+        if not row:
+            return None
+        d = self._decode(row)
+        d["extra_tenants"] = self.tenants(request_id)
+        return d
 
     def list(self):
         with self._conn() as c:
-            return [self._decode(r) for r in c.execute("SELECT * FROM requests ORDER BY id")]
+            rows = [self._decode(r) for r in c.execute("SELECT * FROM requests ORDER BY id")]
+            extras = {}
+            for t in c.execute("SELECT * FROM request_tenants ORDER BY id"):
+                extras.setdefault(t["request_id"], []).append(self._decode(t, TENANT_JSON_COLUMNS))
+        for r in rows:
+            r["extra_tenants"] = extras.get(r["id"], [])
+        return rows
+
+    # ── additional tenants ──────────────────────────────────────────────
+
+    def tenants(self, request_id):
+        with self._conn() as c:
+            rows = c.execute("SELECT * FROM request_tenants WHERE request_id = ? ORDER BY id", (request_id,)).fetchall()
+        return [self._decode(r, TENANT_JSON_COLUMNS) for r in rows]
+
+    def get_tenant(self, tenant_row_id):
+        with self._conn() as c:
+            row = c.execute("SELECT * FROM request_tenants WHERE id = ?", (tenant_row_id,)).fetchone()
+        return self._decode(row, TENANT_JSON_COLUMNS) if row else None
+
+    def add_tenant(self, request_id, fields):
+        enc = self._encode(dict(fields, request_id=request_id, created_at=_now(), updated_at=_now()), TENANT_JSON_COLUMNS)
+        with self._conn() as c:
+            cur = c.execute(f"INSERT INTO request_tenants ({', '.join(enc)}) VALUES ({', '.join('?' * len(enc))})",
+                            list(enc.values()))
+            return cur.lastrowid
+
+    def update_tenant(self, tenant_row_id, fields):
+        enc = self._encode(dict(fields, updated_at=_now()), TENANT_JSON_COLUMNS)
+        with self._conn() as c:
+            c.execute(f"UPDATE request_tenants SET {', '.join(f'{k} = ?' for k in enc)} WHERE id = ?",
+                      [*enc.values(), tenant_row_id])
+
+    def delete_tenant(self, tenant_row_id):
+        with self._conn() as c:
+            c.execute("DELETE FROM request_tenants WHERE id = ?", (tenant_row_id,))
 
     def upsert_form_row(self, rec):
         """Insert or refresh the workbook-derived fields of one row → "new" | "updated" | "unchanged"."""

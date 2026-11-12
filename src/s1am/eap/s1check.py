@@ -159,13 +159,34 @@ def check_request(r, client_for, hosts_to_code, all_codes=()):
         out["s1_error"] = "; ".join(e for e in errors if e)
         return out
 
+    out.update(describe_account(account, console))
+    return out
+
+
+def describe_account(account, console):
+    """The s1_* fields for an account payload."""
     info = prompt_info(account)
     lic = account.get("licenses") or {}
-    out.update(
-        s1_console=console, s1_account_id=str(account.get("id")), s1_account_name=account.get("name"),
-        s1_state=account.get("state"),
-        s1_skus=sorted({b.get("displayName") or b.get("name") for b in lic.get("bundles") or [] if b.get("name")}),
-        s1_prompt_enabled=int(info["enabled"]), s1_prompt_bundles=info["bundles"], s1_prompt_tenant=info["tenant"],
-        s1_prompt_users=info["users"], s1_prompt_region=info["region"],
-    )
+    return {
+        "s1_console": console, "s1_account_id": str(account.get("id")), "s1_account_name": account.get("name"),
+        "s1_state": account.get("state"),
+        "s1_skus": sorted({b.get("displayName") or b.get("name") for b in lic.get("bundles") or [] if b.get("name")}),
+        "s1_prompt_enabled": int(info["enabled"]), "s1_prompt_bundles": info["bundles"],
+        "s1_prompt_tenant": info["tenant"], "s1_prompt_users": info["users"], "s1_prompt_region": info["region"],
+    }
+
+
+def check_target(console, account_id, client_for):
+    """s1_* fields for one explicit console account (additional tenants). Never raises."""
+    out = _blank(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    out["s1_console"], out["s1_target_source"] = console, "chosen"
+    try:
+        account = _get_account(client_for(console), account_id)
+    except Exception as exc:
+        out["s1_error"] = str(exc)[:300]
+        return out
+    if not account:
+        out["s1_error"] = f"account {account_id} not found on {console}"
+        return out
+    out.update(describe_account(account, console))
     return out
