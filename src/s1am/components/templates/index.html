@@ -269,7 +269,7 @@
     .eap-muted { color: var(--text-muted); font-size: 12px; }
     .eap-sub { display: block; font-size: 11px; color: var(--text-muted); white-space: normal; max-width: 260px; }
     .eap-conf-high { color: var(--success); font-weight: 600; } .eap-conf-medium { color: var(--warn); font-weight: 600; } .eap-conf-low { color: var(--error); font-weight: 600; }
-    .eap-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 95vw); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 60px rgba(0,0,0,.5); z-index: 110; display: flex; flex-direction: column; }
+    .eap-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 95vw); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 60px rgba(0,0,0,.5); z-index: 95; display: flex; flex-direction: column; }
     .eap-drawer.hidden { display: none; }
     .eap-drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
     .eap-drawer-body { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; font-size: 13px; }
@@ -503,6 +503,7 @@
       <div class="eap-drawer-head">
         <div><div class="card-title" id="eap-d-title">Request</div><div class="card-desc" id="eap-d-sub"></div></div>
         <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-primary btn-sm" id="eap-d-edit" title="Open this account in the Account Editor with Prompt pre-filled">✎ Edit account</button>
           <button class="btn btn-sm" id="eap-d-check">Check console</button>
           <button class="btn btn-sm" id="eap-d-enrich">Re-enrich</button>
           <button class="btn btn-sm" id="eap-d-close">✕</button>
@@ -2735,7 +2736,9 @@ async function aeSaveAccount() {
     if (!resp.ok || data.error) { errEl.textContent = data.error || `HTTP ${resp.status}`; return; }
 
     const created = aeState.mode === "create" ? payload.name : null;
+    const eapId = aeState.eapRequestId;
     closeAccountEditor();
+    if (eapId) { eapCheck([eapId]); return; }   // opened from the EAP tracker: re-check that row
     // After a create, search for the new account so it is the row shown.
     if (created) document.getElementById("aeb-query").value = created;
     aebReload();
@@ -2989,8 +2992,8 @@ async function eapOpen(id) {
   document.getElementById("eap-d-title").textContent = `#${r.id} — ${r.company || ""}`;
   document.getElementById("eap-d-sub").innerHTML = _eapStatusBadge(r);
   const cands = (r.sf_tenants || []).length
-    ? `<table class="rtable eap-cands" style="width:100%"><thead><tr><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th></tr></thead><tbody>` +
-      r.sf_tenants.map(c => `<tr><td class="${c.name === r.sf_tenant ? "sel" : ""}">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td class="eap-wrap">${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td></tr>`).join("") +
+    ? `<table class="rtable eap-cands" style="width:100%"><thead><tr><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th><th></th></tr></thead><tbody>` +
+      r.sf_tenants.map(c => `<tr><td class="${c.name === r.sf_tenant ? "sel" : ""}">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td class="eap-wrap">${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td><td>${c.name === r.sf_tenant ? "" : `<button class="btn btn-sm eap-pick" data-name="${_eapEsc(c.name)}" title="Select this tenant and re-check its console account">Use this tenant</button>`}</td></tr>`).join("") +
       `</tbody></table>`
     : (r.sf_account_id ? '<span class="eap-muted">No 1000_ tenants on this account.</span>' : "");
   const parsed = [
@@ -3031,6 +3034,11 @@ async function eapOpen(id) {
       ["Prompt admins", _eapAdmins(r) || null],
       ["Prompt region", _eapEsc(r.s1_prompt_region)],
       ["Error", r.s1_error ? `<span style="color:var(--error)">${_eapEsc(r.s1_error)}</span>` : undefined],
+      ["Manual target", `<select id="eap-e-console"><option value="">console…</option>${(eapMeta.consoles || []).map(c =>
+          `<option value="${_eapEsc(c)}" ${c === r.chosen_console ? "selected" : ""}>${_eapEsc(_eapLabel(c))}</option>`).join("")}</select>
+        <input type="text" id="eap-e-acct" placeholder="Account ID" value="${_eapEsc(r.chosen_account_id || "")}" style="width:190px">
+        <button class="btn btn-sm" id="eap-e-target">Use &amp; check</button>
+        <span class="eap-sub">${r.chosen_console ? "Overrides the Salesforce tenant. Clear both fields to go back to automatic." : "Use when the console account cannot be found from the form or Salesforce."}</span>`],
     ])}</div>
     <div class="eap-sec"><h4>Provisioning details (editable)</h4>${_eapKV([
       ["Prompt tenant name", `<input type="text" id="eap-e-tenant" value="${_eapEsc(r.prompt_tenant_name || "")}" style="width:100%">`],
@@ -3041,7 +3049,61 @@ async function eapOpen(id) {
     ])}<div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn btn-primary btn-sm" id="eap-e-save">Save</button><span class="eap-muted" id="eap-e-msg">${(r.edited_fields || []).length ? "Hand-edited (kept on sync): " + _eapEsc(r.edited_fields.join(", ")) : ""}</span></div></div>
     <div class="eap-sec"><h4>History</h4><div class="eap-hist">${hist}</div></div>`;
   document.getElementById("eap-e-save").onclick = () => eapSave(r);
+  document.getElementById("eap-e-target").onclick = () => eapSetTarget(r.id);
+  document.querySelectorAll("#eap-d-body .eap-pick").forEach(b => b.onclick = () => eapPickTenant(r.id, b.dataset.name));
+  const editBtn = document.getElementById("eap-d-edit");
+  const target = _eapTarget(r);
+  editBtn.disabled = !target;
+  editBtn.title = target ? `Open ${_eapLabel(target.console)} account ${target.accountId} in the Account Editor with Prompt pre-filled`
+                         : "No console account resolved yet — pick a tenant or set a manual target first";
+  editBtn.onclick = () => eapOpenEditor(r);
   document.getElementById("eap-drawer").classList.remove("hidden");
+}
+
+// ── hand-off to the Account Editor ──
+// Target precedence mirrors the server's resolve_target: manual override → console check → SF tenant.
+function _eapTarget(r) {
+  if (r.chosen_console && r.chosen_account_id) return {console: r.chosen_console, accountId: String(r.chosen_account_id)};
+  if (r.s1_console && r.s1_account_id)         return {console: r.s1_console,     accountId: String(r.s1_account_id)};
+  const m = /^1000_([A-Za-z0-9]+)_(\d+)$/.exec(r.sf_tenant || "");
+  return m ? {console: m[1].toUpperCase(), accountId: m[2]} : null;
+}
+async function _eapPatch(id, body) {
+  const res = await fetch(`/api/eap/request/${id}`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.row;
+}
+async function eapPickTenant(id, name) {
+  _eapErr("");
+  try { await _eapPatch(id, {sf_tenant: name}); await eapCheck([id]); } catch (e) { _eapErr(e.message); }
+}
+async function eapSetTarget(id) {
+  _eapErr("");
+  const console_ = document.getElementById("eap-e-console").value, acct = document.getElementById("eap-e-acct").value.trim();
+  if ((console_ && !acct) || (!console_ && acct)) { _eapErr("Manual target needs both a console and an account ID (or neither)."); return; }
+  if (acct && !/^\d{10,20}$/.test(acct)) { _eapErr("Account ID must be numeric."); return; }
+  try { await _eapPatch(id, {chosen_console: console_, chosen_account_id: acct}); await eapCheck([id]); } catch (e) { _eapErr(e.message); }
+}
+async function eapOpenEditor(r) {
+  const target = _eapTarget(r);
+  if (!target) return;
+  _aeOpenModal("Edit Account", "Save Changes");
+  await aeLoadAccount(target);
+  if (!aeState) return;                       // fetch failed; the modal shows why
+  aeState.eapRequestId = r.id;                // after Save, re-check this row instead of reloading the browser
+  if (aeState.promptFields) return;           // tenant exists: nothing to pre-fill, show as-is
+  // Pre-tick Prompt for Employees (unlimited) and fill the tenant name + first users from the request.
+  const pb = aeState.catalog.promptBundles.find(b => b.name === "prompt_employees");
+  if (pb && !aeState.bundles.some(b => b.name === pb.name)) {
+    aeState.bundles.push({name: pb.name, displayName: pb.displayName, surfaces: [{name: pb.surface, count: -1}]});
+  }
+  const std = (aeState.catalog.account.promptStandardAdmins || []).map(a => a.promptUserEmail.toLowerCase());
+  const users = (r.first_users || []).filter(u => u.email && !std.includes(u.email.toLowerCase()))
+                                     .map(u => ({name: u.name || "", email: u.email}));
+  aeState.promptForm = {tenantName: r.prompt_tenant_name || aeState.promptForm.tenantName,
+                        users: users.length ? users : aeState.promptForm.users};
+  _aeRerenderBundles();
 }
 function _eapParseUsers(text) {
   return text.split("\n").map(l => l.trim()).filter(Boolean).map(l => {

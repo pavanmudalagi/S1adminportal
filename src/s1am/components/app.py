@@ -1365,6 +1365,17 @@ def eap_request_edit(rid):
     if st.get(rid) is None:
         return jsonify({"error": f"No request {rid}"}), 404
     st.update(rid, fields, source="user")
+    # Picking a tenant by hand resolves the "multiple/no contract tenant" review and carries
+    # that tenant's agent counts; the console check then targets it (sf-tenant source).
+    if "sf_tenant" in fields:
+        row = st.get(rid)
+        cand = next((c for c in row.get("sf_tenants") or [] if c.get("name") == fields["sf_tenant"]), None)
+        st.update(rid, {"match_flag": None, "sf_tenant_id": (cand or {}).get("id"),
+                        "complete_agents": (cand or {}).get("complete_agents"),
+                        "control_agents": (cand or {}).get("control_agents"),
+                        "total_agents": (cand or {}).get("total_agents")})
+    if "chosen_console" in fields or "chosen_account_id" in fields or "sf_tenant" in fields:
+        st.update(rid, {"s1_error": None, "s1_account_name": None, "s1_prompt_enabled": None})  # stale until re-checked
     if "status" not in fields:
         status, reason = eap_enrich.derive_status(st.get(rid))
         st.update(rid, {"status": status, "status_reason": reason})
