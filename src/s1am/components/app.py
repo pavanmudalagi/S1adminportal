@@ -1365,8 +1365,8 @@ def eap_request_edit(rid):
     if st.get(rid) is None:
         return jsonify({"error": f"No request {rid}"}), 404
     st.update(rid, fields, source="user")
-    # Picking a tenant by hand resolves the "multiple/no contract tenant" review and carries
-    # that tenant's agent counts; the console check then targets it (sf-tenant source).
+    # Picking a tenant by hand confirms it, resolves the "multiple/no contract tenant" review and
+    # carries that tenant's agent counts; the console check then targets it (sf-tenant source).
     if "sf_tenant" in fields:
         row = st.get(rid)
         cand = next((c for c in row.get("sf_tenants") or [] if c.get("name") == fields["sf_tenant"]), None)
@@ -1374,6 +1374,21 @@ def eap_request_edit(rid):
                         "complete_agents": (cand or {}).get("complete_agents"),
                         "control_agents": (cand or {}).get("control_agents"),
                         "total_agents": (cand or {}).get("total_agents")})
+        fields.setdefault("tenant_confirmed", 1)
+    if "tenant_confirmed" in fields:
+        if fields["tenant_confirmed"]:
+            row = st.get(rid)
+            # Confirming the auto-selected tenant also pins it, so re-enrichment cannot swap it.
+            st.update(rid, {"tenant_confirmed": 1, "sf_tenant": row.get("sf_tenant")}, source="user")
+            st.update(rid, {"tenant_confirmed_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "tenant_confirmed_by": svc.actor()})
+            st.add_history(rid, "confirm", f"Tenant {row.get('sf_tenant')} confirmed by {svc.actor()}")
+        else:
+            row = st.get(rid)
+            edited = [f for f in (row.get("edited_fields") or []) if f not in ("sf_tenant", "tenant_confirmed")]
+            st.update(rid, {"tenant_confirmed": 0, "tenant_confirmed_at": None, "tenant_confirmed_by": None,
+                            "edited_fields": edited})
+            st.add_history(rid, "confirm", "Tenant confirmation withdrawn")
     if "chosen_console" in fields or "chosen_account_id" in fields or "sf_tenant" in fields:
         st.update(rid, {"s1_error": None, "s1_account_name": None, "s1_prompt_enabled": None})  # stale until re-checked
     if "status" not in fields:

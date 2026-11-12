@@ -61,6 +61,21 @@ def open_store():
     return Store(os.path.expanduser(setting("db_path")))
 
 
+def actor():
+    """Who is acting: [eap] actioned_by, else the cached Salesforce identity, else the OS user."""
+    who = setting("actioned_by")
+    if who:
+        return who
+    try:
+        from ..salesforce import auth as sf_auth
+        token = sf_auth.load_token() or {}
+        if token.get("id"):
+            return "sf:" + sf_auth._identity_from(token["id"])
+    except Exception:
+        pass
+    return os.getenv("USER") or "unknown"
+
+
 def profiles():
     """{profile code: base URL} for every console profile (sections with s1_base_url)."""
     out = {}

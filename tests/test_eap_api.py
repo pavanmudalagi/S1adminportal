@@ -41,9 +41,27 @@ def test_picking_a_tenant_resolves_the_review(api):
     assert row["sf_tenant"] == "1000_EUCE2_22" and row["sf_tenant_id"] == "t2" and row["total_agents"] == 9
     assert row["match_flag"] is None and row["status"] == "new" and row["status_reason"] == "awaiting console check"
     assert "sf_tenant" in row["edited_fields"]
+    assert row["tenant_confirmed"] == 1 and row["tenant_confirmed_at"] and row["tenant_confirmed_by"]
     # A later enrichment must not undo the hand-picked tenant.
     st.update(3, {"sf_tenant": "1000_EUCE1_11", "match_flag": "multiple contract tenants (2)"})
     assert st.get(3)["sf_tenant"] == "1000_EUCE2_22"
+
+
+def test_confirming_the_auto_selected_tenant_pins_it(api):
+    client, st = api
+    st.update(3, {"sf_tenant": "1000_EUCE1_11", "match_flag": None, "s1_account_name": "Cheops", "s1_console": "EUCE1",
+                  "prompt_tenant_name": "cheops"})
+    assert client.get("/api/eap/request/3").json["row"]["sf_tenant"] == "1000_EUCE1_11"
+    row = client.patch("/api/eap/request/3", json={"tenant_confirmed": 1}).json["row"]
+    assert row["tenant_confirmed"] == 1 and "sf_tenant" in row["edited_fields"]
+    # A later enrichment proposing the other tenant must not win over the confirmed one.
+    st.update(3, {"sf_tenant": "1000_EUCE2_22"})
+    assert st.get(3)["sf_tenant"] == "1000_EUCE1_11"
+    hist = client.get("/api/eap/request/3").json["history"]
+    assert any(h["kind"] == "confirm" and "1000_EUCE1_11" in h["message"] for h in hist)
+    # Withdrawing the confirmation frees the tenant again.
+    row = client.patch("/api/eap/request/3", json={"tenant_confirmed": 0}).json["row"]
+    assert not row["tenant_confirmed"] and "sf_tenant" not in row["edited_fields"] and row["tenant_confirmed_by"] is None
 
 
 def test_manual_console_target_and_notes(api):

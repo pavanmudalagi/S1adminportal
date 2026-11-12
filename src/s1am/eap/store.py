@@ -39,13 +39,15 @@ COLUMNS = [
     ("notes", "TEXT"), ("first_contacted", "TEXT"), ("enabled_yn", "TEXT"), ("date_enabled", "TEXT"),
     ("enabled_by", "TEXT"), ("prompt_tenant_name", "TEXT"), ("first_users", "TEXT"),
     ("chosen_console", "TEXT"), ("chosen_account_id", "TEXT"), ("bundle_counts", "TEXT"),
+    ("tenant_confirmed", "INTEGER"), ("tenant_confirmed_at", "TEXT"), ("tenant_confirmed_by", "TEXT"),
     ("edited_fields", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
 ]
 JSON_COLUMNS = {"products", "details", "sf_tenants", "s1_skus", "s1_prompt_bundles", "s1_prompt_users",
                 "first_users", "bundle_counts", "edited_fields"}
 FORM_FIELDS = [c for c, _ in COLUMNS[:COLUMNS.index(("no_s1_claimed", "INTEGER")) + 1]]
 USER_FIELDS = {"notes", "first_contacted", "enabled_yn", "date_enabled", "enabled_by", "prompt_tenant_name",
-               "first_users", "chosen_console", "chosen_account_id", "bundle_counts", "sf_tenant", "status"}
+               "first_users", "chosen_console", "chosen_account_id", "bundle_counts", "sf_tenant", "status",
+               "tenant_confirmed"}
 
 
 def _now():

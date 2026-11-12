@@ -477,6 +477,7 @@
             <select id="eap-f-console"><option value="">All consoles</option></select>
             <select id="eap-f-country"><option value="">All countries</option></select>
             <select id="eap-f-conf"><option value="">Any match confidence</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">No match</option></select>
+            <select id="eap-f-tenant"><option value="">Tenant: any</option><option value="confirmed">Confirmed</option><option value="auto">Auto-selected, unconfirmed</option><option value="manual">Manual target</option><option value="none">No tenant</option></select>
             <select id="eap-f-prompt"><option value="">Prompt: any</option><option value="1">Prompt enabled</option><option value="0">Not enabled</option><option value="unknown">Not checked</option></select>
             <input type="text" id="eap-f-q" placeholder="Search company, contact, email, tenant, account, notes…">
             <span class="eap-progress" id="eap-progress"></span>
@@ -2765,6 +2766,17 @@ const EAP_STATUS = {
 const _eapEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const _eapLabel = code => code ? ((eapMeta.labels && eapMeta.labels[code]) ? `${eapMeta.labels[code]} (${code})` : code) : "";
 const _eapTenantCode = t => { const m = /^1000_([A-Za-z0-9]+)_/.exec(t || ""); return m ? m[1].toUpperCase() : ""; };
+// "confirmed" = the user locked this tenant; "auto" = the enrichment's proposal; "manual" = console+ID override
+const _eapTenantState = r => (r.chosen_console && r.chosen_account_id) ? "manual"
+  : r.tenant_confirmed ? "confirmed" : (r.sf_tenant ? "auto" : "none");
+function _eapTenantBadge(r) {
+  switch (_eapTenantState(r)) {
+    case "confirmed": return `<span class="badge-ok" title="Confirmed ${_eapEsc(r.tenant_confirmed_at || "")} by ${_eapEsc(r.tenant_confirmed_by || "")}">${(r.tenant_confirmed_by || "").startsWith("form") ? "✓ from form" : "✓ confirmed"}</span>`;
+    case "manual":    return `<span class="badge-dry">manual target</span>`;
+    case "auto":      return `<span class="badge-partial" title="Proposed by the Salesforce match — confirm it in the row">auto · unconfirmed</span>`;
+    default:          return "";
+  }
+}
 
 function eapInit() {
   if (_eapInited) return;
@@ -2772,7 +2784,7 @@ function eapInit() {
   document.getElementById("eap-sync-btn").onclick   = eapSync;
   document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
   document.getElementById("eap-check-btn").onclick  = () => eapCheck();
-  ["eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt"]
+  ["eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt", "eap-f-tenant"]
     .forEach(id => document.getElementById(id).onchange = eapRender);
   document.getElementById("eap-f-q").oninput = eapRender;
   document.getElementById("eap-d-close").onclick  = () => { document.getElementById("eap-drawer").classList.add("hidden"); eapOpenId = null; };
@@ -2833,6 +2845,8 @@ function eapFiltered() {
     if (f("eap-f-console") && (r.s1_console || _eapTenantCode(r.sf_tenant)) !== f("eap-f-console")) return false;
     if (f("eap-f-country") && r.country !== f("eap-f-country")) return false;
     if (f("eap-f-conf") && (r.match_confidence || "none") !== f("eap-f-conf")) return false;
+    const t = f("eap-f-tenant");
+    if (t && _eapTenantState(r) !== t) return false;
     const p = f("eap-f-prompt");
     if (p === "1" && r.s1_prompt_enabled !== 1) return false;
     if (p === "0" && r.s1_prompt_enabled !== 0) return false;
@@ -2886,7 +2900,7 @@ function eapRender() {
       <td class="eap-wrap">${(r.products || []).map(_eapEsc).join("<br>")}</td>
       <td title="${_eapEsc(r.sf_account_id || "")}">${_eapEsc(r.sf_account_name || "")}${r.customer_id ? `<span class="eap-sub">Customer ID ${_eapEsc(r.customer_id)}</span>` : ""}</td>
       <td>${_eapEsc(r.country || "")}</td>
-      <td>${_eapEsc(r.sf_tenant || "")}${(r.sf_tenants || []).length > 1 ? `<span class="eap-sub">${r.sf_tenants.length} tenants on account</span>` : ""}</td>
+      <td>${_eapEsc(r.sf_tenant || "")}<span class="eap-sub">${_eapTenantBadge(r)}${(r.sf_tenants || []).length > 1 && !r.tenant_confirmed ? ` ${r.sf_tenants.length} candidates` : ""}</span></td>
       <td>${consoleCell}</td>
       <td>${conf}</td>
       <td>${_eapStatusBadge(r)}</td>
@@ -2990,12 +3004,29 @@ async function eapOpen(id) {
   if (!res.ok) { _eapErr(data.error); return; }
   const r = data.row, d = r.details || {};
   document.getElementById("eap-d-title").textContent = `#${r.id} — ${r.company || ""}`;
-  document.getElementById("eap-d-sub").innerHTML = _eapStatusBadge(r);
-  const cands = (r.sf_tenants || []).length
-    ? `<table class="rtable eap-cands" style="width:100%"><thead><tr><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th><th></th></tr></thead><tbody>` +
-      r.sf_tenants.map(c => `<tr><td class="${c.name === r.sf_tenant ? "sel" : ""}">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td class="eap-wrap">${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td><td>${c.name === r.sf_tenant ? "" : `<button class="btn btn-sm eap-pick" data-name="${_eapEsc(c.name)}" title="Select this tenant and re-check its console account">Use this tenant</button>`}</td></tr>`).join("") +
-      `</tbody></table>`
-    : (r.sf_account_id ? '<span class="eap-muted">No 1000_ tenants on this account.</span>' : "");
+  document.getElementById("eap-d-sub").innerHTML = _eapStatusBadge(r) + (r.sf_tenant ? `<div style="margin-top:4px">${_eapEsc(r.sf_tenant)} ${_eapTenantBadge(r)}</div>` : "");
+  const candRows = list => list.map(c => `<tr><td class="${c.name === r.sf_tenant ? "sel" : ""}">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td class="eap-wrap">${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td>
+      <td>${c.name === r.sf_tenant
+            ? (r.tenant_confirmed ? "" : `<button class="btn btn-primary btn-sm eap-confirm" title="Lock this tenant in for the request">Confirm</button>`)
+            : `<button class="btn btn-sm eap-pick" data-name="${_eapEsc(c.name)}" title="Select and confirm this tenant, then re-check its console account">Use this tenant</button>`}</td></tr>`).join("");
+  const candTable = list => `<table class="rtable eap-cands" style="width:100%"><thead><tr><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th><th></th></tr></thead><tbody>${candRows(list)}</tbody></table>`;
+  const all = r.sf_tenants || [];
+  const selected = all.find(c => c.name === r.sf_tenant);
+  let cands;
+  if (!all.length) {
+    cands = r.sf_account_id ? '<span class="eap-muted">No 1000_ tenants on this account.</span>' : "";
+  } else if (r.tenant_confirmed && selected) {
+    // Confirmed: only the chosen tenant is shown; the rest of the account's tenants stay folded away.
+    const others = all.filter(c => c !== selected);
+    cands = candTable([selected]) +
+      `<div style="display:flex;gap:10px;align-items:center;margin-top:6px;font-size:12px;">
+         <span class="eap-muted">Confirmed ${_eapEsc(r.tenant_confirmed_at || "")} by ${_eapEsc(r.tenant_confirmed_by || "")}</span>
+         <button class="btn btn-sm eap-unconfirm">Change…</button>
+       </div>` +
+      (others.length ? `<details style="margin-top:6px;font-size:12px;"><summary class="eap-muted" style="cursor:pointer">${others.length} other tenant${others.length === 1 ? "" : "s"} on this account</summary>${candTable(others)}</details>` : "");
+  } else {
+    cands = candTable(all);
+  }
   const parsed = [
     d.hosts?.length ? "console " + d.hosts.join(", ") : "",
     d.account_ids?.length ? "account ID " + d.account_ids.join(", ") : "",
@@ -3051,11 +3082,15 @@ async function eapOpen(id) {
   document.getElementById("eap-e-save").onclick = () => eapSave(r);
   document.getElementById("eap-e-target").onclick = () => eapSetTarget(r.id);
   document.querySelectorAll("#eap-d-body .eap-pick").forEach(b => b.onclick = () => eapPickTenant(r.id, b.dataset.name));
+  document.querySelectorAll("#eap-d-body .eap-confirm").forEach(b => b.onclick = () => eapConfirmTenant(r.id, true));
+  document.querySelectorAll("#eap-d-body .eap-unconfirm").forEach(b => b.onclick = () => eapConfirmTenant(r.id, false));
   const editBtn = document.getElementById("eap-d-edit");
   const target = _eapTarget(r);
-  editBtn.disabled = !target;
-  editBtn.title = target ? `Open ${_eapLabel(target.console)} account ${target.accountId} in the Account Editor with Prompt pre-filled`
-                         : "No console account resolved yet — pick a tenant or set a manual target first";
+  const confirmed = _eapTenantState(r) === "confirmed" || _eapTenantState(r) === "manual";
+  editBtn.disabled = !target || !confirmed;
+  editBtn.title = !target ? "No console account resolved yet — pick a tenant or set a manual target first"
+    : !confirmed ? "Confirm the tenant first (Salesforce section) — the editor only opens for a confirmed tenant or a manual target"
+    : `Open ${_eapLabel(target.console)} account ${target.accountId} in the Account Editor with Prompt pre-filled`;
   editBtn.onclick = () => eapOpenEditor(r);
   document.getElementById("eap-drawer").classList.remove("hidden");
 }
@@ -3073,6 +3108,14 @@ async function _eapPatch(id, body) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data.row;
+}
+async function eapConfirmTenant(id, yes) {
+  _eapErr("");
+  try {
+    const row = await _eapPatch(id, {tenant_confirmed: yes ? 1 : 0});
+    const i = eapRows.findIndex(x => x.id === id); if (i >= 0) eapRows[i] = row;
+    eapRender(); eapOpen(id);
+  } catch (e) { _eapErr(e.message); }
 }
 async function eapPickTenant(id, name) {
   _eapErr("");

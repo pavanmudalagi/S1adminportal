@@ -10,6 +10,13 @@ Rules run in order; the first hit wins and its number + confidence are stored:
   5  email domain → other Contacts → Account (webmail skipped)       low
   6  company name → Account.Name LIKE                                low
 
+When the form itself identifies the account (rules 0–3: a tenant string, an S1 account ID,
+or a console URL + account name resolved on that console), only the matching tenant is kept
+and it counts as confirmed by the form. Otherwise (email / domain / company matches) the
+auto-selected tenant is a proposal: the request only becomes `ready` once the user confirms
+it (or sets a manual console target), and a confirmed tenant is never changed by a later
+enrichment.
+
 Low confidence always ends in needs_review. Each rule is one batched query over all the
 requests (salesforce.eap_queries); nothing is queried per row. Tenant selection: only
 TenantStatus__c = 'Contract' is ever auto-selected; the other statuses are shown as
@@ -88,7 +95,8 @@ def _empty_result(sf_as_of):
     return {"sf_updated_at": sf_as_of, "sf_account_id": None, "sf_account_name": None, "customer_id": None,
             "country": None, "sf_tenants": [], "sf_tenant": None, "sf_tenant_id": None, "match_rule": None,
             "match_confidence": None, "match_flag": None, "match_note": None,
-            "complete_agents": None, "control_agents": None, "total_agents": None}
+            "complete_agents": None, "control_agents": None, "total_agents": None,
+            "tenant_confirmed": 0, "tenant_confirmed_at": None, "tenant_confirmed_by": None}
 
 
 def enrich(rows, q, host_codes=None, sf_as_of=None):
@@ -217,12 +225,25 @@ def enrich(rows, q, host_codes=None, sf_as_of=None):
                  country=a.get("BillingCountry"), match_rule=rule, match_confidence=CONFIDENCE[rule])
         cands = [_candidate(t, agents) for t in tenants.get(aid, [])]
         cands.sort(key=lambda c: (c["status"] != "Contract", -(c["total_agents"] or 0), c["name"]))
+        # The form named the account itself → keep only the tenant(s) it points at.
+        form_pick = []
+        if rule in (0, 1) and named:
+            form_pick = [c for c in cands if c["name"] == named]
+        elif rule in (2, 3):
+            form_ids = set(per[rid]["ids"])
+            form_pick = [c for c in cands if tenant_account_id(c["name"]) in form_ids]
+        if form_pick:
+            cands = form_pick
         f["sf_tenants"] = cands
         notes = [f"Matched by {RULE_LABELS[rule]}"]
         sel, reason = select_tenant(cands, named=named, form_code=form_code)
         if sel:
             f.update(sf_tenant=sel["name"], sf_tenant_id=sel["id"], complete_agents=sel["complete_agents"],
                      control_agents=sel["control_agents"], total_agents=sel["total_agents"])
+            if form_pick:
+                f.update(tenant_confirmed=1, tenant_confirmed_at=sf_as_of,
+                         tenant_confirmed_by=f"form ({RULE_LABELS[rule]})")
+                notes.append("tenant identified by the form")
             code = tenant_code(sel["name"])
             if form_code and code and form_code != code:
                 f["match_flag"] = "console/tenant region mismatch"
@@ -256,6 +277,8 @@ def derive_status(r):
         return "needs_review", f"console check: {r['s1_error']}"
     if not r.get("s1_account_name"):
         return "new", "awaiting console check"
+    if not (r.get("tenant_confirmed") or (r.get("chosen_console") and r.get("chosen_account_id"))):
+        return "needs_review", f"confirm the tenant (auto-selected {r.get('sf_tenant') or 'none'})"
     if not r.get("prompt_tenant_name"):
         return "needs_review", "prompt tenant name missing"
     return "ready", f"{r.get('s1_console')} account {r.get('s1_account_name')} confirmed, no Prompt yet"

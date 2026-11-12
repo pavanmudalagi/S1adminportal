@@ -123,7 +123,19 @@ def test_region_mismatch_flag_and_candidate_order():
     f = enrich.enrich([r], q, host_codes={"apne1-swprd7.sentinelone.net": "APNE2"})[1]
     assert f["sf_tenant"] == "1000_APNE1_7" and f["total_agents"] == 4 and f["complete_agents"] == 3
     assert f["match_flag"] == "console/tenant region mismatch" and "APNE1" in f["match_note"]
-    assert [c["name"] for c in f["sf_tenants"]] == ["1000_APNE1_7", "1000_APNE2_5"]
+    # The form gave the account ID, so only that tenant is listed and it counts as confirmed by the form.
+    assert [c["name"] for c in f["sf_tenants"]] == ["1000_APNE1_7"]
+    assert f["tenant_confirmed"] == 1 and f["tenant_confirmed_by"].startswith("form (")
+
+
+def test_email_match_lists_all_tenants_unconfirmed():
+    tenants = [_tenant("1000_USEA1_1"), _tenant("1000_EUCE1_2", "Trial")]
+    q = FakeQueries(tenants=tenants, accounts=[ACME],
+                    contacts=[{"Id": "003", "Name": "Jo", "Email": "jo@acme.com", "AccountId": "001A"}])
+    f = enrich.enrich([_row(1)], q)[1]
+    assert f["match_rule"] == 4 and f["sf_tenant"] == "1000_USEA1_1"
+    assert [c["name"] for c in f["sf_tenants"]] == ["1000_USEA1_1", "1000_EUCE1_2"]
+    assert f["tenant_confirmed"] == 0 and f["tenant_confirmed_by"] is None
 
 
 def test_derive_status():
@@ -136,10 +148,13 @@ def test_derive_status():
     assert ds({"wants_prompt": 1, "sf_account_id": "x", "match_confidence": "high", "match_flag": "multiple contract tenants (2)"})[1] == "multiple contract tenants (2)"
     assert ds({"wants_prompt": 1, "sf_account_id": "x", "match_confidence": "high", "super_admin_needs_review": 1})[0] == "needs_review"
     assert ds({"wants_prompt": 1, "sf_account_id": "x", "match_confidence": "high"}) == ("new", "awaiting console check")
-    ready = {"wants_prompt": 1, "sf_account_id": "x", "match_confidence": "high", "s1_account_name": "Acme",
-             "s1_console": "USEA1", "prompt_tenant_name": "acme"}
-    assert ds(ready)[0] == "ready"
-    assert ds(dict(ready, s1_error="boom"))[0] == "needs_review"
+    checked = {"wants_prompt": 1, "sf_account_id": "x", "match_confidence": "high", "s1_account_name": "Acme",
+               "s1_console": "USEA1", "prompt_tenant_name": "acme", "sf_tenant": "1000_USEA1_1"}
+    # The auto-selected tenant is only a proposal: confirm it (or set a manual target) before "ready".
+    assert ds(checked) == ("needs_review", "confirm the tenant (auto-selected 1000_USEA1_1)")
+    assert ds(dict(checked, tenant_confirmed=1))[0] == "ready"
+    assert ds(dict(checked, chosen_console="USEA1", chosen_account_id="1"))[0] == "ready"
+    assert ds(dict(checked, tenant_confirmed=1, s1_error="boom"))[0] == "needs_review"
 
 
 # ── store ───────────────────────────────────────────────────────────────────
