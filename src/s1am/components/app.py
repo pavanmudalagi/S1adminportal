@@ -213,6 +213,21 @@ COMMANDS = [
         "build_args": lambda f: [],
     },
     {
+        "id": "eap-tracker",
+        "category": "Prompt EAP",
+        "icon": "🧭",
+        "label": "EAP Request Tracker",
+        "description": (
+            "Prompt Security early-access requests from the Microsoft Forms workbook, enriched from "
+            "Salesforce (account, country, contract tenant, agents) and cross-checked on the SentinelOne "
+            "console (is Prompt enabled, tenant name, first users)."
+        ),
+        "requires": "none",
+        "type": "eap-tracker",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "update-account",
         "category": "Accounts",
         "icon": "✏️",
@@ -1304,6 +1319,136 @@ def api_account_save():
         return jsonify({"success": True, "result": result})
     except Exception as exc:
         return _account_api_error(exc)
+
+
+# ─── Prompt EAP tracker ───────────────────────────────────────────────────────
+
+def _eap():
+    from s1am.eap import service
+    return service, service.open_store()
+
+
+@app.route("/api/eap/requests")
+def eap_requests():
+    """All tracked requests plus sync/enrichment metadata for the table."""
+    from s1am.salesforce import auth as sf_auth
+    svc, st = _eap()
+    path = svc.form_path()
+    meta = {
+        "last_sync": st.get_meta("last_sync"), "sf_as_of": st.get_meta("sf_as_of"), "s1_as_of": st.get_meta("s1_as_of"),
+        "form_path": str(path or ""), "form_exists": bool(path and path.exists()),
+        "sf": sf_auth.status().as_dict(), "labels": _load_labels(), "consoles": sorted(svc.profiles()),
+    }
+    return jsonify({"rows": st.list(), "meta": meta})
+
+
+@app.route("/api/eap/request/<int:rid>", methods=["GET"])
+def eap_request(rid):
+    _, st = _eap()
+    row = st.get(rid)
+    if not row:
+        return jsonify({"error": f"No request {rid}"}), 404
+    return jsonify({"row": row, "history": st.history(rid)})
+
+
+@app.route("/api/eap/request/<int:rid>", methods=["PATCH"])
+def eap_request_edit(rid):
+    """User edits: only the editable fields; they become protected from sync/enrich."""
+    from s1am.eap.store import USER_FIELDS
+    from s1am.eap import enrich as eap_enrich
+    svc, st = _eap()
+    body = request.get_json() or {}
+    fields = {k: v for k, v in body.items() if k in USER_FIELDS}
+    if not fields:
+        return jsonify({"error": "No editable fields in request"}), 400
+    if st.get(rid) is None:
+        return jsonify({"error": f"No request {rid}"}), 404
+    st.update(rid, fields, source="user")
+    if "status" not in fields:
+        status, reason = eap_enrich.derive_status(st.get(rid))
+        st.update(rid, {"status": status, "status_reason": reason})
+    st.add_history(rid, "edit", "Edited: " + ", ".join(sorted(fields)))
+    return jsonify({"row": st.get(rid)})
+
+
+@app.route("/api/eap/sync", methods=["POST"])
+def eap_sync():
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        return jsonify(svc.sync(st, path=body.get("path") or None))
+    except (FileNotFoundError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/eap/enrich", methods=["POST"])
+def eap_enrich_route():
+    from s1am.salesforce.client import SalesforceConfigError
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        return jsonify(svc.enrich_all(st, ids=body.get("ids")))
+    except SalesforceConfigError as exc:
+        return jsonify({"error": str(exc), "needs_login": True}), 401
+    except Exception as exc:
+        _log.warning("[eap] enrich failed: %s", exc)
+        return jsonify({"error": str(exc).split(". Response content")[0][:400]}), 400
+
+
+@app.route("/api/eap/check-stream", methods=["POST"])
+def eap_check_stream():
+    """Cross-check requests on their consoles, one row per SSE event."""
+    svc, st = _eap()
+    body = request.get_json() or {}
+    ids = body.get("ids")
+    result_q = queue.Queue()
+
+    def worker():
+        try:
+            svc.check_all(st, _build_client_for_console, ids=ids, progress=result_q.put)
+        except Exception as exc:  # surfaced as a row-less error event
+            result_q.put({"__error__": str(exc)})
+        result_q.put({"__done__": True})
+
+    threading.Thread(target=worker, daemon=True).start()
+    total = len(ids) if ids else len(st.list())
+
+    def generate():
+        yield f"data: {json.dumps({'__total__': total})}\n\n"
+        while True:
+            try:
+                item = result_q.get(timeout=300)
+            except queue.Empty:
+                item = {"__done__": True, "__timeout__": True}
+            yield f"data: {json.dumps(item, default=str)}\n\n"
+            if item.get("__done__"):
+                break
+
+    return Response(stream_with_context(generate()), mimetype="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@app.route("/api/eap/seed", methods=["POST"])
+def eap_seed():
+    svc, st = _eap()
+    body = request.get_json() or {}
+    path = os.path.expanduser(body.get("path") or "")
+    if not path or not os.path.exists(path):
+        return jsonify({"error": "Give the path to 'EAP - Customer List.xlsx'"}), 400
+    try:
+        return jsonify(svc.seed_customer_list(st, path))
+    except (ValueError, KeyError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/eap/sf-login", methods=["POST"])
+def eap_sf_login():
+    """Run the browser SSO flow (blocks until the redirect or timeout)."""
+    from s1am.salesforce import auth as sf_auth
+    from s1am.salesforce import client as sf
+    status = sf_auth.login_interactive(timeout=240)
+    sf.reset_client()
+    return jsonify(status.as_dict()), (200 if status.connected else 400)
 
 
 @app.route("/api/credentials", methods=["GET"])

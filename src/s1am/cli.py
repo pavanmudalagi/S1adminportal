@@ -347,6 +347,38 @@ def cmd_sf_check(args):
     })
 
 
+def _eap_ids(raw):
+    return [int(x) for x in re.split(r"[,\s]+", raw) if x.strip()] if raw else None
+
+
+def cmd_eap_sync(args):
+    from .eap import service
+    st = service.open_store()
+    result = service.sync(st, path=args.path)
+    _print_json(result)
+
+
+def cmd_eap_enrich(args):
+    from .eap import service
+    st = service.open_store()
+    _print_json(service.enrich_all(st, ids=_eap_ids(args.ids)))
+
+
+def cmd_eap_check(args):
+    from .eap import service
+    st = service.open_store()
+    rows = service.check_all(st, lambda code: build_client(profile=code), ids=_eap_ids(args.ids))
+    _print_json([{k: r.get(k) for k in ("id", "company", "status", "status_reason", "s1_console", "s1_account_name",
+                                         "s1_prompt_enabled", "s1_prompt_tenant", "s1_prompt_users", "s1_error")}
+                 for r in rows])
+
+
+def cmd_eap_seed(args):
+    from .eap import service
+    st = service.open_store()
+    _print_json(service.seed_customer_list(st, args.path))
+
+
 def _parse_names(raw):
     """Split a comma-or-newline-separated string into a list of non-empty, stripped names."""
     if not raw:
@@ -1002,6 +1034,22 @@ def build_parser():
     sf_check.add_argument("--timeout", type=int, default=180,
                           help="Seconds to wait for the browser redirect (default: 180)")
     sf_check.set_defaults(func=cmd_sf_check)
+
+    eap_sync = sub.add_parser("eap-sync", help="Import Prompt EAP requests from the Microsoft Forms workbook")
+    eap_sync.add_argument("--path", default=None, help="Workbook path (default: [eap] form_path / synced copy)")
+    eap_sync.set_defaults(func=cmd_eap_sync)
+
+    eap_enrich = sub.add_parser("eap-enrich", help="Match EAP requests to Salesforce accounts and tenants")
+    eap_enrich.add_argument("--ids", default=None, help="Comma-separated request IDs (default: all)")
+    eap_enrich.set_defaults(func=cmd_eap_enrich)
+
+    eap_check = sub.add_parser("eap-check", help="Cross-check EAP requests on their SentinelOne consoles (read-only)")
+    eap_check.add_argument("--ids", default=None, help="Comma-separated request IDs (default: all)")
+    eap_check.set_defaults(func=cmd_eap_check)
+
+    eap_seed = sub.add_parser("eap-seed", help="One-time import of notes/enabled columns from 'EAP - Customer List.xlsx'")
+    eap_seed.add_argument("path", help="Path to the Customer List workbook (Sheet1, '#' = form Id)")
+    eap_seed.set_defaults(func=cmd_eap_seed)
 
     raw = sub.add_parser("raw", help="Call any SentinelOne API endpoint")
     raw.add_argument("method", help="HTTP method, e.g. GET, POST")

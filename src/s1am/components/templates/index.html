@@ -254,6 +254,32 @@
     .aeb-table tbody tr { cursor: pointer; }
     .aeb-table td.aeb-skus { color: var(--text-dim); font-size: 12px; max-width: 420px; }
     .aeb-status { padding: 14px; text-align: center; font-size: 12px; color: var(--text-muted); display: flex; justify-content: center; align-items: center; gap: 8px; }
+    /* Prompt EAP tracker */
+    .eap-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .eap-toolbar input[type=text] { min-width: 260px; }
+    .eap-summary { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-muted); align-items: center; }
+    .eap-summary b { color: var(--text); }
+    .eap-table-wrap { max-height: calc(100vh - 340px); overflow: auto; }
+    .eap-table tbody tr { cursor: pointer; }
+    .eap-table tbody tr:hover td { background: var(--surface-2); }
+    .eap-table td { vertical-align: top; }
+    .eap-table td.eap-wrap { white-space: normal; max-width: 240px; font-size: 12px; }
+    .eap-muted { color: var(--text-muted); font-size: 12px; }
+    .eap-sub { display: block; font-size: 11px; color: var(--text-muted); white-space: normal; max-width: 260px; }
+    .eap-conf-high { color: var(--success); font-weight: 600; } .eap-conf-medium { color: var(--warn); font-weight: 600; } .eap-conf-low { color: var(--error); font-weight: 600; }
+    .eap-drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(680px, 95vw); background: var(--surface); border-left: 1px solid var(--border); box-shadow: -20px 0 60px rgba(0,0,0,.5); z-index: 110; display: flex; flex-direction: column; }
+    .eap-drawer.hidden { display: none; }
+    .eap-drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+    .eap-drawer-body { padding: 16px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; font-size: 13px; }
+    .eap-sec h4 { margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+    .eap-kv { display: grid; grid-template-columns: 150px 1fr; gap: 5px 12px; }
+    .eap-kv .k { color: var(--text-muted); }
+    .eap-kv .v { word-break: break-word; }
+    .eap-raw { white-space: pre-wrap; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; font-size: 12px; }
+    .eap-hist div { padding: 4px 0; border-bottom: 1px dashed var(--border); font-size: 12px; }
+    .eap-cands td.sel { color: var(--success); font-weight: 600; }
+    .eap-drawer textarea { width: 100%; min-height: 64px; }
+    .eap-progress { font-size: 12px; color: var(--text-muted); }
 
     /* ── Account Editor Modal ── */
     .ae-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.78); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -429,6 +455,59 @@
       <p>Click any command on the left to build and run it. Results appear below the form.</p>
     </div>
     <!-- Edit Account landing page: browse / search accounts on the active console -->
+    <div id="eap-page" style="display:none; flex-direction:column; gap:16px;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Prompt Security — EAP Request Tracker</div>
+            <div class="card-desc">Form responses → Salesforce account &amp; contract tenant → SentinelOne console check (Prompt enabled? tenant name, first users).</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="eap-sync-btn" title="Re-read the Forms workbook">⟳ Sync Excel</button>
+            <button class="btn" id="eap-enrich-btn" title="Match every request in Salesforce (batched queries)">☁ Enrich Salesforce</button>
+            <button class="btn btn-primary" id="eap-check-btn" title="GET each account on its console (read-only)">🔎 Check Consoles</button>
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="eap-summary" id="eap-summary"></div>
+          <div class="eap-toolbar">
+            <select id="eap-f-status"><option value="">All statuses</option></select>
+            <select id="eap-f-console"><option value="">All consoles</option></select>
+            <select id="eap-f-country"><option value="">All countries</option></select>
+            <select id="eap-f-conf"><option value="">Any match confidence</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">No match</option></select>
+            <select id="eap-f-prompt"><option value="">Prompt: any</option><option value="1">Prompt enabled</option><option value="0">Not enabled</option><option value="unknown">Not checked</option></select>
+            <input type="text" id="eap-f-q" placeholder="Search company, contact, email, tenant, account, notes…">
+            <span class="eap-progress" id="eap-progress"></span>
+          </div>
+          <div class="ae-err" id="eap-err"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="eap-table-wrap">
+          <table class="rtable eap-table" id="eap-table">
+            <thead><tr>
+              <th>#</th><th>Company</th><th>Contact</th><th>Super Admin</th><th>Requested</th>
+              <th>SF Account</th><th>Country</th><th>Tenant (Contract)</th><th>Console / S1 Account</th>
+              <th>Match</th><th>Status</th><th>Prompt on console</th><th>Prompt tenant</th><th>Prompt admins</th>
+              <th>Agents</th><th>Joe</th><th>Notes</th>
+            </tr></thead>
+            <tbody id="eap-rows"></tbody>
+          </table>
+          <div class="aeb-status" id="eap-status"></div>
+        </div>
+      </div>
+    </div>
+    <div class="eap-drawer hidden" id="eap-drawer">
+      <div class="eap-drawer-head">
+        <div><div class="card-title" id="eap-d-title">Request</div><div class="card-desc" id="eap-d-sub"></div></div>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-sm" id="eap-d-check">Check console</button>
+          <button class="btn btn-sm" id="eap-d-enrich">Re-enrich</button>
+          <button class="btn btn-sm" id="eap-d-close">✕</button>
+        </div>
+      </div>
+      <div class="eap-drawer-body" id="eap-d-body"></div>
+    </div>
     <div id="ae-browser" style="display:none; flex-direction:column; gap:16px;">
       <div class="card">
         <div class="card-header">
@@ -758,7 +837,7 @@ document.getElementById("ac-save-btn").addEventListener("click", async () => {
 });
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-const CATEGORY_ORDER = ["Accounts","Sites","Agents","Threats","Groups & Exclusions","Metering","Config","Advanced"];
+const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Threats","Groups & Exclusions","Metering","Config","Advanced"];
 
 function renderSidebar() {
   const nav = document.getElementById("sidebar");
@@ -812,6 +891,21 @@ function selectCommand(id) {
   if (!cmd) return;
 
   // Account editor has its own landing page (account list + search) instead of the standard form
+  // EAP tracker has its own page too
+  const eapPage = document.getElementById("eap-page");
+  if (cmd.type === "eap-tracker") {
+    activeCmd = cmd;
+    document.getElementById("welcome").style.display = "none";
+    document.getElementById("command-area").style.display = "none";
+    document.getElementById("ae-browser").style.display = "none";
+    eapPage.style.display = "flex";
+    eapInit();
+    eapLoad();
+    return;
+  }
+  eapPage.style.display = "none";
+  document.getElementById("eap-drawer").classList.add("hidden");
+
   const browser = document.getElementById("ae-browser");
   if (cmd.type === "account-editor") {
     activeCmd = cmd;
@@ -2637,6 +2731,335 @@ async function aeSaveAccount() {
     _aeRefreshSave();   // keeps any server error text; only re-evaluates the button
   }
 }
+
+// ─── Prompt EAP tracker ───────────────────────────────────────────────────────
+let eapRows = [], eapMeta = {}, eapOpenId = null, _eapInited = false;
+const EAP_STATUS = {
+  new:          ["New",          "badge-fetch"],
+  needs_review: ["Needs review", "badge-partial"],
+  ready:        ["Ready",        "badge-ok"],
+  submitted:    ["Submitted",    "badge-dry"],
+  provisioned:  ["Provisioned",  "badge-ok"],
+  failed:       ["Failed",       "badge-err"],
+  not_eligible: ["Not eligible", "eap-muted"],
+  closed:       ["Closed",       "eap-muted"],
+};
+const _eapEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const _eapLabel = code => code ? ((eapMeta.labels && eapMeta.labels[code]) ? `${eapMeta.labels[code]} (${code})` : code) : "";
+const _eapTenantCode = t => { const m = /^1000_([A-Za-z0-9]+)_/.exec(t || ""); return m ? m[1].toUpperCase() : ""; };
+
+function eapInit() {
+  if (_eapInited) return;
+  _eapInited = true;
+  document.getElementById("eap-sync-btn").onclick   = eapSync;
+  document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
+  document.getElementById("eap-check-btn").onclick  = () => eapCheck();
+  ["eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt"]
+    .forEach(id => document.getElementById(id).onchange = eapRender);
+  document.getElementById("eap-f-q").oninput = eapRender;
+  document.getElementById("eap-d-close").onclick  = () => { document.getElementById("eap-drawer").classList.add("hidden"); eapOpenId = null; };
+  document.getElementById("eap-d-check").onclick  = () => eapOpenId && eapCheck([eapOpenId]);
+  document.getElementById("eap-d-enrich").onclick = () => eapOpenId && eapEnrich([eapOpenId]);
+}
+
+async function eapLoad() {
+  const res = await fetch("/api/eap/requests");
+  const data = await res.json();
+  eapRows = data.rows || [];
+  eapMeta = data.meta || {};
+  eapRenderSummary();
+  eapFillFilters();
+  eapRender();
+}
+
+function eapRenderSummary() {
+  const counts = {};
+  eapRows.forEach(r => { const k = r.status || "new"; counts[k] = (counts[k] || 0) + 1; });
+  const parts = Object.entries(EAP_STATUS).filter(([k]) => counts[k]).map(([k, [label]]) => `<span><b>${counts[k]}</b> ${label}</span>`);
+  const sf = eapMeta.sf || {};
+  const sfText = sf.connected
+    ? `Salesforce: signed in${eapMeta.sf_as_of ? ` · data as of ${_eapEsc(eapMeta.sf_as_of)}` : ""}`
+    : `Salesforce: <span style="color:var(--warn)">not signed in</span> <button class="btn btn-sm" id="eap-sf-login">Sign in</button>`;
+  const excel = eapMeta.form_exists
+    ? _eapEsc((eapMeta.form_path || "").split("/").pop())
+    : '<span style="color:var(--error)">workbook not found — set [eap] form_path</span>';
+  document.getElementById("eap-summary").innerHTML =
+    `<span><b>${eapRows.length}</b> requests</span>` + parts.join("") +
+    `<span title="${_eapEsc(eapMeta.form_path || "")}">Excel: ${excel}${eapMeta.last_sync ? ` · synced ${_eapEsc(eapMeta.last_sync)}` : ""}</span>` +
+    `<span>${sfText}</span>` +
+    (eapMeta.s1_as_of ? `<span>Consoles checked ${_eapEsc(eapMeta.s1_as_of)}</span>` : "");
+  const btn = document.getElementById("eap-sf-login");
+  if (btn) btn.onclick = eapSfLogin;
+}
+
+function _eapFill(selId, values, fmt = v => v) {
+  const sel = document.getElementById(selId);
+  const cur = sel.value;
+  sel.querySelectorAll("option:not(:first-child)").forEach(o => o.remove());
+  [...new Set(values.filter(Boolean))].sort().forEach(v => {
+    const o = document.createElement("option"); o.value = v; o.textContent = fmt(v); sel.appendChild(o);
+  });
+  sel.value = [...sel.options].some(o => o.value === cur) ? cur : "";
+}
+function eapFillFilters() {
+  _eapFill("eap-f-status", Object.keys(EAP_STATUS).filter(k => eapRows.some(r => (r.status || "new") === k)), k => EAP_STATUS[k][0]);
+  _eapFill("eap-f-console", eapRows.map(r => r.s1_console || _eapTenantCode(r.sf_tenant)), _eapLabel);
+  _eapFill("eap-f-country", eapRows.map(r => r.country));
+}
+
+function eapFiltered() {
+  const f = id => document.getElementById(id).value;
+  const q = f("eap-f-q").trim().toLowerCase();
+  return eapRows.filter(r => {
+    if (f("eap-f-status") && (r.status || "new") !== f("eap-f-status")) return false;
+    if (f("eap-f-console") && (r.s1_console || _eapTenantCode(r.sf_tenant)) !== f("eap-f-console")) return false;
+    if (f("eap-f-country") && r.country !== f("eap-f-country")) return false;
+    if (f("eap-f-conf") && (r.match_confidence || "none") !== f("eap-f-conf")) return false;
+    const p = f("eap-f-prompt");
+    if (p === "1" && r.s1_prompt_enabled !== 1) return false;
+    if (p === "0" && r.s1_prompt_enabled !== 0) return false;
+    if (p === "unknown" && r.s1_prompt_enabled !== null && r.s1_prompt_enabled !== undefined) return false;
+    if (q) {
+      const hay = [r.id, r.company, r.contact_name, r.contact_email, r.super_admin_name, r.super_admin_email,
+                   r.sf_account_name, r.sf_tenant, r.s1_account_name, r.s1_account_id, r.s1_prompt_tenant,
+                   r.notes, r.joe_status, r.details_raw].join(" ").toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+function _eapStatusBadge(r) {
+  const [label, cls] = EAP_STATUS[r.status] || [r.status || "New", "badge-fetch"];
+  return `<span class="${cls}">${_eapEsc(label)}</span>` +
+    (r.status_reason ? `<span class="eap-sub">${_eapEsc(r.status_reason)}</span>` : "");
+}
+function _eapPromptCell(r) {
+  if (r.s1_error) return `<span class="badge-err" title="${_eapEsc(r.s1_error)}">check failed</span>`;
+  if (r.s1_prompt_enabled === 1) return `<span class="badge-ok">Enabled</span>` +
+    ((r.s1_prompt_bundles || []).length ? `<span class="eap-sub">${_eapEsc(r.s1_prompt_bundles.join(", "))}</span>` : "");
+  if (r.s1_prompt_enabled === 0) return `<span class="badge-partial">Not enabled</span>`;
+  return `<span class="eap-muted">not checked</span>`;
+}
+const _eapAdmins = r => (r.s1_prompt_users || []).map(u => `${_eapEsc(u.name || "—")} &lt;${_eapEsc(u.email || "—")}&gt;`).join("<br>");
+
+function eapRender() {
+  const rows = eapFiltered();
+  const tbody = document.getElementById("eap-rows");
+  tbody.innerHTML = rows.map(r => {
+    const conf = r.match_confidence
+      ? `<span class="eap-conf-${r.match_confidence}" title="${_eapEsc(r.match_note || "")}">${_eapEsc(r.match_confidence)}</span><span class="eap-sub">${_eapEsc(r.match_note || "")}</span>`
+      : `<span class="eap-muted">${r.sf_updated_at ? _eapEsc(r.match_note || "no match") : "—"}</span>`;
+    const consoleCell = r.s1_account_name
+      ? `${_eapEsc(_eapLabel(r.s1_console))}<span class="eap-sub">${_eapEsc(r.s1_account_name)} · ${_eapEsc(r.s1_account_id)}</span>`
+      : (r.s1_error
+          ? `<span class="eap-muted" title="${_eapEsc(r.s1_error)}">${_eapEsc(_eapLabel(r.s1_console) || "?")}</span><span class="eap-sub">${_eapEsc(r.s1_error)}</span>`
+          : `<span class="eap-muted">${_eapEsc(_eapLabel(_eapTenantCode(r.sf_tenant)))}</span>`);
+    const agents = r.total_agents != null
+      ? `${r.total_agents}<span class="eap-sub">Complete ${r.complete_agents ?? 0} · Control ${r.control_agents ?? 0}</span>` : "";
+    const joe = [r.joe_status ? _eapEsc(r.joe_status) : "",
+                 r.joe_ref ? `<a href="${_eapEsc(r.joe_ref)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">SF link</a>` : ""]
+      .filter(Boolean).join("<br>");
+    return `<tr data-id="${r.id}">
+      <td class="col-num">${r.id}</td>
+      <td>${_eapEsc(r.company)}<span class="eap-sub">${_eapEsc(r.completion_time || "")}</span></td>
+      <td>${_eapEsc(r.contact_name)}<span class="eap-sub">${_eapEsc(r.contact_email)}</span></td>
+      <td>${_eapEsc(r.super_admin_name || "")}<span class="eap-sub">${_eapEsc(r.super_admin_email || (r.super_admin_needs_review ? "⚠ no email" : ""))}</span></td>
+      <td class="eap-wrap">${(r.products || []).map(_eapEsc).join("<br>")}</td>
+      <td title="${_eapEsc(r.sf_account_id || "")}">${_eapEsc(r.sf_account_name || "")}${r.customer_id ? `<span class="eap-sub">Customer ID ${_eapEsc(r.customer_id)}</span>` : ""}</td>
+      <td>${_eapEsc(r.country || "")}</td>
+      <td>${_eapEsc(r.sf_tenant || "")}${(r.sf_tenants || []).length > 1 ? `<span class="eap-sub">${r.sf_tenants.length} tenants on account</span>` : ""}</td>
+      <td>${consoleCell}</td>
+      <td>${conf}</td>
+      <td>${_eapStatusBadge(r)}</td>
+      <td>${_eapPromptCell(r)}</td>
+      <td>${_eapEsc(r.s1_prompt_tenant || "")}</td>
+      <td class="eap-wrap">${_eapAdmins(r)}</td>
+      <td>${agents}</td>
+      <td class="eap-wrap">${joe}</td>
+      <td class="eap-wrap" title="${_eapEsc(r.notes || "")}">${_eapEsc((r.notes || "").slice(0, 80))}</td>
+    </tr>`;
+  }).join("");
+  document.getElementById("eap-status").textContent = eapRows.length
+    ? `${rows.length} of ${eapRows.length} requests` : "No requests yet — click Sync Excel.";
+  tbody.querySelectorAll("tr").forEach(tr => tr.addEventListener("click", () => eapOpen(parseInt(tr.dataset.id, 10))));
+}
+
+// ── actions ──
+function _eapErr(msg) { document.getElementById("eap-err").textContent = msg || ""; }
+function _eapBusy(on, text) {
+  ["eap-sync-btn", "eap-enrich-btn", "eap-check-btn"].forEach(id => document.getElementById(id).disabled = on);
+  document.getElementById("eap-progress").textContent = text || "";
+}
+async function _eapPost(url, body) {
+  const res = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), {data});
+  return data;
+}
+async function _eapStream(url, body, onEvent) {
+  const res = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+  if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || `HTTP ${res.status}`); }
+  const reader = res.body.getReader(), dec = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const {value, done} = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, {stream: true});
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const chunk = buf.slice(0, idx); buf = buf.slice(idx + 2);
+      const line = chunk.split("\n").find(l => l.startsWith("data:"));
+      if (line) onEvent(JSON.parse(line.slice(5)));
+    }
+  }
+}
+async function eapSync() {
+  _eapErr(""); _eapBusy(true, "Reading the workbook…");
+  try {
+    const r = await _eapPost("/api/eap/sync");
+    _eapBusy(false, `Synced ${r.rows} rows — ${r.new.length} new, ${r.updated.length} updated, ${r.unchanged} unchanged`);
+    await eapLoad();
+  } catch (e) { _eapBusy(false); _eapErr(e.message); }
+}
+async function eapEnrich(ids) {
+  _eapErr(""); _eapBusy(true, "Querying Salesforce…");
+  try {
+    const r = await _eapPost("/api/eap/enrich", ids ? {ids} : {});
+    _eapBusy(false, `Salesforce: ${r.matched} of ${r.enriched} matched`);
+    await eapLoad();
+    if (eapOpenId) eapOpen(eapOpenId);
+  } catch (e) {
+    _eapBusy(false);
+    _eapErr(e.message + (e.data && e.data.needs_login ? " — use the Salesforce “Sign in” button above." : ""));
+  }
+}
+async function eapCheck(ids) {
+  _eapErr(""); _eapBusy(true, "Checking consoles…");
+  let done = 0, total = 0;
+  try {
+    await _eapStream("/api/eap/check-stream", ids ? {ids} : {}, ev => {
+      if (ev.__total__ !== undefined) { total = ev.__total__; return; }
+      if (ev.__error__) { _eapErr(ev.__error__); return; }
+      if (ev.__done__) return;
+      done++;
+      document.getElementById("eap-progress").textContent = `Checking consoles… ${done}/${total}`;
+      const i = eapRows.findIndex(r => r.id === ev.id);
+      if (i >= 0) eapRows[i] = ev; else eapRows.push(ev);
+      eapRender();
+    });
+  } catch (e) { _eapErr(e.message); }
+  _eapBusy(false, `Checked ${done} request${done === 1 ? "" : "s"}`);
+  await eapLoad();
+  if (eapOpenId) eapOpen(eapOpenId);
+}
+async function eapSfLogin() {
+  _eapErr(""); _eapBusy(true, "Complete the Salesforce sign-in in your browser…");
+  try { await _eapPost("/api/eap/sf-login"); } catch (e) { _eapErr("Salesforce sign-in: " + e.message); }
+  _eapBusy(false);
+  await eapLoad();
+}
+
+// ── row drawer ──
+function _eapKV(pairs) {
+  return `<div class="eap-kv">` + pairs.filter(([, v]) => v !== undefined).map(([k, v]) =>
+    `<div class="k">${_eapEsc(k)}</div><div class="v">${(v === null || v === "") ? '<span class="eap-muted">—</span>' : v}</div>`).join("") + `</div>`;
+}
+async function eapOpen(id) {
+  eapOpenId = id;
+  const res = await fetch(`/api/eap/request/${id}`);
+  const data = await res.json();
+  if (!res.ok) { _eapErr(data.error); return; }
+  const r = data.row, d = r.details || {};
+  document.getElementById("eap-d-title").textContent = `#${r.id} — ${r.company || ""}`;
+  document.getElementById("eap-d-sub").innerHTML = _eapStatusBadge(r);
+  const cands = (r.sf_tenants || []).length
+    ? `<table class="rtable eap-cands" style="width:100%"><thead><tr><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th></tr></thead><tbody>` +
+      r.sf_tenants.map(c => `<tr><td class="${c.name === r.sf_tenant ? "sel" : ""}">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td class="eap-wrap">${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td></tr>`).join("") +
+      `</tbody></table>`
+    : (r.sf_account_id ? '<span class="eap-muted">No 1000_ tenants on this account.</span>' : "");
+  const parsed = [
+    d.hosts?.length ? "console " + d.hosts.join(", ") : "",
+    d.account_ids?.length ? "account ID " + d.account_ids.join(", ") : "",
+    d.tenants?.length ? "tenant " + d.tenants.join(", ") : "",
+    d.s1_names?.length ? "S1 account name " + d.s1_names.join(", ") : "",
+    d.guids?.length ? "GUID " + d.guids.join(", ") : "",
+    d.leftover ? "text “" + d.leftover + "”" : "",
+    d.no_s1_claimed ? "says they have no SentinelOne" : "",
+  ].filter(Boolean).map(_eapEsc).join("<br>");
+  const hist = (data.history || []).map(h => `<div><span class="eap-muted">${_eapEsc(h.ts)} · ${_eapEsc(h.kind)}</span> — ${_eapEsc(h.message)}</div>`).join("")
+    || '<span class="eap-muted">No history yet.</span>';
+  const asOf = (label, ts) => ts ? ` <span style="text-transform:none;letter-spacing:0">· ${label} ${_eapEsc(ts)}</span>` : "";
+  document.getElementById("eap-d-body").innerHTML = `
+    <div class="eap-sec"><h4>Form response</h4>${_eapKV([
+      ["Submitted", _eapEsc(r.completion_time)],
+      ["Contact", `${_eapEsc(r.contact_name)} &lt;${_eapEsc(r.contact_email)}&gt;`],
+      ["Super Admin", `${_eapEsc(r.super_admin_name || "")} ${r.super_admin_email ? "&lt;" + _eapEsc(r.super_admin_email) + "&gt;" : '<span class="badge-partial">no email</span>'}` +
+                      `<span class="eap-sub">${_eapEsc(r.super_admin_note || "")}${r.super_admin_raw ? " · as written: “" + _eapEsc(r.super_admin_raw) + "”" : ""}</span>`],
+      ["Requested", (r.products || []).map(_eapEsc).join(", ")],
+      ["Parsed from details", parsed || null],
+      ["Joe's columns", [r.joe_status ? _eapEsc(r.joe_status) : "", r.joe_ref ? `<a href="${_eapEsc(r.joe_ref)}" target="_blank" rel="noopener">${_eapEsc(r.joe_ref)}</a>` : ""].filter(Boolean).join("<br>") || null],
+    ])}<div class="eap-raw" style="margin-top:8px">${_eapEsc(r.details_raw || "(details left empty)")}</div></div>
+    <div class="eap-sec"><h4>Salesforce${asOf("as of", r.sf_updated_at)}</h4>${_eapKV([
+      ["Account", r.sf_account_name ? `${_eapEsc(r.sf_account_name)} <span class="eap-muted">${_eapEsc(r.sf_account_id)}</span>` : null],
+      ["Customer ID", _eapEsc(r.customer_id)],
+      ["Country", _eapEsc(r.country)],
+      ["Match", r.match_rule != null ? `<span class="eap-conf-${r.match_confidence}">${_eapEsc(r.match_confidence)}</span> — ${_eapEsc(r.match_note)}` : _eapEsc(r.match_note)],
+      ["Selected tenant", _eapEsc(r.sf_tenant)],
+    ])}<div style="margin-top:8px">${cands}</div></div>
+    <div class="eap-sec"><h4>SentinelOne console${asOf("checked", r.s1_checked_at)}</h4>${_eapKV([
+      ["Target", r.s1_target_source ? `${_eapEsc(_eapLabel(r.s1_console))} <span class="eap-muted">via ${_eapEsc(r.s1_target_source)}</span>` : null],
+      ["Account", r.s1_account_name ? `${_eapEsc(r.s1_account_name)} <span class="eap-muted">${_eapEsc(r.s1_account_id)} · ${_eapEsc(r.s1_state)}</span>` : null],
+      ["SKUs", (r.s1_skus || []).map(_eapEsc).join(", ") || null],
+      ["Prompt", _eapPromptCell(r)],
+      ["Prompt tenant", _eapEsc(r.s1_prompt_tenant)],
+      ["Prompt admins", _eapAdmins(r) || null],
+      ["Prompt region", _eapEsc(r.s1_prompt_region)],
+      ["Error", r.s1_error ? `<span style="color:var(--error)">${_eapEsc(r.s1_error)}</span>` : undefined],
+    ])}</div>
+    <div class="eap-sec"><h4>Provisioning details (editable)</h4>${_eapKV([
+      ["Prompt tenant name", `<input type="text" id="eap-e-tenant" value="${_eapEsc(r.prompt_tenant_name || "")}" style="width:100%">`],
+      ["First users", `<textarea id="eap-e-users" placeholder="Name <email>, one per line">${_eapEsc((r.first_users || []).map(u => `${u.name || ""} <${u.email || ""}>`).join("\n"))}</textarea>`],
+      ["Enabled", `Y/N <input type="text" id="eap-e-enabled" value="${_eapEsc(r.enabled_yn || "")}" style="width:50px"> &nbsp; Date <input type="text" id="eap-e-date" value="${_eapEsc(r.date_enabled || "")}" style="width:110px"> &nbsp; By <input type="text" id="eap-e-by" value="${_eapEsc(r.enabled_by || "")}" style="width:150px">`],
+      ["First contacted", `<input type="text" id="eap-e-contacted" value="${_eapEsc(r.first_contacted || "")}" style="width:150px">`],
+      ["Notes", `<textarea id="eap-e-notes">${_eapEsc(r.notes || "")}</textarea>`],
+    ])}<div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn btn-primary btn-sm" id="eap-e-save">Save</button><span class="eap-muted" id="eap-e-msg">${(r.edited_fields || []).length ? "Hand-edited (kept on sync): " + _eapEsc(r.edited_fields.join(", ")) : ""}</span></div></div>
+    <div class="eap-sec"><h4>History</h4><div class="eap-hist">${hist}</div></div>`;
+  document.getElementById("eap-e-save").onclick = () => eapSave(r);
+  document.getElementById("eap-drawer").classList.remove("hidden");
+}
+function _eapParseUsers(text) {
+  return text.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+    const m = /^(.*?)\s*<([^>]+)>\s*$/.exec(l);
+    if (m) return {name: m[1].trim(), email: m[2].trim()};
+    return l.includes("@") ? {name: "", email: l} : {name: l, email: ""};
+  });
+}
+async function eapSave(r) {
+  const g = i => document.getElementById(i).value.trim();
+  const now = {prompt_tenant_name: g("eap-e-tenant"), first_users: _eapParseUsers(g("eap-e-users")), enabled_yn: g("eap-e-enabled"),
+               date_enabled: g("eap-e-date"), enabled_by: g("eap-e-by"), first_contacted: g("eap-e-contacted"), notes: g("eap-e-notes")};
+  // Only fields that actually changed are sent, so untouched ones stay refreshable by sync.
+  const body = {};
+  for (const [k, v] of Object.entries(now)) {
+    const before = k === "first_users" ? JSON.stringify(r.first_users || []) : (r[k] || "");
+    const after  = k === "first_users" ? JSON.stringify(v) : v;
+    if (before !== after) body[k] = v;
+  }
+  const msg = document.getElementById("eap-e-msg");
+  if (!Object.keys(body).length) { msg.textContent = "Nothing changed."; return; }
+  try {
+    const res = await fetch(`/api/eap/request/${r.id}`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    msg.textContent = "Saved.";
+    const i = eapRows.findIndex(x => x.id === r.id);
+    if (i >= 0) eapRows[i] = data.row;
+    eapRender();
+    Object.assign(r, data.row);
+  } catch (e) { msg.textContent = "Not saved: " + e.message; }
+}
+
 </script>
 {% endraw %}
 </body>

@@ -85,6 +85,44 @@ Optional settings — environment variables win over a `[salesforce]` section in
 Fallback if OAuth is blocked in your org: `SF_USERNAME`, `SF_PASSWORD`, `SF_SECURITY_TOKEN`
 (and `SF_DOMAIN`, default `login`).
 
+## Prompt EAP Request Tracker
+
+The **Prompt EAP** section of the web UI lists every Prompt Security early-access request
+from the Microsoft Forms workbook, enriched from Salesforce and cross-checked on the
+SentinelOne consoles (read-only):
+
+1. **Sync Excel** — reads the workbook (`Id` is the key; re-syncing is idempotent and never
+   overwrites fields you edited in the app).
+2. **Enrich Salesforce** — one batched query per rule: Joe's tenant link → `1000_` tenant on
+   the form → S1 account ID → contact email → email domain → company name. Picks the
+   `Contract` tenant, pulls country, Customer ID and Complete/Control agent counts.
+3. **Check Consoles** — `GET /accounts/{id}` on the matching console: is a Prompt bundle
+   present, and if so the tenant name and first users.
+
+Click a row for the full detail (candidates, raw form text, console data, history) and the
+editable provisioning fields (tenant name, first users, notes, enabled Y/N …).
+
+```bash
+s1am eap-sync [--path FILE]          # import / refresh from the workbook
+s1am eap-enrich [--ids 1,2]          # Salesforce enrichment (needs sf-check sign-in)
+s1am eap-check  [--ids 1,2]          # console cross-check
+s1am eap-seed "EAP - Customer List.xlsx"   # one-time: carry over Notes / Enabled / Date / By
+```
+
+Settings — `S1AM_EAP_<KEY>` env vars win over an `[eap]` section in `~/.config/s1am/config`:
+
+| Key | Default |
+|---|---|
+| `form_path` | the copy synced to `~/Library/CloudStorage/OneDrive-N-Able,Inc/`, else the newest `*Early Access*.xlsx` in `~/Downloads` |
+| `db_path` | `~/.config/s1am/eap.db` |
+| `default_count` | `-1` (unlimited) for Prompt bundles |
+| `actioned_by` | the signed-in Salesforce user |
+| `dry_run` | `true` |
+
+Graph mode (pulling the workbook straight from the sharing link) is implemented in
+`s1am.eap.graph` but needs an Entra app registration that Conditional Access allows; the
+default public client is blocked in this tenant.
+
 ## Build A Standalone App (shareable)
 
 Build a standalone binary with PyInstaller:
