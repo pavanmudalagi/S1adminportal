@@ -18,9 +18,15 @@ def test_host_codes_exact_hostname():
 def test_resolve_target_order():
     rt = s1check.resolve_target
     assert rt({"chosen_console": "USEA1", "chosen_account_id": 5, "sf_tenant": "1000_EUCE1_9"}, HOSTS)["source"] == "chosen"
+    # What the customer wrote on the form outranks the Salesforce tenant …
     assert rt({"sf_tenant": "1000_EUCE1_9", "details": _details(tenants=["1000_USEA1_1"])}, HOSTS) == {
-        "console": "EUCE1", "account_id": "9", "source": "sf-tenant"}
+        "console": "USEA1", "account_id": "1", "source": "form-tenant"}
     assert rt({"details": _details(tenants=["1000_USEA1_1"])}, HOSTS)["source"] == "form-tenant"
+    # … but a manual choice outranks both, and the SF tenant is still kept as a fallback.
+    srcs = [t["source"] for t in s1check.resolve_targets(
+        {"chosen_console": "A", "chosen_account_id": 1, "sf_tenant": "1000_EUCE1_9",
+         "details": _details(hosts=["usea1-swprd5.sentinelone.net"], leftover="Acme")}, HOSTS)]
+    assert srcs == ["chosen", "console-lookup", "sf-tenant"]
     assert rt({"details": _details(hosts=["usea1-swprd5.sentinelone.net"], account_ids=["42"])}, HOSTS) == {
         "console": "USEA3", "account_id": "42", "source": "form-id"}
     t = rt({"details": _details(hosts=["euce1-swprd6.sentinelone.net"], guids=["7ac3be2f-993f-43bc-a391-94e3b56f264c"],
@@ -105,6 +111,17 @@ def test_check_request_id_scan_and_not_found():
     assert "not found on any saved console" in f["s1_error"]
     f = s1check.check_request({"sf_tenant": "1000_A_5"}, lambda c: clients["A"], {})
     assert f["s1_error"] == "account 5 not found on A"
+
+
+def test_check_request_falls_back_to_sf_tenant_when_form_lookup_fails():
+    clients = {"EUCE2": _FakeClient([]), "USEA1": _FakeClient([PROMPTED])}
+    r = {"sf_tenant": "1000_USEA1_42",
+         "details": _details(hosts=["euce1-swprd6.sentinelone.net"], leftover="Nobody Here")}
+    f = s1check.check_request(r, lambda c: clients[c], HOSTS)
+    assert f["s1_target_source"] == "sf-tenant" and f["s1_console"] == "USEA1" and f["s1_prompt_enabled"] == 1
+    none = s1check.check_request({"sf_tenant": "1000_USEA1_7", "details": _details(hosts=["euce1-swprd6.sentinelone.net"], leftover="Nobody")},
+                                 lambda c: clients[c], HOSTS)
+    assert "0 accounts match" in none["s1_error"] and "not found on USEA1" in none["s1_error"]
 
 
 def test_check_request_console_error_is_captured():
