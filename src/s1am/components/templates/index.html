@@ -468,6 +468,7 @@
             <button class="btn" id="eap-sync-btn" title="Re-read the Forms workbook">⟳ Sync Excel</button>
             <button class="btn" id="eap-enrich-btn" title="Match every request in Salesforce (batched queries)">☁ Enrich Salesforce</button>
             <button class="btn btn-primary" id="eap-check-btn" title="GET each account on its console (read-only)">🔎 Check Consoles</button>
+            <a class="btn" id="eap-export-btn" href="/api/eap/export" download title="Excel with a Summary sheet, the Customer List layout and the full table">⬇ Download Excel</a>
           </div>
         </div>
         <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
@@ -2813,8 +2814,10 @@ function eapRenderSummary() {
   const excel = eapMeta.form_exists
     ? _eapEsc((eapMeta.form_path || "").split("/").pop())
     : '<span style="color:var(--error)">workbook not found — set [eap] form_path</span>';
+  const asked = eapRows.filter(r => r.wants_prompt);
+  const enabled = asked.filter(r => r.enabled_yn ? r.enabled_yn.toUpperCase() === "Y" : r.s1_prompt_enabled === 1);
   document.getElementById("eap-summary").innerHTML =
-    `<span><b>${eapRows.length}</b> requests</span>` + parts.join("") +
+    `<span><b>${eapRows.length}</b> requests</span><span><b>${asked.length}</b> asked for Prompt</span><span><b>${enabled.length}</b> enabled</span>` + parts.join("") +
     `<span title="${_eapEsc(eapMeta.form_path || "")}">Excel: ${excel}${eapMeta.last_sync ? ` · synced ${_eapEsc(eapMeta.last_sync)}` : ""}</span>` +
     `<span>${sfText}</span>` +
     (eapMeta.s1_as_of ? `<span>Consoles checked ${_eapEsc(eapMeta.s1_as_of)}</span>` : "");

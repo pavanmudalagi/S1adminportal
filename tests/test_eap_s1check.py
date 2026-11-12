@@ -66,8 +66,8 @@ class _FakeClient:
             return {"data": a}
         if params and params.get("ids"):
             return {"data": [a for i, a in self.accounts.items() if i == str(params["ids"])]}
-        if params and params.get("name"):
-            return {"data": [a for a in self.accounts.values() if params["name"].lower() in a["name"].lower()]}
+        if params and params.get("name__contains"):
+            return {"data": [a for a in self.accounts.values() if params["name__contains"].lower() in a["name"].lower()]}
         return {"data": []}
 
 

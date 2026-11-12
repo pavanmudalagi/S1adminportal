@@ -177,6 +177,153 @@ def check_all(st, client_for, ids=None, progress=None):
     return out
 
 
+# ── export ──────────────────────────────────────────────────────────────────
+
+EXPORT_COLUMNS = [
+    "#", "Contact Name", "Company (Form)", "Contact Email", "Super Admin", "SF Account Name", "Customer ID",
+    "Country", "1000_ Tenant (Contract)", "Account name", "S1 Console/Account (from form)", "SKU Requested 1",
+    "SKU Requested 2", "Wayfinder MDR Essential", "Hyperautomation", "First contacted", "Enabled (Y/N)",
+    "Date Enabled", "Enabled By", "Notes", "Complete Agents", "Control Agents", "Total Agents (Complete + Control)",
+]
+TRACKER_COLUMNS = [
+    ("#", "id"), ("Submitted", "completion_time"), ("Company", "company"), ("Contact", "contact_name"),
+    ("Contact Email", "contact_email"), ("Super Admin", "super_admin_name"), ("Super Admin Email", "super_admin_email"),
+    ("Requested", "products"), ("SF Account", "sf_account_name"), ("Customer ID", "customer_id"), ("Country", "country"),
+    ("Tenant", "sf_tenant"), ("Tenant state", "_tenant_state"), ("Match", "match_confidence"), ("Match note", "match_note"),
+    ("Status", "status"), ("Status reason", "status_reason"), ("Console", "s1_console"), ("S1 Account", "s1_account_name"),
+    ("S1 Account ID", "s1_account_id"), ("Prompt on console", "_prompt"), ("Prompt tenant", "s1_prompt_tenant"),
+    ("Prompt admins", "_admins"), ("Prompt SKUs", "s1_prompt_bundles"), ("Checked", "s1_checked_at"),
+    ("Complete agents", "complete_agents"), ("Control agents", "control_agents"), ("Total agents", "total_agents"),
+    ("Enabled (Y/N)", "_enabled"), ("Date Enabled", "date_enabled"), ("Enabled By", "enabled_by"),
+    ("First contacted", "first_contacted"), ("Notes", "notes"), ("Joe status", "joe_status"), ("Joe ref", "joe_ref"),
+]
+
+
+def _enabled_yn(r):
+    """Hand-kept Enabled (Y/N) wins; otherwise what the console says."""
+    if r.get("enabled_yn"):
+        return r["enabled_yn"]
+    if r.get("s1_prompt_enabled") == 1:
+        return "Y"
+    if r.get("s1_prompt_enabled") == 0:
+        return "N"
+    return ""
+
+
+def _tenant_state(r):
+    if r.get("chosen_console") and r.get("chosen_account_id"):
+        return "manual target"
+    if r.get("tenant_confirmed"):
+        return "confirmed by form" if str(r.get("tenant_confirmed_by") or "").startswith("form") else "confirmed"
+    return "auto-selected" if r.get("sf_tenant") else ""
+
+
+def export_rows(rows):
+    """Rows in the "EAP - Customer List" Sheet1 layout (one list per row, EXPORT_COLUMNS order)."""
+    out = []
+    for r in rows:
+        products = r.get("products") or []
+        skus = [p for p in products if p in ("Prompt Security", "Identity Security")]
+        d = r.get("details") or {}
+        from_form = " ".join(x for x in [*(d.get("hosts") or []), *(d.get("account_ids") or []),
+                                         *(d.get("tenants") or []), *(d.get("s1_names") or []), d.get("leftover") or ""] if x)
+        out.append([
+            r.get("id"), r.get("contact_name"), r.get("company"), r.get("contact_email"),
+            " ".join(x for x in (r.get("super_admin_name"), r.get("super_admin_email")) if x),
+            r.get("sf_account_name"), r.get("customer_id"), r.get("country"), r.get("sf_tenant"),
+            r.get("s1_account_name"), from_form, skus[0] if skus else None, skus[1] if len(skus) > 1 else None,
+            "Wayfinder MDR Essential" if "Wayfinder MDR Essentials" in products else None,
+            "Hyperautomation" if "Hyperautomation" in products else None,
+            r.get("first_contacted"), _enabled_yn(r), r.get("date_enabled"), r.get("enabled_by"), r.get("notes"),
+            r.get("complete_agents"), r.get("control_agents"), r.get("total_agents"),
+        ])
+    return out
+
+
+def summary(rows):
+    """Headline numbers for sharing: how many asked, how many are enabled, and where the rest stand."""
+    asked = [r for r in rows if r.get("wants_prompt")]
+    enabled = [r for r in asked if _enabled_yn(r) == "Y"]
+    by_status, by_console = {}, {}
+    for r in asked:
+        by_status[r.get("status") or "new"] = by_status.get(r.get("status") or "new", 0) + 1
+    for r in enabled:
+        by_console[r.get("s1_console") or "?"] = by_console.get(r.get("s1_console") or "?", 0) + 1
+    return {"requests": len(rows), "asked_for_prompt": len(asked), "enabled": len(enabled),
+            "pending": len(asked) - len(enabled) - by_status.get("not_eligible", 0),
+            "not_eligible": by_status.get("not_eligible", 0), "by_status": by_status, "enabled_by_console": by_console}
+
+
+def export_workbook(st, path):
+    """Write a new .xlsx: Summary, Customer List (the old sheet's layout) and the full Tracker table."""
+    import openpyxl
+    from openpyxl.styles import Font
+    rows = st.list()
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Summary"
+    s = summary(rows)
+    ws.append(["Prompt Security EAP — status", _now()])
+    ws.append([])
+    for label, value in (("Form responses", s["requests"]), ("Asked for Prompt Security", s["asked_for_prompt"]),
+                         ("Prompt enabled", s["enabled"]), ("Still pending", s["pending"]),
+                         ("Not eligible / no SentinelOne", s["not_eligible"])):
+        ws.append([label, value])
+    ws.append([])
+    ws.append(["Status (Prompt requests)", "Count"])
+    for k, v in sorted(s["by_status"].items()):
+        ws.append([k, v])
+    ws.append([])
+    ws.append(["Enabled by console", "Count"])
+    for k, v in sorted(s["enabled_by_console"].items()):
+        ws.append([k, v])
+    ws.append([])
+    ws.append(["Data as of", f"workbook synced {st.get_meta('last_sync') or '—'}; Salesforce {st.get_meta('sf_as_of') or '—'}; "
+                             f"consoles {st.get_meta('s1_as_of') or '—'}"])
+    ws["A1"].font = Font(bold=True, size=13)
+    ws.column_dimensions["A"].width = 34
+    ws.column_dimensions["B"].width = 60
+
+    cl = wb.create_sheet("Customer List")
+    cl.append(EXPORT_COLUMNS)
+    for row in export_rows(rows):
+        cl.append(row)
+
+    tr = wb.create_sheet("Tracker")
+    tr.append([label for label, _ in TRACKER_COLUMNS])
+    for r in rows:
+        line = []
+        for _, key in TRACKER_COLUMNS:
+            if key == "_tenant_state":
+                value = _tenant_state(r)
+            elif key == "_prompt":
+                value = {1: "Enabled", 0: "Not enabled"}.get(r.get("s1_prompt_enabled"), "not checked")
+            elif key == "_admins":
+                value = "; ".join(f"{u.get('name') or ''} <{u.get('email') or ''}>" for u in r.get("s1_prompt_users") or [])
+            elif key == "_enabled":
+                value = _enabled_yn(r)
+            else:
+                value = r.get(key)
+            if isinstance(value, list):
+                value = "; ".join(str(v) for v in value)
+            line.append(value)
+        tr.append(line)
+    for sheet in (cl, tr):
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+        sheet.freeze_panes = "B2"
+        sheet.auto_filter.ref = sheet.dimensions
+
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(str(path))
+    return {"path": str(path), **s}
+
+
+def export_default_path():
+    return Path.home() / "Downloads" / f"EAP - Customer List {datetime.datetime.now():%Y-%m-%d %H%M}.xlsx"
+
+
 # ── one-time seed from "EAP - Customer List.xlsx" ───────────────────────────
 
 SEED_COLUMNS = {

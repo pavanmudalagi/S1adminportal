@@ -373,6 +373,12 @@ def cmd_eap_check(args):
                  for r in rows])
 
 
+def cmd_eap_export(args):
+    from .eap import service
+    st = service.open_store()
+    _print_json(service.export_workbook(st, args.path or service.export_default_path()))
+
+
 def cmd_eap_seed(args):
     from .eap import service
     st = service.open_store()
@@ -1046,6 +1052,10 @@ def build_parser():
     eap_check = sub.add_parser("eap-check", help="Cross-check EAP requests on their SentinelOne consoles (read-only)")
     eap_check.add_argument("--ids", default=None, help="Comma-separated request IDs (default: all)")
     eap_check.set_defaults(func=cmd_eap_check)
+
+    eap_export = sub.add_parser("eap-export", help="Write the tracker to a new .xlsx (Summary, Customer List layout, full table)")
+    eap_export.add_argument("path", nargs="?", default=None, help="Output file (default: ~/Downloads/EAP - Customer List <date>.xlsx)")
+    eap_export.set_defaults(func=cmd_eap_export)
 
     eap_seed = sub.add_parser("eap-seed", help="One-time import of notes/enabled columns from 'EAP - Customer List.xlsx'")
     eap_seed.add_argument("path", help="Path to the Customer List workbook (Sheet1, '#' = form Id)")

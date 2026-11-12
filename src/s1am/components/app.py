@@ -1455,6 +1455,25 @@ def eap_check_stream():
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
+@app.route("/api/eap/export")
+def eap_export():
+    """Download the tracker as a fresh .xlsx (Summary + Customer List layout + full table)."""
+    import tempfile
+    from flask import send_file
+    svc, st = _eap()
+    name = svc.export_default_path().name
+    tmp = Path(tempfile.mkdtemp(prefix="s1am-eap-")) / name
+    svc.export_workbook(st, tmp)
+    return send_file(str(tmp), as_attachment=True, download_name=name,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/api/eap/summary")
+def eap_summary():
+    svc, st = _eap()
+    return jsonify(svc.summary(st.list()))
+
+
 @app.route("/api/eap/seed", methods=["POST"])
 def eap_seed():
     svc, st = _eap()

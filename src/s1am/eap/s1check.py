@@ -98,7 +98,8 @@ def _try_target(tgt, r, client_for, all_codes):
     if tgt["source"] == "console-lookup":
         client, found, hint = client_for(console), [], tgt["name_hint"]
         for hint in tgt.get("name_hints") or [tgt["name_hint"]]:
-            res = client.request("GET", "accounts", params={"name": hint[:100], "limit": 50})
+            # `name` is an exact match on the console; `name__contains` is the free-text filter.
+            res = client.request("GET", "accounts", params={"name__contains": hint[:100], "limit": 50})
             found = (res.get("data") or []) if isinstance(res, dict) else []
             if found:
                 break
