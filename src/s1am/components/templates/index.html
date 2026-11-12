@@ -94,7 +94,7 @@
     .nav-item.active { background: var(--primary-a); color: var(--primary); font-weight: 500; border-right: 2px solid var(--primary); }
 
     /* ── Main ── */
-    main { flex: 1; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+    main { flex: 1; min-width: 0; overflow-y: auto; padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
 
     /* ── Card ── */
     .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
@@ -259,7 +259,9 @@
     .eap-toolbar input[type=text] { min-width: 260px; }
     .eap-summary { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-muted); align-items: center; }
     .eap-summary b { color: var(--text); }
-    .eap-table-wrap { max-height: calc(100vh - 340px); overflow: auto; }
+    #eap-page .card { min-width: 0; }
+    .eap-table-wrap { max-height: calc(100vh - 340px); overflow: auto; width: 100%; }
+    .eap-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
     .eap-table tbody tr { cursor: pointer; }
     .eap-table tbody tr:hover td { background: var(--surface-2); }
     .eap-table td { vertical-align: top; }
