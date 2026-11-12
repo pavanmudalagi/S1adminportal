@@ -15,6 +15,7 @@ import datetime
 import os
 from pathlib import Path
 
+from .. import account_fields
 from ..api.config import Config
 from . import enrich as enrich_mod
 from . import forms, s1check
@@ -101,7 +102,9 @@ def sync(st, path=None):
         # Defaults for the provisioning fields; skipped automatically once the user edits them.
         defaults = {"prompt_tenant_name": forms.suggest_tenant_name(rec.get("company"))}
         if admin["email"]:
-            defaults["first_users"] = [{"name": admin["name"] or "", "email": admin["email"]}]
+            defaults["first_users"] = [{"name": admin["name"] or "", "email": admin["email"]}] + [
+                {"name": a["promptUserName"], "email": a["promptUserEmail"]}
+                for a in account_fields.PROMPT_STANDARD_ADMINS if a["promptUserEmail"].lower() != admin["email"].lower()]
         st.update(rec["id"], defaults)
         _restatus(st, rec["id"])
         result["rows"] += 1

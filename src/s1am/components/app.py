@@ -1221,6 +1221,7 @@ def _editor_catalog():
         "billingModes": account_fields.BILLING_MODES,
         "accountTypes": account_fields.ACCOUNT_TYPES,
         "promptMaxUsers": account_fields.PROMPT_MAX_USERS,
+        "promptStandardAdmins": account_fields.PROMPT_STANDARD_ADMINS,
     }
     return catalog
 

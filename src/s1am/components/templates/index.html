@@ -2569,9 +2569,12 @@ function _aeRenderPromptForm(wrap) {
   tenantRow.querySelector("input").addEventListener("input", e => { pf.tenantName = e.target.value; _aeCheckRules(); });
   wrap.appendChild(tenantRow);
 
+  // The standard N-able admin is appended server-side on every tenant; show it as a fixed row.
+  const stdAdmins = (aeState.catalog.account.promptStandardAdmins || [])
+    .filter(a => !pf.users.some(u => (u.email || "").trim().toLowerCase() === a.promptUserEmail.toLowerCase()));
   const usersHdr = document.createElement("div");
   usersHdr.style.cssText = "font-size:12px;color:var(--text-dim);margin-top:4px;";
-  usersHdr.textContent = `First Users (${pf.users.length} of ${max}) — include at least one person from your MSSP`;
+  usersHdr.textContent = `First Users (${pf.users.length + stdAdmins.length} of ${max}) — include at least one person from your MSSP`;
   wrap.appendChild(usersHdr);
 
   pf.users.forEach((u, i) => {
@@ -2587,7 +2590,17 @@ function _aeRenderPromptForm(wrap) {
     wrap.appendChild(r);
   });
 
-  if (pf.users.length < max) {
+  stdAdmins.forEach(a => {
+    const r = document.createElement("div");
+    r.className = "pf-user-row";
+    r.title = "Added automatically to every tenant s1am provisions";
+    r.innerHTML = `<input type="text" value="${escHtml(a.promptUserName)}" disabled>
+      <input type="text" value="${escHtml(a.promptUserEmail)}" disabled>
+      <span style="font-size:11px;color:var(--text-muted);align-self:center;">always added</span>`;
+    wrap.appendChild(r);
+  });
+
+  if (pf.users.length + stdAdmins.length < max) {
     const add = document.createElement("button");
     add.className = "btn btn-sm";
     add.textContent = "+ Add User";

@@ -72,6 +72,9 @@ token `use1`/`cac1`/… in the console hostname) and `licenses.prompt_console(re
 - Partner account must be `usageType: mssp`; a `customer` account lands in US East and its sites can fail
   ("This scope is not eligible to receive Prompt AI").
 - Tenant name and first users cannot be edited or cleared afterwards. Removing the SKU does not delete the tenant.
+- s1am always appends **promptsecurity-eap-admin@n-able.com** ("N-able Prompt Security EAP Admin") to the
+  first users of every tenant it provisions (`account_fields.PROMPT_STANDARD_ADMINS`), so a tenant always
+  has at least two users and is sent as `promptUsers[]`.
 - Provisioning is asynchronous (5–20 min, no progress shown), and no welcome email is sent.
 
 ## Errors seen

@@ -134,12 +134,28 @@ def test_create_prompt_requires_fields_and_vice_versa():
     assert errors == ["Prompt Security details were given but no Prompt SKU is selected"]
 
 
-def test_create_with_prompt_single_user_collapses_to_pair():
+_STD_ADMIN = {"promptUserName": "N-able Prompt Security EAP Admin", "promptUserEmail": "promptsecurity-eap-admin@n-able.com"}
+
+
+def test_create_with_prompt_single_user_gets_the_standard_admin_appended():
     data, errors = af.build_create_payload(
         {"name": "A", "unlimitedExpiration": True, "bundles": [_PROMPT], "promptFields": _PF})
     assert errors == []
-    assert data["promptFields"] == {"promptTenantName": "example_msp",
-                                    "promptUserName": "Alex Admin", "promptUserEmail": "alex@example.com"}
+    # The customer's admin first, then the N-able EAP admin: two users → promptUsers[], never the single pair.
+    assert data["promptFields"] == {"promptTenantName": "example_msp", "promptUsers": [
+        {"promptUserName": "Alex Admin", "promptUserEmail": "alex@example.com"}, _STD_ADMIN]}
+
+
+def test_standard_admin_not_duplicated_and_counts_towards_max():
+    pf = {"promptTenantName": "t", "promptUsers": [
+        {"promptUserName": "Ops", "promptUserEmail": "PromptSecurity-EAP-Admin@n-able.com"}]}
+    out, errors = af.build_prompt_fields(pf, required=True)
+    # Already listed (any case) → not added twice; one user → the API's single-pair form.
+    assert errors == [] and out == {"promptTenantName": "t", "promptUserName": "Ops",
+                                    "promptUserEmail": "PromptSecurity-EAP-Admin@n-able.com"}
+    ten = {"promptTenantName": "t", "promptUsers": [
+        {"promptUserName": f"U{i}", "promptUserEmail": f"u{i}@x.com"} for i in range(10)]}
+    assert af.build_prompt_fields(ten, required=True)[1] == ["At most 10 Prompt first users are allowed"]
 
 
 def test_prompt_fields_multiple_users_and_validation():
@@ -198,7 +214,8 @@ def test_prompt_region_is_not_sent():
         "Prompt region must be one of: useast, eunorth, apsouth, apsoutheast"]
     body = {"name": "A", "unlimitedExpiration": True, "usageType": "mssp", "bundles": [_PROMPT], "promptFields": pf}
     data, errors = af.build_create_payload(body, base_url="https://usea1-nabl-staging.sentinelone.net")
-    assert errors == [] and data["promptFields"] == {"promptTenantName": "t", "promptUserName": "A", "promptUserEmail": "a@x.com"}
+    assert errors == [] and data["promptFields"] == {"promptTenantName": "t", "promptUsers": [
+        {"promptUserName": "A", "promptUserEmail": "a@x.com"}, _STD_ADMIN]}
 
 
 def test_prompt_region_sent_only_when_flag_enabled(monkeypatch):
@@ -227,8 +244,8 @@ def test_account_save_sends_prompt_fields_only_when_given():
         "promptFields": {"promptTenantName": "n_tenant",
                          "promptUsers": [{"promptUserName": "P", "promptUserEmail": "p@x.com"}]}})
     assert r.status_code == 200
-    assert calls[-1][2]["data"]["promptFields"] == {
-        "promptTenantName": "n_tenant", "promptUserName": "P", "promptUserEmail": "p@x.com"}
+    assert calls[-1][2]["data"]["promptFields"] == {"promptTenantName": "n_tenant", "promptUsers": [
+        {"promptUserName": "P", "promptUserEmail": "p@x.com"}, _STD_ADMIN]}
 
     r = client.post("/api/account-save", json={"name": "N", "bundles": bundles, "modules": [], "settings": []})
     assert r.status_code == 200 and "promptFields" not in calls[-1][2]["data"]

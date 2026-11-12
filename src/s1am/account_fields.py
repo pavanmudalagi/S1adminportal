@@ -120,6 +120,11 @@ def build_put_data(body, locked=None):
 _TENANT_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 PROMPT_MAX_USERS = 10
+# Always added to a new Prompt tenant's first users (after the customer's own admins), so
+# N-able keeps an admin login on every tenant it provisions. Counts towards PROMPT_MAX_USERS.
+PROMPT_STANDARD_ADMINS = [
+    {"promptUserName": "N-able Prompt Security EAP Admin", "promptUserEmail": "promptsecurity-eap-admin@n-able.com"},
+]
 # promptRegion is assigned by the platform; sending it is rejected ("prompt_region field is not
 # available"). Flip to True only for a console that demands it.
 PROMPT_SEND_REGION = False
@@ -129,9 +134,10 @@ def build_prompt_fields(pf, required, default_region=None):
     """Validate the editor's Prompt Security details into a promptFields object.
 
     `pf` is {"promptTenantName": str, "promptUsers": [{"promptUserName", "promptUserEmail"}]}
-    (a single promptUserName/promptUserEmail pair is accepted too). A promptRegion, if given,
-    is validated but only sent when PROMPT_SEND_REGION is True (then falling back to
-    `default_region`). Returns (dict|None, errors).
+    (a single promptUserName/promptUserEmail pair is accepted too). PROMPT_STANDARD_ADMINS are
+    appended unless already listed, so the result always has at least two users and goes out
+    as promptUsers[]. A promptRegion, if given, is validated but only sent when
+    PROMPT_SEND_REGION is True (then falling back to `default_region`). Returns (dict|None, errors).
     """
     if not pf or not isinstance(pf, dict):
         return None, (["Prompt Security details are required when a Prompt SKU is selected"] if required else [])
@@ -168,6 +174,10 @@ def build_prompt_fields(pf, required, default_region=None):
         cleaned.append({"promptUserName": name, "promptUserEmail": email})
     if not cleaned and not errors:
         errors.append("At least one Prompt first user is required")
+    for admin in PROMPT_STANDARD_ADMINS:
+        if admin["promptUserEmail"].lower() not in seen:
+            cleaned.append(dict(admin))
+            seen.add(admin["promptUserEmail"].lower())
     if len(cleaned) > PROMPT_MAX_USERS:
         errors.append(f"At most {PROMPT_MAX_USERS} Prompt first users are allowed")
     if errors:
