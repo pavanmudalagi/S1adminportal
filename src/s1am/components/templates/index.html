@@ -474,6 +474,7 @@
         <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
           <div class="eap-summary" id="eap-summary"></div>
           <div class="eap-toolbar">
+            <select id="eap-f-sku"><option value="">All SKUs requested</option></select>
             <select id="eap-f-status"><option value="">All statuses</option></select>
             <select id="eap-f-console"><option value="">All consoles</option></select>
             <select id="eap-f-country"><option value="">All countries</option></select>
@@ -2785,7 +2786,7 @@ function eapInit() {
   document.getElementById("eap-sync-btn").onclick   = eapSync;
   document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
   document.getElementById("eap-check-btn").onclick  = () => eapCheck();
-  ["eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt", "eap-f-tenant"]
+  ["eap-f-sku", "eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt", "eap-f-tenant"]
     .forEach(id => document.getElementById(id).onchange = eapRender);
   document.getElementById("eap-f-q").oninput = eapRender;
   document.getElementById("eap-d-close").onclick  = () => { document.getElementById("eap-drawer").classList.add("hidden"); eapOpenId = null; };
@@ -2838,12 +2839,14 @@ function eapFillFilters() {
   _eapFill("eap-f-status", Object.keys(EAP_STATUS).filter(k => eapRows.some(r => (r.status || "new") === k)), k => EAP_STATUS[k][0]);
   _eapFill("eap-f-console", eapRows.map(r => r.s1_console || _eapTenantCode(r.sf_tenant)), _eapLabel);
   _eapFill("eap-f-country", eapRows.map(r => r.country));
+  _eapFill("eap-f-sku", eapRows.flatMap(r => r.products || []));
 }
 
 function eapFiltered() {
   const f = id => document.getElementById(id).value;
   const q = f("eap-f-q").trim().toLowerCase();
   return eapRows.filter(r => {
+    if (f("eap-f-sku") && !(r.products || []).includes(f("eap-f-sku"))) return false;
     if (f("eap-f-status") && (r.status || "new") !== f("eap-f-status")) return false;
     if (f("eap-f-console") && (r.s1_console || _eapTenantCode(r.sf_tenant)) !== f("eap-f-console")) return false;
     if (f("eap-f-country") && r.country !== f("eap-f-country")) return false;
