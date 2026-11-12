@@ -32,6 +32,7 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["flask>=3.0"]
+eap = ["simple-salesforce>=1.12", "msal>=1.28"]
 
 [project.scripts]
 s1am = "s1am.cli:main"

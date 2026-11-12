@@ -295,6 +295,58 @@ def cmd_lookup_account_id(args):
         _print_json({"count": len(matches), "matches": matches})
 
 
+def cmd_sf_check(args):
+    """Verify the Salesforce connection: sign in if needed, run one tiny query, print org + user."""
+    from .salesforce import auth as sf_auth
+    from .salesforce import client as sf
+
+    if args.logout:
+        sf_auth.clear_token()
+        _print_json({"signed_out": True, "token_file": str(sf_auth.token_file())})
+        return
+
+    status = sf_auth.status()
+    if args.login or not status.connected:
+        if not args.login and not sys.stdin.isatty():
+            _print_json({"error": status.detail})
+            sys.exit(1)
+        import webbrowser
+
+        def _open(url):
+            # Print the URL as well: a headless shell or a blocked default browser can't open it.
+            print(f"Opening the browser for Salesforce sign-in (waiting up to {args.timeout}s).\n"
+                  f"If no tab appeared, open this URL yourself:\n{url}\n", file=sys.stderr)
+            webbrowser.open(url)
+
+        status = sf_auth.login_interactive(timeout=args.timeout, open_browser=_open)
+        if not status.connected:
+            _print_json({"error": status.detail})
+            sys.exit(1)
+
+    try:
+        org = sf.run_soql("SELECT Id, Name, InstanceName, OrganizationType, IsSandbox FROM Organization",
+                          use_cache=False)[0]
+    except sf.SalesforceConfigError as exc:
+        _print_json({"error": str(exc)})
+        sys.exit(1)
+    except Exception as exc:  # simple-salesforce raises its own hierarchy
+        hint = ""
+        if sf._looks_like_auth_error(exc):
+            hint = (f"Cached session is no longer valid (refresh failed: {sf_auth.last_refresh_error or 'unknown'}). "
+                    "Run `s1am sf-check --login` to sign in again.")
+        _print_json({"error": str(exc).split(". Response content")[0], "hint": hint} if hint else {"error": str(exc)})
+        sys.exit(1)
+    me = sf.whoami()
+    _print_json({
+        "auth":         status.detail,
+        "token_file":   str(sf_auth.token_file()),
+        "instance_url": (sf_auth.load_token() or {}).get("instance_url"),
+        "org":          {"id": org.get("Id"), "name": org.get("Name"), "instance": org.get("InstanceName"),
+                         "type": org.get("OrganizationType"), "sandbox": org.get("IsSandbox")},
+        "user":         me or {"id": status.identity},
+    })
+
+
 def _parse_names(raw):
     """Split a comma-or-newline-separated string into a list of non-empty, stripped names."""
     if not raw:
@@ -938,6 +990,18 @@ def build_parser():
         help="Query every saved profile",
     )
     latest_agent_vers.set_defaults(func=cmd_latest_agent_versions)
+
+    sf_check = sub.add_parser(
+        "sf-check",
+        help="Verify the Salesforce connection (browser SSO) and print the org and user",
+    )
+    sf_check.add_argument("--login", action="store_true",
+                          help="Force a fresh browser sign-in even if a session is cached")
+    sf_check.add_argument("--logout", action="store_true",
+                          help="Delete the cached Salesforce tokens and exit")
+    sf_check.add_argument("--timeout", type=int, default=180,
+                          help="Seconds to wait for the browser redirect (default: 180)")
+    sf_check.set_defaults(func=cmd_sf_check)
 
     raw = sub.add_parser("raw", help="Call any SentinelOne API endpoint")
     raw.add_argument("method", help="HTTP method, e.g. GET, POST")

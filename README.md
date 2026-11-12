@@ -53,6 +53,38 @@ python -m s1am raw POST sites --payload '{"name":"Demo Site","accountId":"<accou
 - Authentication is the `Authorization` header. By default the CLI prefixes your token with `APIToken`, but you can set `S1_AUTH_PREFIX` to empty if your token already includes a prefix.
 - The CLI prints raw JSON responses for easy piping into `jq` or saving to a file.
 
+## Salesforce Connection (EAP tracker)
+
+The EAP request tracker enriches requests from Salesforce (read-only). Sign-in is browser
+SSO — OAuth 2.0 authorization code + PKCE with Salesforce's public `PlatformCLI` client, so
+no Connected App or password is needed:
+
+```bash
+pip install simple-salesforce          # or: pip install -e ".[eap]"
+s1am sf-check --login                  # opens the browser once; prints org + user
+s1am sf-check                          # later runs reuse the cached session
+s1am sf-check --logout                 # delete the cached tokens
+```
+
+Tokens are cached at `~/.config/s1am/sf_tokens.json` (mode 0600). If the
+product-health-dashboard has already signed in (`~/.product-health-dashboard/tokens.json`),
+its session is imported on first use so one sign-in serves both apps.
+
+Optional settings — environment variables win over a `[salesforce]` section in
+`~/.config/s1am/config`:
+
+| Env var | Config key | Default |
+|---|---|---|
+| `SF_CLIENT_ID` | `client_id` | `PlatformCLI` |
+| `SF_REDIRECT_URI` | `redirect_uri` | `http://localhost:1717/OauthRedirect` |
+| `SF_LOGIN_URL` | `login_url` | `https://login.salesforce.com` (set your My Domain host if SSO requires it) |
+| `SF_CLIENT_SECRET` | `client_secret` | — (only for a Connected App that requires one) |
+| `SF_PROMPT` | `prompt` | `login` (always ask which account; empty reuses the browser session) |
+| `SF_TOKEN_FILE` | `token_file` | `~/.config/s1am/sf_tokens.json` |
+
+Fallback if OAuth is blocked in your org: `SF_USERNAME`, `SF_PASSWORD`, `SF_SECURITY_TOKEN`
+(and `SF_DOMAIN`, default `login`).
+
 ## Build A Standalone App (shareable)
 
 Build a standalone binary with PyInstaller:

@@ -47,6 +47,17 @@ class Config:
             self.auth_prefix      = parser.get(section, "s1_auth_prefix").strip()
 
     @classmethod
+    def section(cls, name):
+        """One section of the config file as a plain dict ({} if absent). For non-console
+        sections such as [salesforce], which are not console profiles."""
+        cfg_path = Path(str(_CONFIG_FILE))
+        if not cfg_path.exists():
+            return {}
+        parser = configparser.ConfigParser()
+        parser.read(str(cfg_path))
+        return dict(parser.items(name)) if parser.has_section(name) else {}
+
+    @classmethod
     def list_profiles(cls):
         cfg_path = Path(str(_CONFIG_FILE))
         if not cfg_path.exists():
