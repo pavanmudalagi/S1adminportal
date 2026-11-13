@@ -231,3 +231,48 @@ def test_integration_staging_reports_and_one_day():
     assert names and all(n["scope_id"] for n in names)
     rows = m.get_usage(client, "server_endpoints", "2026-10-15", "2026-10-15", level="account")
     assert rows and all(r["date"] == "2026-10-15" and r["state"] in ("archived", "live") for r in rows)
+
+
+# ── Flask routes ───────────────────────────────────────────────────────────
+
+@pytest.fixture
+def api(tmp_path, monkeypatch):
+    monkeypatch.setenv("S1AM_USAGE_DB_PATH", str(tmp_path / "usage.db"))
+    import s1am.components.app as a
+    a._usage_store = None
+    monkeypatch.setattr(a, "_usage_consoles", lambda: ["Staging", "USEA1"])
+    clients = {"Staging": FakePQ(["server_endpoints", "xdr_ingested_bytes"], _rows()), "USEA1": FakePQ([], [], fail=("Token lacks Metering Reports – View (or is invalid)", "permission", 403))}
+    monkeypatch.setattr(m, "client_for_profile", lambda code, sleep=None: clients[code])
+    yield a.app.test_client(), a
+    a._usage_store = None
+
+
+def test_sync_route_then_summary_health_and_drilldowns(api):
+    client, a = api
+    r = client.post("/api/usage/sync", json={"month": "2026-10", "wait": True}).json
+    assert {c["console"]: c["ok"] for c in r["consoles"]} == {"Staging": True, "USEA1": False}
+    s = client.get("/api/usage/summary?month=2026-10").json
+    assert s["accounts"][0]["account"] == "Acme Ltd" and s["accounts"][0]["products"]["cws_servers"]["value"] == 25
+    health = {h["console"]: h["state"] for h in s["health"]}
+    assert health == {"Staging": "ok", "USEA1": "permission"} and s["last_sync_month"] == "2026-10"
+    assert [p["key"] for p in s["products"]][:2] == ["cns", "cws_servers"]
+    s2 = client.get("/api/usage/summary?month=2026-10&products=cws_servers&rules=cws_servers=month_end").json
+    assert list(s2["accounts"][0]["products"]) == ["cws_servers"] and s2["accounts"][0]["products"]["cws_servers"]["value"] == 25 and s2["rules"]["cws_servers"] == "month_end"
+    assert client.get("/api/usage/summary?month=2026-1").status_code == 400
+    acc = client.get("/api/usage/accounts/Staging/A1?month=2026-10").json
+    assert len(acc["sites"]) == 2 and acc["products"]["data_ingest"]["display"] == "10.00 GB"
+    assert client.get("/api/usage/accounts/Staging/ZZ?month=2026-10").status_code == 404
+    site = client.get("/api/usage/sites/Staging/S2?month=2026-10").json
+    assert site["site"] == "Acme Lab" and site["products"]["cws_servers"]["value"] == 5
+    assert client.post("/api/usage/sync", json={"month": "bad"}).status_code == 400
+
+
+def test_export_route_formats_and_final_guard(api):
+    client, _ = api
+    client.post("/api/usage/sync", json={"month": "2026-10", "wait": True})
+    csv_r = client.get("/api/usage/export?month=2026-10&level=account&format=csv")
+    assert csv_r.status_code == 200 and csv_r.mimetype == "text/csv" and b"Acme Ltd" in csv_r.data
+    x = client.get("/api/usage/export?month=2026-10&level=site&format=xlsx")
+    assert x.status_code == 200 and x.data[:2] == b"PK"
+    assert client.get("/api/usage/export?month=2026-10&level=account&format=csv&final=1").status_code == 409   # live days present
+    assert client.get("/api/usage/export?month=2026-10&level=nope").status_code == 400

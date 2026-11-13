@@ -351,6 +351,21 @@ def _eap_ids(raw):
     return [int(x) for x in re.split(r"[,\s]+", raw) if x.strip()] if raw else None
 
 
+def cmd_usage_sync(args):
+    """Pull a month of metering rows from every console into ~/.config/s1am/usage.db (for cron)."""
+    from .metering import service
+    from .eap import service as eap_service
+    import datetime as _dt
+    store = service.Store(args.db)
+    cfg = service.load_products()
+    consoles = [c for c in (args.consoles or "").split(",") if c] or sorted(eap_service.profiles())
+    months = [args.month] if args.month else service.months_to_sync()
+    for month in months:
+        res = service.sync_all(store, consoles, month, cfg["products"], force=args.force)
+        for c in res["consoles"]:
+            print(f"{month} {c['console']:8} {'ok' if c['ok'] else c['kind']:12} fetched={sum(c['fetched'].values())} skipped={','.join(c['skipped']) or '-'} {c['message'] or ''}")
+
+
 def cmd_eap_sync(args):
     from .eap import service
     st = service.open_store()
@@ -1040,6 +1055,13 @@ def build_parser():
     sf_check.add_argument("--timeout", type=int, default=180,
                           help="Seconds to wait for the browser redirect (default: 180)")
     sf_check.set_defaults(func=cmd_sf_check)
+
+    usage = sub.add_parser("usage-sync", help="Store a month of SDL metering usage for every console (daily cron)")
+    usage.add_argument("--month", default=None, help="YYYY-MM (default: previous and current month)")
+    usage.add_argument("--consoles", default=None, help="Comma-separated profile codes (default: all)")
+    usage.add_argument("--force", action="store_true", help="Re-fetch archived days too")
+    usage.add_argument("--db", default=None, help="SQLite path (default ~/.config/s1am/usage.db)")
+    usage.set_defaults(func=cmd_usage_sync)
 
     eap_sync = sub.add_parser("eap-sync", help="Import Prompt EAP requests from the Microsoft Forms workbook")
     eap_sync.add_argument("--path", default=None, help="Workbook path (default: [eap] form_path / synced copy)")

@@ -243,6 +243,20 @@ COMMANDS = [
         "build_args": lambda f: [],
     },
     {
+        "id": "usage",
+        "category": "Usage & Billing",
+        "icon": "📊",
+        "label": "Usage & Billing",
+        "description": (
+            "Daily usage from the SDL metering datasource rolled up to a billable number per account and site "
+            "(CNS, CWS, Data Ingest, Identity…). Peak / average / month-end / sum rules from products.json."
+        ),
+        "requires": "none",
+        "type": "usage",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "update-account",
         "category": "Accounts",
         "icon": "✏️",
@@ -2280,6 +2294,10 @@ def run(host="127.0.0.1", port=5173, debug=False, open_browser=True):
 
         threading.Thread(target=_open, daemon=True).start()
 
+    try:
+        start_usage_scheduler()
+    except Exception as exc:  # never block the UI on the scheduler
+        _log.warning("usage scheduler not started: %s", exc)
     app.run(host=host, port=port, debug=debug)
 
 
@@ -2403,3 +2421,163 @@ def marketplace_export():
     body = svc.to_csv(rows, cols)
     name = f"marketplace-{view}-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}.csv"
     return Response(body, mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename={name}"})
+
+
+# ── Usage & billing (SDL metering datasource, read-only) ─────────────────────
+
+_usage_store = None
+_usage_lock = threading.Lock()
+_usage_sync_state = {"running": False, "started": None, "finished": None, "month": None, "result": None}
+
+
+def _usage():
+    """(service, store, products config) — the store is opened once per process."""
+    global _usage_store
+    from s1am.metering import service as svc
+    with _usage_lock:
+        if _usage_store is None:
+            from s1am.api.config import Config
+            db = os.environ.get("S1AM_USAGE_DB_PATH") or Config.section("usage").get("db_path") or None
+            _usage_store = svc.Store(db)
+    return svc, _usage_store, svc.load_products()
+
+
+def _usage_consoles():
+    """Consoles to meter: every profile with a base URL, unless S1AM_USAGE_CONSOLES / [usage] consoles narrows it."""
+    from s1am.api.config import Config
+    from s1am.eap import service as eap_service
+    known = sorted(eap_service.profiles())
+    wanted = os.environ.get("S1AM_USAGE_CONSOLES") or Config.section("usage").get("consoles") or ""
+    picked = [c.strip() for c in wanted.split(",") if c.strip()]
+    return [c for c in picked if c in known] or known
+
+
+def _usage_args():
+    """Common query params: month, consoles, products (keys), rules (key=rule,…)."""
+    svc, store, cfg = _usage()
+    month = request.args.get("month") or datetime.date.today().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        raise ValueError("month must be YYYY-MM")
+    consoles = [c for c in (request.args.get("consoles") or "").split(",") if c] or None
+    keys = [k for k in (request.args.get("products") or "").split(",") if k]
+    products = [p for p in cfg["products"] if not keys or p["key"] in keys]
+    rules = {}
+    for part in (request.args.get("rules") or "").split(","):
+        if "=" in part:
+            k, r = part.split("=", 1)
+            if r in svc.ROLLUPS:
+                rules[k] = r
+    return svc, store, cfg, month, consoles, products, rules
+
+
+def _usage_run_sync(month, consoles=None, force=False):
+    svc, store, cfg = _usage()
+    consoles = consoles or _usage_consoles()
+    _usage_sync_state.update(running=True, started=svc._now(), month=month, result=None)
+    try:
+        result = svc.sync_all(store, consoles, month, cfg["products"], force=force)
+        _usage_sync_state["result"] = {"consoles": [{k: v for k, v in c.items()} for c in result["consoles"]]}
+        return result
+    finally:
+        _usage_sync_state.update(running=False, finished=svc._now())
+
+
+def _usage_daily_job():
+    svc, store, cfg = _usage()
+    for month in svc.months_to_sync():
+        _usage_run_sync(month)
+
+
+def start_usage_scheduler():
+    """Daily background sync (default 04:00 local) of the current and previous month. Disable with [usage] daily_sync = false."""
+    from s1am.api.config import Config
+    sect = Config.section("usage")
+    if str(sect.get("daily_sync", "true")).lower() in ("0", "false", "no", "off"):
+        return None
+    from s1am.metering import service as svc
+    t = svc.DailySync(_usage_daily_job, hour=int(sect.get("daily_sync_hour", 4) or 4))
+    t.start()
+    return t
+
+
+@app.route("/api/usage/summary")
+def usage_summary():
+    """Account-level billable totals across consoles for a month, plus the console health strip."""
+    try:
+        svc, store, cfg, month, consoles, products, rules = _usage_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    all_consoles = _usage_consoles()
+    s = svc.summary(store, month, products, consoles, rules, cfg["bytes_base"])
+    return jsonify({**s, "products": [{k: p[k] for k in ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")} for p in products],
+                    "health": svc.health(store, all_consoles, cfg["products"]), "consoles": all_consoles, "labels": _load_labels(),
+                    "last_sync": store.get_meta("last_sync"), "last_sync_month": store.get_meta("last_sync_month"),
+                    "sync": _usage_sync_state, "bytes_base": cfg["bytes_base"]})
+
+
+@app.route("/api/usage/accounts/<console>/<account_id>")
+def usage_account(console, account_id):
+    try:
+        svc, store, cfg, month, _, products, rules = _usage_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    d = svc.account_detail(store, month, products, console, account_id, rules, cfg["bytes_base"])
+    if not d["products"]:
+        return jsonify({"error": f"No usage for account {account_id} on {console} in {month}"}), 404
+    return jsonify(d)
+
+
+@app.route("/api/usage/sites/<console>/<site_id>")
+def usage_site(console, site_id):
+    try:
+        svc, store, cfg, month, _, products, rules = _usage_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    d = svc.site_detail(store, month, products, console, site_id, rules, cfg["bytes_base"])
+    if not d["products"]:
+        return jsonify({"error": f"No usage for site {site_id} on {console} in {month}"}), 404
+    return jsonify(d)
+
+
+@app.route("/api/usage/export")
+def usage_export():
+    """CSV or XLSX at account or site level. Finalising is only offered when every row is archived (checked here too)."""
+    try:
+        svc, store, cfg, month, consoles, products, rules = _usage_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    level = request.args.get("level", "account")
+    fmt = request.args.get("format", "csv")
+    if level not in ("account", "site") or fmt not in ("csv", "xlsx"):
+        return jsonify({"error": "level must be account|site and format csv|xlsx"}), 400
+    rows, used_rules = svc.export_rows(store, month, products, level, consoles, rules, cfg["bytes_base"])
+    if request.args.get("final") == "1" and any(r["state"] != "final" for r in rows):
+        return jsonify({"error": "This month still has live (provisional) days — it cannot be exported as final yet"}), 409
+    name = f"s1-usage-{month}-{level}.{fmt}"
+    if fmt == "csv":
+        return Response(svc.to_csv(rows, products, level, month, used_rules), mimetype="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename={name}"})
+    return Response(svc.to_xlsx(rows, products, level, month, used_rules, cfg["bytes_base"]),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f"attachment; filename={name}"})
+
+
+@app.route("/api/usage/sync", methods=["POST"])
+def usage_sync():
+    """Fetch a month from every console (parallel across consoles). Runs in the background; poll /summary for state."""
+    body = request.get_json() or {}
+    month = body.get("month") or datetime.date.today().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        return jsonify({"error": "month must be YYYY-MM"}), 400
+    consoles = [c for c in (body.get("consoles") or []) if c in _usage_consoles()] or None
+    if _usage_sync_state["running"]:
+        return jsonify({"error": "A sync is already running", "sync": _usage_sync_state}), 409
+    if body.get("wait"):
+        return jsonify(_usage_run_sync(month, consoles, force=bool(body.get("force"))))
+    threading.Thread(target=_usage_run_sync, args=(month, consoles, bool(body.get("force"))), daemon=True).start()
+    return jsonify({"started": True, "month": month})
+
+
+@app.route("/api/usage/sync-status")
+def usage_sync_status():
+    return jsonify(_usage_sync_state)

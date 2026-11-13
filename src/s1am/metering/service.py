@@ -503,7 +503,9 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
     return status
 
 
-def sync_all(store, consoles, month, products, client_for=client_for_profile, workers=MAX_WORKERS, force=False, progress=None):
+def sync_all(store, consoles, month, products, client_for=None, workers=MAX_WORKERS, force=False, progress=None):
+    client_for = client_for or client_for_profile   # resolved at call time so tests can swap the factory
+
     def one(code):
         try:
             client = client_for(code)
