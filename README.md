@@ -153,6 +153,15 @@ connector. Open it from **Marketplace → Marketplace Connectors** or `#marketpl
 - Set `S1AM_MP_CONSOLES=Staging,USEA1` (or `consoles = …` under `[marketplace]` in `~/.config/s1am/config`) to limit the
   scan to some consoles.
 
+**Retention.** The "Retention (DV)" column is the Deep Visibility data retention configured on the scope. Source:
+`GET /accounts` and `GET /sites` → `licenses.settings[]`, the entry whose `groupName` is `dv_retention` ("14 Days",
+"30 Days", "90 Days"…). Accounts and sites each carry their own value; the API has no inherit flag, so a site value equal
+to its account's is labelled *inherited* and a different one *overrides account*. Sites without a `dv_retention` entry
+(seen on Staging) show "not exposed by API" with the account value for context. Data Ingest retention is only visible as
+licensed add-on modules `xdr_30d_retention` … `xdr_365d_retention`, shown as "ingest add-ons: up to N d". The
+per-instance Marketplace config, the account/site policy and the Swagger have no other retention field. Filter with the
+Retention select (under 30 days, exact values, not exposed); the CSV carries value, days, add-ons and source.
+
 What the API gives us (observed on the Staging console): each installed app's `scopes[]` holds one instance with
 `scopeLevel` (`account`, `site` or `global`), `scopeId`, `site`/`siteId`, the actual `status` next to `desiredStatus`,
 `errorLog`, `retryUntil`, creator/modifier and timestamps. The list accepts `accountIds` and `siteIds` filters;

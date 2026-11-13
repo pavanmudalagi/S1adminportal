@@ -20,6 +20,7 @@ Nothing here installs, deletes or toggles anything.
 import csv
 import io
 import json
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -40,8 +41,84 @@ INSTANCE_FIELDS = [
     "scope_level", "account_id", "account", "site_id", "site", "scope_id", "desired_status", "status",
     "has_alert", "alert_message", "error_log", "retry_until", "creator", "modifier", "created_at",
     "updated_at", "last_entity_created_at", "app_last_installed_at", "app_has_alert",
+    "account_retention", "site_retention",
 ]
 GLOBAL_ACCOUNT_ID = "global"
+
+# ── retention ───────────────────────────────────────────────────────────────
+# Source (verified on Staging, 2026-11-13): GET /accounts and GET /sites return ``licenses.settings[]``; the entry with
+# groupName "dv_retention" ("Deep Visibility Data Retention") holds the configured retention as text ("14 Days",
+# "90 Days"). Sites carry their own effective entry — the API has no inheritance flag, so "inherited" is derived by
+# comparing the site value with its account. Some sites have no entry at all → "not exposed by API". Data Ingest
+# retention is only visible as licensed add-on modules ``xdr_<N>d_retention`` ("Data Ingest - Retention up to N days").
+# The per-instance Marketplace config and the account/site policy objects carry no retention field.
+RETENTION_GROUP = "dv_retention"
+RETENTION_SOURCE = "GET /accounts|/sites → licenses.settings[groupName=dv_retention]"
+NOT_EXPOSED = "not exposed by API"
+_XDR_RET = re.compile(r"^xdr_(\d+)d_retention$")
+_PERIOD = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(day|week|month|year)s?\s*$", re.I)
+
+
+def parse_period(text):
+    """'14 Days' → (14, 'days'); '1 Year' → (365, 'years'). Days are normalised for sorting; unit is what the API said."""
+    m = _PERIOD.match(str(text or ""))
+    if not m:
+        return None, None
+    n, unit = float(m.group(1)), m.group(2).lower()
+    days = n * {"day": 1, "week": 7, "month": 30, "year": 365}[unit]
+    return int(days) if days == int(days) else days, unit + "s"
+
+
+def parse_retention(obj, level):
+    """Retention record for an account or site object. ``status`` is ok | not_exposed."""
+    lic = (obj or {}).get("licenses") or {}
+    entry = next((s for s in lic.get("settings") or [] if (s.get("groupName") or s.get("settingGroup")) == RETENTION_GROUP), None)
+    ingest = sorted({int(m.group(1)) for mod in lic.get("modules") or [] for m in [_XDR_RET.match(mod.get("name") or "")] if m})
+    rec = {"level": level, "source": RETENTION_SOURCE if entry else None, "inherited": None, "ingest_days": ingest,
+           "scope_id": str((obj or {}).get("id") or ""), "scope_name": (obj or {}).get("name")}
+    if not entry:
+        return {**rec, "value": None, "days": None, "unit": None, "status": "not_exposed", "display": NOT_EXPOSED}
+    text = entry.get("setting") or entry.get("displayName")
+    days, unit = parse_period(text)
+    return {**rec, "value": text, "days": days, "unit": unit, "status": "ok", "display": text}
+
+
+def derive_site_inheritance(site_ret, account_ret):
+    """The API has no inherit flag: a site value equal to its account's is reported as inherited, a different one as an
+    override. A site without an entry stays 'not exposed' and carries the account value for context."""
+    out = dict(site_ret)
+    out["account_value"] = account_ret.get("value") if account_ret else None
+    if out["status"] != "ok" or not account_ret or account_ret.get("status") != "ok":
+        out["inherited"] = None
+        return out
+    out["inherited"] = out["days"] == account_ret["days"]
+    out["note"] = "same as account (API has no explicit inherit flag)" if out["inherited"] else f"overrides account ({account_ret['value']})"
+    return out
+
+
+def effective_retention(instance):
+    """Site retention when the API exposes it, else the account's — what applies to this instance's data."""
+    s, a = instance.get("site_retention"), instance.get("account_retention")
+    if s and s.get("status") == "ok":
+        return s
+    return a
+
+
+def retention_matches(rec, spec):
+    """Filter spec: 'none' (not exposed), 'lt:30', 'le:30', 'eq:90', 'ge:180'."""
+    if not spec:
+        return True
+    if spec == "none":
+        return not rec or rec.get("status") != "ok"
+    if not rec or rec.get("days") is None:
+        return False
+    op, _, n = spec.partition(":")
+    try:
+        n = float(n)
+    except ValueError:
+        return True
+    d = rec["days"]
+    return {"lt": d < n, "le": d <= n, "eq": d == n, "ge": d >= n, "gt": d > n}.get(op, True)
 
 
 def _now():
@@ -110,6 +187,8 @@ def parse_applications(payload_or_items, console, catalog=None):
                 "last_entity_created_at": sc.get("lastEntityCreatedAt"),
                 "app_last_installed_at": app.get("lastInstalledAt"),
                 "app_has_alert": bool(app.get("hasAlert")),
+                "account_retention": None,
+                "site_retention": None,
             })
     return rows
 
@@ -172,12 +251,61 @@ def fetch_console(client, console, sleep=time.sleep):
         apps = _get_all(client, APPS_PATH, sleep)
         result["instances"] = parse_applications(apps, console, catalog)
         result["catalog_size"] = len(catalog)
+        try:
+            attach_retention(client, result["instances"], sleep)
+        except SentinelOneError as exc:
+            # Connectors still show; retention cells say why they could not be read.
+            result["retention_error"] = _classify(exc)[1]
+            for i in result["instances"]:
+                i["account_retention"] = i["account_retention"] or {"status": "not_exposed", "display": NOT_EXPOSED, "level": "account", "error": result["retention_error"]}
         result["ok"] = True
     except SentinelOneError as exc:
         result["error_kind"], result["error"] = _classify(exc)
     except Exception as exc:  # network, config, anything else
         result["error_kind"], result["error"] = "error", str(exc)[:300]
     return result
+
+
+def _chunks(seq, n=50):
+    seq = list(seq)
+    for i in range(0, len(seq), n):
+        yield seq[i:i + n]
+
+
+def fetch_scopes(client, account_ids, site_ids, sleep=time.sleep):
+    """Account and site objects (with licenses) for the ids the connectors reference — not the whole console."""
+    accounts, sites = {}, {}
+    for chunk in _chunks([a for a in account_ids if a and a != GLOBAL_ACCOUNT_ID]):
+        data = client.request("GET", "accounts", params={"ids": ",".join(chunk), "limit": 100})
+        for a in (data.get("data") if isinstance(data, dict) else data) or []:
+            accounts[str(a.get("id"))] = a
+        sleep(CALL_DELAY)
+    for chunk in _chunks([s for s in site_ids if s]):
+        data = client.request("GET", "sites", params={"siteIds": ",".join(chunk), "limit": 100})
+        body = data.get("data") if isinstance(data, dict) else data
+        for s in (body.get("sites") if isinstance(body, dict) else body) or []:
+            sites[str(s.get("id"))] = s
+        sleep(CALL_DELAY)
+    return accounts, sites
+
+
+def attach_retention(client, instances, sleep=time.sleep):
+    accounts, sites = fetch_scopes(client, {i["account_id"] for i in instances}, {i["site_id"] for i in instances if i["site_id"]}, sleep)
+    acc_ret = {aid: parse_retention(a, "account") for aid, a in accounts.items()}
+    site_ret = {sid: parse_retention(s, "site") for sid, s in sites.items()}
+    for i in instances:
+        a = acc_ret.get(i["account_id"])
+        if a is None and i["account_id"] and i["account_id"] != GLOBAL_ACCOUNT_ID:
+            a = {"level": "account", "status": "not_exposed", "display": NOT_EXPOSED, "value": None, "days": None, "unit": None,
+                 "inherited": None, "ingest_days": [], "source": None, "note": "account not returned by GET /accounts"}
+        i["account_retention"] = a
+        if i["site_id"]:
+            s = site_ret.get(i["site_id"]) or {"level": "site", "status": "not_exposed", "display": NOT_EXPOSED, "value": None, "days": None,
+                                                 "unit": None, "inherited": None, "ingest_days": [], "source": None, "note": "site not returned by GET /sites"}
+            i["site_retention"] = derive_site_inheritance(s, a)
+        else:
+            i["site_retention"] = None
+    return acc_ret, site_ret
 
 
 def scan(client_for, consoles, workers=MAX_WORKERS, sleep=time.sleep):
@@ -230,7 +358,10 @@ def account_rows(instances):
         key = (i["console"], i["account_id"])
         r = acc.setdefault(key, {"console": i["console"], "account_id": i["account_id"], "account": i["account"],
                                  "instances": 0, "enabled": 0, "alerts": 0, "sites": set(), "connectors": set(),
-                                 "last_installed_at": None, "last_entity_created_at": None, "site_level": 0, "account_level": 0})
+                                 "last_installed_at": None, "last_entity_created_at": None, "site_level": 0, "account_level": 0,
+                                 "retention": None})
+        if r["retention"] is None and i.get("account_retention"):
+            r["retention"] = i["account_retention"]
         r["instances"] += 1
         r["enabled"] += int(i["desired_status"] == "active")
         r["alerts"] += int(i["has_alert"] or i["status"] == "activationfailed")
@@ -245,6 +376,10 @@ def account_rows(instances):
     rows = []
     for r in acc.values():
         r["sites"] = sorted(r["sites"]); r["connectors"] = sorted(r["connectors"])
+        ret = r["retention"] or {}
+        r["retention_display"] = ret.get("display") or (NOT_EXPOSED if r["account_id"] != GLOBAL_ACCOUNT_ID else "n/a (console-wide)")
+        r["retention_days"] = ret.get("days")
+        r["ingest_retention_days"] = ret.get("ingest_days") or []
         rows.append(r)
     rows.sort(key=lambda r: (r["console"], (r["account"] or "").lower()))
     return rows
@@ -292,13 +427,14 @@ def account_detail(scan_result, console, account_id):
     groups = {}
     for i in inst:
         key = i["site"] or ""
-        g = groups.setdefault(key, {"site": i["site"], "site_id": i["site_id"], "level": "site" if i["site"] else "account", "instances": []})
+        g = groups.setdefault(key, {"site": i["site"], "site_id": i["site_id"], "level": "site" if i["site"] else "account", "instances": [],
+                                    "retention": i.get("site_retention") if i["site"] else i.get("account_retention")})
         g["instances"].append(i)
     ordered = sorted(groups.values(), key=lambda g: (g["level"] != "account", (g["site"] or "").lower()))
     for g in ordered:
         g["instances"].sort(key=lambda i: (i["app_name"].lower(), i["instance_name"].lower()))
     return {"console": console, "account_id": str(account_id), "account": inst[0]["account"] if inst else None,
-            "groups": ordered, "instances": len(inst)}
+            "retention": inst[0].get("account_retention") if inst else None, "groups": ordered, "instances": len(inst)}
 
 
 # ── per-instance detail (fetched on demand) ───────────────────────────────
@@ -342,14 +478,16 @@ def instance_config(client, instance_id):
 # ── CSV ────────────────────────────────────────────────────────────────────
 
 def to_csv(rows, columns):
-    """rows: list of dicts; columns: list of (header, key). Lists are joined with ' | '."""
+    """rows: list of dicts; columns: list of (header, key) — a key may be dotted (retention.display). Lists → ' | '."""
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow([h for h, _ in columns])
     for r in rows:
         line = []
         for _, k in columns:
-            v = r.get(k)
+            v = r
+            for part in k.split("."):
+                v = v.get(part) if isinstance(v, dict) else None
             if isinstance(v, (list, set, tuple)):
                 v = " | ".join(str(x) for x in v)
             elif isinstance(v, bool):

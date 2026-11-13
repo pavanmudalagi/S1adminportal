@@ -11,6 +11,7 @@ from s1am.marketplace import service as mp
 FIX = Path(__file__).parent / "fixtures"
 APPS = json.loads((FIX / "marketplace_applications.json").read_text())
 CATALOG = json.loads((FIX / "marketplace_catalog.json").read_text())
+SCOPES = json.loads((FIX / "marketplace_scopes.json").read_text())   # 2 accounts + 2 sites with licenses.settings
 
 
 class FakeClient:
@@ -32,6 +33,12 @@ class FakeClient:
             return CATALOG
         if path == mp.APPS_PATH:
             return APPS
+        if path == "accounts":
+            ids = set((params or {}).get("ids", "").split(","))
+            return {"data": [a for a in SCOPES["accounts"]["data"] if a["id"] in ids]}
+        if path == "sites":
+            ids = set((params or {}).get("siteIds", "").split(","))
+            return {"data": {"sites": [s for s in SCOPES["sites"]["data"]["sites"] if s["id"] in ids]}}
         if path.endswith("/log"):
             return {"data": [{"createdAt": "2026-11-13T06:46:08Z", "status": "Retry", "httpStatus": 500, "message": "Can't reach service", "traceId": "t1"}]}
         if path.endswith("/config"):
@@ -61,6 +68,55 @@ def test_parse_applications_flattens_scopes_with_site_and_level():
     assert site["category"] == "Threat Intelligence" and site["app_type"]
 
 
+def test_retention_parsing_and_inheritance():
+    nable, pavan = SCOPES["accounts"]["data"]
+    r = mp.parse_retention(nable, "account")
+    assert (r["value"], r["days"], r["unit"], r["level"], r["status"]) == ("90 Days", 90, "days", "account", "ok")
+    assert r["ingest_days"] == [30, 90, 180, 365] and r["source"] == mp.RETENTION_SOURCE
+    assert mp.parse_retention(pavan, "account")["days"] == 14
+    support, apo = SCOPES["sites"]["data"]["sites"]          # Support Training has 90 Days; Apo Site has no entry
+    s = mp.derive_site_inheritance(mp.parse_retention(support, "site"), r)
+    assert s["display"] == "90 Days" and s["inherited"] is True and "same as account" in s["note"]
+    s2 = mp.derive_site_inheritance(mp.parse_retention(support, "site"), mp.parse_retention(pavan, "account"))
+    assert s2["inherited"] is False and "overrides account (14 Days)" in s2["note"]
+    none = mp.derive_site_inheritance(mp.parse_retention(apo, "site"), r)
+    assert none["status"] == "not_exposed" and none["display"] == "not exposed by API" and none["inherited"] is None and none["account_value"] == "90 Days"
+    assert mp.parse_period("1 Year") == (365, "years") and mp.parse_period("2 weeks") == (14, "weeks") and mp.parse_period("forever") == (None, None)
+    assert mp.retention_matches({"status": "ok", "days": 14}, "lt:30") and not mp.retention_matches({"status": "ok", "days": 90}, "lt:30")
+    assert mp.retention_matches({"status": "not_exposed"}, "none") and not mp.retention_matches(None, "eq:90") and mp.retention_matches(None, "none")
+
+
+def test_fetch_console_attaches_retention_from_accounts_and_sites():
+    c = FakeClient()
+    r = mp.fetch_console(c, "Staging", sleep=lambda s: None)
+    assert r["ok"] and "retention_error" not in r
+    acc_calls = [p for p, _ in c.calls if p == "accounts"]; site_calls = [p for p, _ in c.calls if p == "sites"]
+    assert acc_calls and site_calls                                        # only the referenced ids, chunked
+    by_site = {i["site"]: i for i in r["instances"] if i["site"]}
+    st = by_site["Support Training"]            # site in the fixture (90 Days); its account Apolando is not
+    assert st["site_retention"]["display"] == "90 Days" and st["site_retention"]["inherited"] is None
+    assert st["account_retention"]["status"] == "not_exposed" and mp.effective_retention(st)["days"] == 90
+    pav = next(i for i in r["instances"] if i["account"] == "PavanTestAccount")
+    assert pav["account_retention"]["days"] == 14 and pav["site_retention"]["status"] == "not_exposed"   # Pavan-Site1 not in fixture
+    assert mp.effective_retention(pav)["days"] == 14
+    glob = next(i for i in r["instances"] if i["scope_level"] == "global")
+    assert glob["account_retention"] is None and glob["site_retention"] is None
+    rows = mp.account_rows(r["instances"])
+    nable = next(a for a in rows if a["account"].startswith("N-ABLE"))
+    assert nable["retention_display"] == "90 Days" and nable["retention_days"] == 90 and nable["ingest_retention_days"] == [30, 90, 180, 365]
+    unknown = next(a for a in rows if a["account"] == "TGS")             # not in the fixture → cannot be read
+    assert unknown["retention_display"] == "not exposed by API" and unknown["retention_days"] is None
+    d = mp.account_detail({"consoles": [r]}, "Staging", nable["account_id"])
+    assert d["retention"]["display"] == "90 Days" and all("retention" in g for g in d["groups"])
+
+
+def test_fetch_console_keeps_connectors_when_scope_lookup_fails():
+    c = FakeClient(fail={"accounts": 403})
+    r = mp.fetch_console(c, "Staging", sleep=lambda s: None)
+    assert r["ok"] and len(r["instances"]) == 18 and "permission" in r["retention_error"].lower() or "Marketplace" in r["retention_error"]
+    assert all(i["account_retention"]["status"] == "not_exposed" for i in r["instances"] if i["account_id"] != mp.GLOBAL_ACCOUNT_ID)
+
+
 def test_views_and_totals():
     rows = mp.parse_applications(APPS, "Staging")
     scan = {"fetched_at": "x", "consoles": [{"console": "Staging", "ok": True, "instances": rows}]}
@@ -85,7 +141,8 @@ def test_fetch_console_pages_and_backs_off_on_429():
     r = mp.fetch_console(c, "Staging", sleep=sleeps.append)
     assert r["ok"] and len(r["instances"]) == 18 and r["catalog_size"] == 12
     assert sleeps[:2] == [2.0, 4.0]              # two 429s → growing back-off
-    assert c.calls[0][0] == mp.CATALOG_PATH and c.calls[-1][0] == mp.APPS_PATH
+    paths = [p for p, _ in c.calls]
+    assert paths[0] == mp.CATALOG_PATH and mp.APPS_PATH in paths and paths[-1] in ("accounts", "sites")
 
 
 def test_fetch_console_classifies_failures_without_raising():
@@ -187,3 +244,8 @@ def test_export_matches_filters(api):
     assert len(conn) == 2 and conn[1][0] == "Okta"
     acc = rows("view=accounts&q=apolando")
     assert len(acc) == 2 and "Support Training" in acc[1]
+    hdr = acc[0]; assert "Retention (DV)" in hdr and "Retention source" in hdr
+    assert acc[1][hdr.index("Retention (DV)")] == "not exposed by API"      # Apolando is not in the fixture accounts
+    lt30 = rows("view=instances&retention=lt:30")
+    assert len(lt30) >= 2 and all("14 Days" in line for line in lt30[1:])
+    assert len(rows("view=instances&retention=eq:90")) == 1 + 4                # Support Training (3 site-level) + N-ABLE account-level (90 Days)

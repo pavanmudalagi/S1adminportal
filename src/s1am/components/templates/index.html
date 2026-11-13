@@ -462,7 +462,8 @@
     .mp-detail-grid .k { color: var(--text-muted); }
     .mp-detail-grid .v { word-break: break-word; }
     .mp-log { font-family: var(--mono); font-size: 11.5px; white-space: pre-wrap; background: var(--surface); border: 1px solid var(--border-soft); border-radius: var(--radius); padding: 8px 10px; max-height: 260px; overflow: auto; margin-top: 8px; }
-    .mp-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 4px; background: var(--surface-2); font-size: 12px; color: var(--text); margin: 1px 4px 1px 0; }
+    .mp-chip { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; border-radius: 4px; background: var(--surface-2); font-size: 12px; color: var(--text); margin: 1px 4px 1px 0; white-space: nowrap; }
+    .mp-table td.eap-wrap { min-width: 220px; max-width: 320px; }
     .mp-chip.lvl { color: var(--text-muted); }
     .skel { display: inline-block; height: 12px; width: 60%; border-radius: 4px; background: var(--surface-2); animation: skel 1.2s ease-in-out infinite; }
     @keyframes skel { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
@@ -847,6 +848,7 @@
             <select id="mp-f-console"><option value="">All consoles</option></select>
             <select id="mp-f-connector"><option value="">All connectors</option></select>
             <select id="mp-f-status"><option value="">Status: any</option><option value="enabled">Enabled</option><option value="disabled">Disabled</option><option value="alert">Has alert / error</option></select>
+            <select id="mp-f-retention" title="Effective Deep Visibility retention: the site value when the API exposes it, else the account's"><option value="">Retention: any</option><option value="lt:30">Under 30 days</option><option value="eq:14">14 days</option><option value="eq:30">30 days</option><option value="eq:90">90 days</option><option value="ge:180">180 days or more</option><option value="none">Not exposed by API</option></select>
             <input type="text" id="mp-f-q" placeholder="Search account, site, connector, instance, creator…">
           </div>
           <div class="ae-err" id="mp-err"></div>
@@ -3847,7 +3849,28 @@ async function eapSave(r) {
 // Marketplace connectors tracker
 // ═══════════════════════════════════════════════════════════════════════════
 let mpData = null, mpInited = false, mpBusy = false;
-const mpState = {view: "accounts", console: "", connector: "", status: "", q: "", sort: {key: "", dir: 1}, open: new Set(), openInst: new Set(), account: ""};
+const mpState = {view: "accounts", console: "", connector: "", status: "", retention: "", q: "", sort: {key: "", dir: 1}, open: new Set(), openInst: new Set(), account: ""};
+// Effective retention = site value when exposed, else the account's (mirrors the server's export filter).
+const _mpRet = i => (i.site_retention && i.site_retention.status === "ok") ? i.site_retention : i.account_retention;
+function _mpRetMatch(rec, spec) {
+  if (!spec) return true;
+  if (spec === "none") return !rec || rec.status !== "ok";
+  if (!rec || rec.days == null) return false;
+  const [op, n] = spec.split(":"); const v = parseFloat(n);
+  return op === "lt" ? rec.days < v : op === "le" ? rec.days <= v : op === "eq" ? rec.days === v : op === "ge" ? rec.days >= v : op === "gt" ? rec.days > v : true;
+}
+function _mpRetCell(rec, opts) {
+  opts = opts || {};
+  if (!rec) return `<span class="eap-muted">${opts.global ? "n/a (console-wide)" : "not exposed by API"}</span>`;
+  if (rec.status !== "ok") return `<span class="eap-muted" title="${_mpEsc(rec.note || rec.error || "No dv_retention entry in licenses.settings")}">not exposed by API</span>` +
+    (rec.account_value ? `<span class="eap-sub">account: ${_mpEsc(rec.account_value)}</span>` : "");
+  let tag = "";
+  if (rec.level === "site") tag = rec.inherited === true ? '<span class="mp-chip lvl" title="Same value as the account — the API has no explicit inherit flag">inherited</span>'
+    : rec.inherited === false ? `<span class="mp-chip" title="${_mpEsc(rec.note || "")}">overrides account</span>` : '<span class="mp-chip lvl">site</span>';
+  else if (!opts.noLevel) tag = '<span class="mp-chip lvl">account</span>';
+  const ingest = rec.ingest_days && rec.ingest_days.length && !opts.noIngest ? `<span class="eap-sub" title="Data Ingest retention add-on modules licensed (xdr_Nd_retention)">ingest add-ons: up to ${Math.max(...rec.ingest_days)} d</span>` : "";
+  return `<span title="${_mpEsc(rec.source || "")}">${_mpEsc(rec.display)}</span> ${tag}${ingest}`;
+}
 const _mpEsc = _eapEsc;
 const _mpLabel = code => code ? ((mpData && mpData.labels && mpData.labels[code]) ? `${mpData.labels[code]} (${code})` : code) : "";
 const _mpDate = s => s ? String(s).replace("T", " ").slice(0, 16) : "";
@@ -3859,26 +3882,26 @@ function mpInit() {
   mpReadHash();
   document.getElementById("mp-refresh").onclick = () => mpLoad(true);
   document.querySelectorAll("#mp-view .result-tab").forEach(b => b.onclick = () => { mpState.view = b.dataset.view; mpState.sort = {key: "", dir: 1}; mpRender(); });
-  [["mp-f-console", "console"], ["mp-f-connector", "connector"], ["mp-f-status", "status"]].forEach(([id, key]) =>
+  [["mp-f-console", "console"], ["mp-f-connector", "connector"], ["mp-f-status", "status"], ["mp-f-retention", "retention"]].forEach(([id, key]) =>
     document.getElementById(id).onchange = e => { mpState[key] = e.target.value; mpRender(); });
   document.getElementById("mp-f-q").oninput = e => { mpState.q = e.target.value; mpRender(); };
 }
 function mpReadHash() {
   if (!_deepQs) return;
   const qs = new URLSearchParams(_deepQs); _deepQs = "";
-  for (const k of ["view", "console", "connector", "status", "q", "account"]) if (qs.has(k)) mpState[k] = qs.get(k);
+  for (const k of ["view", "console", "connector", "status", "retention", "q", "account"]) if (qs.has(k)) mpState[k] = qs.get(k);
   if (mpState.account) mpState.open.add(`${mpState.console}:${mpState.account}`);
   if (!["accounts", "connectors", "instances"].includes(mpState.view)) mpState.view = "accounts";
 }
 function mpSyncHash() {
   const qs = new URLSearchParams();
-  for (const k of ["view", "console", "connector", "status", "q"]) if (mpState[k] && !(k === "view" && mpState[k] === "accounts")) qs.set(k, mpState[k]);
+  for (const k of ["view", "console", "connector", "status", "retention", "q"]) if (mpState[k] && !(k === "view" && mpState[k] === "accounts")) qs.set(k, mpState[k]);
   const openAcc = [...mpState.open][0];
   if (mpState.view === "accounts" && openAcc) { const [c, a] = openAcc.split(":"); if (!mpState.console) qs.set("console", c); qs.set("account", a); }
   const s = qs.toString();
   try { history.replaceState(null, "", "#marketplace" + (s ? "?" + s : "")); } catch (e) {}
   const exp = new URLSearchParams(); exp.set("view", mpState.view);
-  for (const k of ["console", "connector", "status", "q"]) if (mpState[k]) exp.set(k, mpState[k]);
+  for (const k of ["console", "connector", "status", "retention", "q"]) if (mpState[k]) exp.set(k, mpState[k]);
   document.getElementById("mp-export").href = "/api/marketplace/export.csv?" + exp.toString();
 }
 
@@ -3917,6 +3940,7 @@ function mpFillFilters() {
   document.getElementById("mp-f-console").value = mpState.console;
   document.getElementById("mp-f-connector").value = mpState.connector;
   document.getElementById("mp-f-status").value = mpState.status;
+  document.getElementById("mp-f-retention").value = mpState.retention;
   document.getElementById("mp-f-q").value = mpState.q;
   if (document.getElementById("mp-f-console").value !== mpState.console) mpState.console = "";
   if (document.getElementById("mp-f-connector").value !== mpState.connector) mpState.connector = "";
@@ -3931,7 +3955,8 @@ function mpFiltered() {
     if (mpState.status === "enabled" && i.desired_status !== "active") return false;
     if (mpState.status === "disabled" && i.desired_status === "active") return false;
     if (mpState.status === "alert" && !_mpAlert(i)) return false;
-    if (q && !Object.values(i).join(" ").toLowerCase().includes(q)) return false;
+    if (mpState.retention && !_mpRetMatch(_mpRet(i), mpState.retention)) return false;
+    if (q && !Object.values(i).map(v => typeof v === "object" && v ? (v.display || "") : v).join(" ").toLowerCase().includes(q)) return false;
     return true;
   });
 }
@@ -3940,7 +3965,8 @@ function mpAccountRows(inst) {
   for (const i of inst) {
     const k = `${i.console}:${i.account_id}`;
     const r = by.get(k) || {key: k, console: i.console, account_id: i.account_id, account: i.account, instances: 0, enabled: 0, alerts: 0,
-                            sites: new Set(), connectors: new Set(), last_installed_at: "", account_level: 0, site_level: 0};
+                            sites: new Set(), connectors: new Set(), last_installed_at: "", account_level: 0, site_level: 0,
+                            retention: i.account_retention, retention_days: i.account_retention && i.account_retention.status === "ok" ? i.account_retention.days : null};
     r.instances++; r.enabled += i.desired_status === "active" ? 1 : 0; r.alerts += _mpAlert(i) ? 1 : 0;
     if (i.site) { r.sites.add(i.site); r.site_level++; } else r.account_level++;
     r.connectors.add(i.app_name);
@@ -4005,7 +4031,8 @@ function mpRender() {
   ].map(([v, k, cls]) => `<div class="mp-tile ${cls || ""}"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
   document.getElementById("mp-synced").textContent = `Last synced ${mpData.fetched_at}${mpData.from_cache ? ` · cached ${mpData.age}s` : ""}`;
   document.getElementById("mp-console-errors").innerHTML = failed.map(c =>
-    `<div class="mp-banner">${icon("shield")}<span>${_mpEsc(_mpLabel(c.console))}</span><span class="msg">— ${_mpEsc(c.error || "failed")}${c.error_kind === "permission" ? " (grant “Singularity Marketplace · View” to the API user)" : ""}</span></div>`).join("");
+    `<div class="mp-banner">${icon("shield")}<span>${_mpEsc(_mpLabel(c.console))}</span><span class="msg">— ${_mpEsc(c.error || "failed")}${c.error_kind === "permission" ? " (grant “Singularity Marketplace · View” to the API user)" : ""}</span></div>`).join("")
+    + mpData.consoles.filter(c => c.ok && c.retention_error).map(c => `<div class="eap-notice"><span>${_mpEsc(_mpLabel(c.console))}: connectors loaded, but retention could not be read from GET /accounts and /sites — ${_mpEsc(c.retention_error)}</span></div>`).join("");
 
   const inst = mpFiltered();
   const tbody = document.getElementById("mp-rows");
@@ -4013,7 +4040,7 @@ function mpRender() {
   let html = "", shown = 0;
   if (mpState.view === "accounts") {
     mpHead([["", ""], ["Console", "console"], ["Account", "account"], ["Account ID", "account_id"], ["Connectors", "instances"], ["Enabled", "enabled"],
-            ["With alerts", "alerts"], ["Last installed", "last_installed_at"], ["Sites", "site_count"], ["Connector names", ""]]);
+            ["With alerts", "alerts"], ["Retention (DV)", "retention_days"], ["Last installed", "last_installed_at"], ["Sites", "site_count"], ["Connector names", ""]]);
     const rows = mpSort(mpAccountRows(inst), "console");
     shown = rows.length;
     html = rows.map(r => {
@@ -4023,6 +4050,7 @@ function mpRender() {
         <td>${_mpEsc(r.account)}${r.account_id === "global" ? '<span class="eap-sub">console-wide instance</span>' : ""}</td>
         <td class="eap-muted">${r.account_id === "global" ? "—" : _mpEsc(r.account_id)}</td>
         <td>${r.instances}</td><td>${r.enabled}</td><td>${r.alerts ? `<span class="badge-err">${r.alerts}</span>` : '<span class="eap-muted">0</span>'}</td>
+        <td>${_mpRetCell(r.retention, {noLevel: true, global: r.account_id === "global"})}</td>
         <td>${_mpDate(r.last_installed_at)}</td>
         <td>${r.site_count}${r.account_level ? `<span class="eap-sub">${r.account_level} account-level</span>` : ""}</td>
         <td class="eap-wrap">${r.connectors.map(c => `<span class="mp-chip">${_mpEsc(c)}</span>`).join("")}</td></tr>` + (open ? mpAccountDrill(inst, r) : "");
@@ -4042,13 +4070,14 @@ function mpRender() {
     }).join("");
   } else {
     mpHead([["Console", "console"], ["Account", "account"], ["Site", "site"], ["Connector", "app_name"], ["Instance", "instance_name"], ["Status", "desired_status"],
-            ["Alert", "has_alert"], ["Creator", "creator"], ["Created", "created_at"], ["Last entity", "last_entity_created_at"]]);
+            ["Alert", "has_alert"], ["Retention", "_ret_days"], ["Creator", "creator"], ["Created", "created_at"], ["Last entity", "last_entity_created_at"]]);
+    inst.forEach(i => { const r = _mpRet(i); i._ret_days = r && r.status === "ok" ? r.days : null; });
     const rows = mpSort(inst.slice(), "console");
     shown = rows.length;
     html = rows.map(i => mpInstanceRow(i, false)).join("");
   }
   if (showErrRows.length) {
-    html += showErrRows.map(c => `<tr class="mp-error"><td colspan="10">${icon("shield", "ico-sm")} ${_mpEsc(_mpLabel(c.console))} — ${_mpEsc(c.error || "failed")}</td></tr>`).join("");
+    html += showErrRows.map(c => `<tr class="mp-error"><td colspan="11">${icon("shield", "ico-sm")} ${_mpEsc(_mpLabel(c.console))} — ${_mpEsc(c.error || "failed")}</td></tr>`).join("");
   }
   tbody.innerHTML = html;
   const total = mpData.instances.length;
@@ -4087,8 +4116,8 @@ function mpInstanceRow(i, nested) {
        <td>${_mpDate(i.created_at)}</td><td>${_mpDate(i.last_entity_created_at)}</td><td class="eap-muted">${i.scope_level === "site" ? "site" : i.scope_level === "global" ? "global" : "account level"}</td>`
     : `<td>${_mpEsc(_mpLabel(i.console))}</td><td>${_mpEsc(i.account)}</td><td>${i.site ? _mpEsc(i.site) : `<span class="eap-muted">${i.scope_level === "global" ? "global" : "account level"}</span>`}</td>
        <td>${_mpEsc(i.app_name)}${i.category ? `<span class="eap-sub">${_mpEsc(i.category)}</span>` : ""}</td><td>${_mpEsc(i.instance_name)}</td>
-       <td>${_mpStatusCell(i)}</td><td class="eap-wrap">${_mpAlertCell(i)}</td><td>${_mpEsc(i.creator || "")}</td><td>${_mpDate(i.created_at)}</td><td>${_mpDate(i.last_entity_created_at)}</td>`;
-  return `<tr class="mp-inst${open ? " open" : ""}" data-inst="${_mpEsc(k)}" title="Click for details, log and config">${cells}</tr>` + (open ? mpInstanceDetail(i, nested ? 8 : 10) : "");
+       <td>${_mpStatusCell(i)}</td><td class="eap-wrap">${_mpAlertCell(i)}</td><td>${_mpRetCell(_mpRet(i), {global: i.scope_level === "global", noIngest: true})}</td><td>${_mpEsc(i.creator || "")}</td><td>${_mpDate(i.created_at)}</td><td>${_mpDate(i.last_entity_created_at)}</td>`;
+  return `<tr class="mp-inst${open ? " open" : ""}" data-inst="${_mpEsc(k)}" title="Click for details, log and config">${cells}</tr>` + (open ? mpInstanceDetail(i, nested ? 8 : 11) : "");
 }
 function mpAccountDrill(inst, acc) {
   const mine = inst.filter(i => `${i.console}:${i.account_id}` === acc.key);
@@ -4100,10 +4129,12 @@ function mpAccountDrill(inst, acc) {
   }
   const ordered = [...groups.values()].sort((a, b) => (a.level === "site") - (b.level === "site") || (a.site || "").localeCompare(b.site || ""));
   const head = `<tr><th style="width:22%">Connector</th><th style="width:18%">Instance</th><th>Status</th><th style="width:22%">Alert</th><th>Creator</th><th>Created</th><th>Last entity</th><th>Scope</th></tr>`;
+  const gRet = g => { const rec = g.level === "site" ? (g.items[0].site_retention) : g.level === "global" ? null : g.items[0].account_retention;
+    return `<span style="font-weight:400;margin-left:10px">retention: ${_mpRetCell(rec, {global: g.level === "global", noIngest: true})}</span>`; };
   const body = ordered.map(g => `<tr class="mp-group"><td colspan="8">${g.level === "site" ? `Site · ${_mpEsc(g.site)} <span class="eap-muted" style="font-weight:400">${_mpEsc(g.site_id || "")}</span>`
-      : g.level === "global" ? "Console-wide (global scope)" : "Account level — the API reports no site for these instances"} · ${g.items.length}</td></tr>` +
+      : g.level === "global" ? "Console-wide (global scope)" : "Account level — the API reports no site for these instances"} · ${g.items.length}${gRet(g)}</td></tr>` +
     g.items.sort((a, b) => a.app_name.localeCompare(b.app_name)).map(i => mpInstanceRow(i, true)).join("")).join("");
-  return `<tr class="mp-drill"><td colspan="10"><table class="mp-sub">${head}${body}</table></td></tr>`;
+  return `<tr class="mp-drill"><td colspan="11"><table class="mp-sub">${head}${body}</table></td></tr>`;
 }
 function mpConnectorDrill(inst, conn) {
   const mine = inst.filter(i => i.app_name === conn.app_name);
@@ -4123,6 +4154,9 @@ function mpInstanceDetail(i, span) {
   const kv = [["Instance ID", i.instance_id], ["Catalog ID", i.catalog_id], ["Scope", `${i.scope_level}${i.scope_id ? ` · ${i.scope_id}` : ""}`],
               ["Account", `${i.account || ""} ${i.account_id && i.account_id !== "global" ? `(${i.account_id})` : ""}`], ["Site", i.site ? `${i.site} (${i.site_id})` : "— account level"],
               ["Desired / actual", `${i.desired_status} / ${i.status}`], ["Alert", i.has_alert ? (i.alert_message || "yes") : "no"],
+              ["Account retention (DV)", i.account_retention ? (i.account_retention.display + (i.account_retention.ingest_days && i.account_retention.ingest_days.length ? ` · ingest add-ons up to ${Math.max(...i.account_retention.ingest_days)} d` : "")) : (i.scope_level === "global" ? "n/a (console-wide)" : "not exposed by API")],
+              ["Site retention (DV)", i.site_retention ? (i.site_retention.display + (i.site_retention.inherited === true ? " · inherited (same as account)" : i.site_retention.inherited === false ? ` · overrides account (${i.site_retention.account_value})` : i.site_retention.account_value ? ` · account: ${i.site_retention.account_value}` : "")) : (i.site ? "not exposed by API" : "— account level")],
+              ["Retention source", (i.account_retention && i.account_retention.source) || (i.site_retention && i.site_retention.source) || "GET /accounts and /sites → licenses.settings (dv_retention)"],
               ["Error log", i.error_log || ""], ["Retry until", i.retry_until || ""], ["Creator", i.creator], ["Modifier", i.modifier],
               ["Created", i.created_at], ["Updated", i.updated_at], ["Last entity created", i.last_entity_created_at], ["App last installed", i.app_last_installed_at]];
   return `<tr class="mp-detail"><td colspan="${span || 10}">

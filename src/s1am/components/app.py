@@ -2332,6 +2332,7 @@ def marketplace_summary():
     return jsonify({
         "fetched_at": result["fetched_at"], "from_cache": result.get("from_cache", False), "age": result.get("age", 0),
         "ttl": svc.DEFAULT_TTL, "labels": _load_labels(),
+        "retention_source": svc.RETENTION_SOURCE,
         "consoles": [{k: v for k, v in c.items() if k != "instances"} | {"instances": len(c["instances"]),
                       "accounts": len({i["account_id"] for i in c["instances"]})} for c in result["consoles"]],
         "totals": svc.totals(result),
@@ -2387,10 +2388,12 @@ def marketplace_export():
     console = request.args.get("console") or ""
     connector = request.args.get("connector") or ""
     status = request.args.get("status") or ""
+    retention = request.args.get("retention") or ""
 
     def keep(i):
         if console and i["console"] != console: return False
         if connector and i["app_name"] != connector: return False
+        if retention and not svc.retention_matches(svc.effective_retention(i), retention): return False
         if status == "enabled" and i["desired_status"] != "active": return False
         if status == "disabled" and i["desired_status"] == "active": return False
         if status == "alert" and not (i["has_alert"] or i["status"] == "activationfailed"): return False
@@ -2402,7 +2405,9 @@ def marketplace_export():
                 ("Site ID", "site_id"), ("Connector", "app_name"), ("Category", "category"), ("Instance", "instance_name"),
                 ("Instance ID", "instance_id"), ("Desired", "desired_status"), ("Status", "status"), ("Alert", "has_alert"),
                 ("Alert message", "alert_message"), ("Creator", "creator"), ("Created", "created_at"),
-                ("Last entity created", "last_entity_created_at"), ("App last installed", "app_last_installed_at")]
+                ("Last entity created", "last_entity_created_at"), ("App last installed", "app_last_installed_at"),
+                ("Account retention (DV)", "account_retention.display"), ("Site retention (DV)", "site_retention.display"),
+                ("Site retention inherited", "site_retention.inherited"), ("Ingest retention add-ons (days)", "account_retention.ingest_days")]
         rows = inst
     elif view == "connectors":
         cols = [("Connector", "app_name"), ("Category", "category"), ("Instances", "instances"), ("Enabled", "enabled"),
@@ -2416,7 +2421,8 @@ def marketplace_export():
         cols = [("Console", "console"), ("Account", "account"), ("Account ID", "account_id"), ("Connectors installed", "instances"),
                 ("Enabled", "enabled"), ("With alerts/errors", "alerts"), ("Site-level", "site_level"), ("Account-level", "account_level"),
                 ("Last installed", "last_installed_at"), ("Last entity created", "last_entity_created_at"),
-                ("Sites", "sites"), ("Connector names", "connectors")]
+                ("Retention (DV)", "retention_display"), ("Retention days", "retention_days"), ("Ingest retention add-ons (days)", "ingest_retention_days"),
+                ("Retention source", "retention.source"), ("Sites", "sites"), ("Connector names", "connectors")]
         rows = svc.account_rows(inst)
     body = svc.to_csv(rows, cols)
     name = f"marketplace-{view}-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}.csv"

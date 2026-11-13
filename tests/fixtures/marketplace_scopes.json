@@ -1,0 +1,659 @@
+{
+ "accounts": {
+  "data": [
+   {
+    "id": "1546714269129639359",
+    "name": "N-ABLE TECHNOLOGIES LTD",
+    "licenses": {
+     "bundles": [
+      {
+       "displayName": "Data Ingest",
+       "majorVersion": 1,
+       "minorVersion": 10,
+       "name": "singularity_data_lake",
+       "surfaces": [
+        {
+         "count": 10,
+         "name": "Average GB/Day"
+        },
+        {
+         "count": 0,
+         "name": "Long-Range Query Credits"
+        }
+       ],
+       "totalSurfaces": 10
+      },
+      {
+       "displayName": "Endpoint Security - Control",
+       "majorVersion": 1,
+       "minorVersion": 12,
+       "name": "control",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Total Agents"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Hyperautomation",
+       "majorVersion": 1,
+       "minorVersion": 4,
+       "name": "hyperautomation",
+       "surfaces": [
+        {
+         "count": 5,
+         "name": "Action Packs"
+        }
+       ],
+       "totalSurfaces": 5
+      },
+      {
+       "displayName": "Endpoint Security - Complete",
+       "majorVersion": 1,
+       "minorVersion": 39,
+       "name": "complete",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Total Agents"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Identity Security",
+       "majorVersion": 1,
+       "minorVersion": 2,
+       "name": "unified_identity",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Total Users"
+        }
+       ],
+       "totalSurfaces": 1
+      },
+      {
+       "displayName": "CNS Pro",
+       "majorVersion": 1,
+       "minorVersion": 28,
+       "name": "cloud_native_security_pro",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Workloads"
+        }
+       ],
+       "totalSurfaces": 1
+      },
+      {
+       "displayName": "CNS Foundations",
+       "majorVersion": 1,
+       "minorVersion": 21,
+       "name": "cloud_native_security_foundations",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Workloads"
+        }
+       ],
+       "totalSurfaces": 1
+      }
+     ],
+     "modules": [
+      {
+       "displayName": "Vulnerability Management",
+       "majorVersion": 1,
+       "name": "vulnerability_management"
+      },
+      {
+       "displayName": "Remote Script Orchestration",
+       "majorVersion": 1,
+       "name": "rso"
+      },
+      {
+       "displayName": "RemoteOps Forensics",
+       "majorVersion": 1,
+       "name": "remote_ops_forensics"
+      },
+      {
+       "displayName": "Network Discovery",
+       "majorVersion": 1,
+       "name": "ranger"
+      },
+      {
+       "displayName": "Unprotected Endpoints Discovery",
+       "majorVersion": 1,
+       "name": "rogues"
+      },
+      {
+       "displayName": "Cloud Funnel",
+       "majorVersion": 1,
+       "name": "cloud_funnel"
+      },
+      {
+       "displayName": "Vigilance MDR",
+       "majorVersion": 1,
+       "name": "vigilance"
+      },
+      {
+       "displayName": "Threat Intelligence",
+       "majorVersion": 1,
+       "name": "threat_intel"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 30 days",
+       "majorVersion": 1,
+       "name": "xdr_30d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 90 days",
+       "majorVersion": 1,
+       "name": "xdr_90d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 180 days",
+       "majorVersion": 1,
+       "name": "xdr_180d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 1 year",
+       "majorVersion": 1,
+       "name": "xdr_365d_retention"
+      },
+      {
+       "displayName": "Purple AI Foundations",
+       "majorVersion": 1,
+       "name": "purple_ai"
+      },
+      {
+       "displayName": "Purple AI SOC Analyst",
+       "majorVersion": 1,
+       "name": "purple_ai_soc_analyst"
+      },
+      {
+       "displayName": "Wayfinder Threat Hunting",
+       "majorVersion": 1,
+       "name": "wayfinder_threat_hunting"
+      },
+      {
+       "displayName": "Wayfinder MDR Essentials",
+       "majorVersion": 1,
+       "name": "wayfinder_mdr_essentials"
+      }
+     ],
+     "settings": [
+      {
+       "displayName": "Enabled",
+       "groupName": "remote_shell_availability",
+       "setting": "Enabled",
+       "settingGroup": "remote_shell_availability",
+       "settingGroupDisplayName": "Remote Shell"
+      },
+      {
+       "displayName": "Available",
+       "groupName": "marketplace_access_status",
+       "setting": "Available",
+       "settingGroup": "marketplace_access_status",
+       "settingGroupDisplayName": "Marketplace Access"
+      },
+      {
+       "displayName": "90 Days",
+       "groupName": "dv_retention",
+       "setting": "90 Days",
+       "settingGroup": "dv_retention",
+       "settingGroupDisplayName": "Deep Visibility Data Retention"
+      },
+      {
+       "displayName": "Full",
+       "groupName": "ranger_ad_mode",
+       "setting": "Full",
+       "settingGroup": "ranger_ad_mode",
+       "settingGroupDisplayName": "Identity Security Posture Mode"
+      },
+      {
+       "displayName": "Site",
+       "groupName": "account_level_ranger",
+       "setting": "Site",
+       "settingGroup": "account_level_ranger",
+       "settingGroupDisplayName": "Network Discovery Consolidation Level"
+      },
+      {
+       "displayName": "365 Days",
+       "groupName": "malicious_data_retention",
+       "setting": "365 Days",
+       "settingGroup": "malicious_data_retention",
+       "settingGroupDisplayName": "Malicious Data Retention"
+      }
+     ]
+    },
+    "state": "active"
+   },
+   {
+    "id": "2230298126148037741",
+    "name": "PavanTestAccount",
+    "licenses": {
+     "bundles": [
+      {
+       "displayName": "CNS Pro",
+       "majorVersion": 1,
+       "minorVersion": 28,
+       "name": "cloud_native_security_pro",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Workloads"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "CNS Foundations",
+       "majorVersion": 1,
+       "minorVersion": 21,
+       "name": "cloud_native_security_foundations",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Workloads"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Endpoint Security - Control",
+       "majorVersion": 1,
+       "minorVersion": 12,
+       "name": "control",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Total Agents"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Data Ingest",
+       "majorVersion": 1,
+       "minorVersion": 10,
+       "name": "singularity_data_lake",
+       "surfaces": [
+        {
+         "count": 10,
+         "name": "Average GB/Day"
+        },
+        {
+         "count": 0,
+         "name": "Long-Range Query Credits"
+        }
+       ],
+       "totalSurfaces": 10
+      },
+      {
+       "displayName": "Endpoint Security - Complete",
+       "majorVersion": 1,
+       "minorVersion": 39,
+       "name": "complete",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Total Agents"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Hyperautomation",
+       "majorVersion": 1,
+       "minorVersion": 4,
+       "name": "hyperautomation",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Action Packs"
+        }
+       ],
+       "totalSurfaces": 1
+      },
+      {
+       "displayName": "Identity Security",
+       "majorVersion": 1,
+       "minorVersion": 2,
+       "name": "unified_identity",
+       "surfaces": [
+        {
+         "count": -1,
+         "name": "Total Users"
+        }
+       ],
+       "totalSurfaces": -1
+      },
+      {
+       "displayName": "Prompt for Employees",
+       "majorVersion": 1,
+       "minorVersion": 4,
+       "name": "prompt_employees",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Total Employees"
+        }
+       ],
+       "totalSurfaces": 1
+      },
+      {
+       "displayName": "Prompt for AI Code Assistants",
+       "majorVersion": 1,
+       "minorVersion": 3,
+       "name": "prompt_for_ai_code_assistants",
+       "surfaces": [
+        {
+         "count": 1,
+         "name": "Total Developers"
+        }
+       ],
+       "totalSurfaces": 1
+      }
+     ],
+     "modules": [
+      {
+       "displayName": "Vulnerability Management",
+       "majorVersion": 1,
+       "name": "vulnerability_management"
+      },
+      {
+       "displayName": "Remote Script Orchestration",
+       "majorVersion": 1,
+       "name": "rso"
+      },
+      {
+       "displayName": "RemoteOps Forensics",
+       "majorVersion": 1,
+       "name": "remote_ops_forensics"
+      },
+      {
+       "displayName": "Network Discovery",
+       "majorVersion": 1,
+       "name": "ranger"
+      },
+      {
+       "displayName": "Unprotected Endpoints Discovery",
+       "majorVersion": 1,
+       "name": "rogues"
+      },
+      {
+       "displayName": "Cloud Funnel",
+       "majorVersion": 1,
+       "name": "cloud_funnel"
+      },
+      {
+       "displayName": "Threat Intelligence",
+       "majorVersion": 1,
+       "name": "threat_intel"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 30 days",
+       "majorVersion": 1,
+       "name": "xdr_30d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 90 days",
+       "majorVersion": 1,
+       "name": "xdr_90d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 180 days",
+       "majorVersion": 1,
+       "name": "xdr_180d_retention"
+      },
+      {
+       "displayName": "Data Ingest - Retention up to 1 year",
+       "majorVersion": 1,
+       "name": "xdr_365d_retention"
+      },
+      {
+       "displayName": "Purple AI Agentic Investigations",
+       "majorVersion": 1,
+       "name": "purple_ai_agentic_investigations"
+      },
+      {
+       "displayName": "Wayfinder Threat Hunting",
+       "majorVersion": 1,
+       "name": "wayfinder_threat_hunting"
+      },
+      {
+       "displayName": "Wayfinder MDR Essentials",
+       "majorVersion": 1,
+       "name": "wayfinder_mdr_essentials"
+      }
+     ],
+     "settings": [
+      {
+       "displayName": "14 Days",
+       "groupName": "dv_retention",
+       "setting": "14 Days",
+       "settingGroup": "dv_retention",
+       "settingGroupDisplayName": "Deep Visibility Data Retention"
+      },
+      {
+       "displayName": "365 Days",
+       "groupName": "malicious_data_retention",
+       "setting": "365 Days",
+       "settingGroup": "malicious_data_retention",
+       "settingGroupDisplayName": "Malicious Data Retention"
+      },
+      {
+       "displayName": "Site",
+       "groupName": "account_level_ranger",
+       "setting": "Site",
+       "settingGroup": "account_level_ranger",
+       "settingGroupDisplayName": "Network Discovery Consolidation Level"
+      },
+      {
+       "displayName": "Full",
+       "groupName": "ranger_ad_mode",
+       "setting": "Full",
+       "settingGroup": "ranger_ad_mode",
+       "settingGroupDisplayName": "Identity Security Posture Mode"
+      },
+      {
+       "displayName": "Available",
+       "groupName": "marketplace_access_status",
+       "setting": "Available",
+       "settingGroup": "marketplace_access_status",
+       "settingGroupDisplayName": "Marketplace Access"
+      },
+      {
+       "displayName": "Enabled",
+       "groupName": "remote_shell_availability",
+       "setting": "Enabled",
+       "settingGroup": "remote_shell_availability",
+       "settingGroupDisplayName": "Remote Shell"
+      }
+     ]
+    },
+    "state": "active"
+   }
+  ],
+  "pagination": {
+   "nextCursor": null,
+   "totalItems": 2
+  }
+ },
+ "sites": {
+  "data": {
+   "sites": [
+    {
+     "id": "1656372326856301800",
+     "name": "Support Training",
+     "accountId": "1656371856876149744",
+     "accountName": "Apolando",
+     "licenses": {
+      "bundles": [
+       {
+        "displayName": "Endpoint Security - Complete",
+        "majorVersion": 1,
+        "minorVersion": 39,
+        "name": "complete",
+        "surfaces": [
+         {
+          "count": -1,
+          "name": "Total Agents"
+         }
+        ],
+        "totalSurfaces": -1
+       }
+      ],
+      "modules": [
+       {
+        "displayName": "Vulnerability Management",
+        "majorVersion": 1,
+        "name": "vulnerability_management"
+       },
+       {
+        "displayName": "Network Discovery",
+        "majorVersion": 1,
+        "name": "ranger"
+       },
+       {
+        "displayName": "Unprotected Endpoints Discovery",
+        "majorVersion": 1,
+        "name": "rogues"
+       },
+       {
+        "displayName": "Cloud Funnel",
+        "majorVersion": 1,
+        "name": "cloud_funnel"
+       },
+       {
+        "displayName": "Vigilance MDR",
+        "majorVersion": 1,
+        "name": "vigilance"
+       },
+       {
+        "displayName": "Purple AI Foundations",
+        "majorVersion": 1,
+        "name": "purple_ai"
+       }
+      ],
+      "settings": [
+       {
+        "displayName": "Enabled",
+        "groupName": "remote_shell_availability",
+        "setting": "Enabled",
+        "settingGroup": "remote_shell_availability",
+        "settingGroupDisplayName": "Remote Shell"
+       },
+       {
+        "displayName": "Available",
+        "groupName": "marketplace_access_status",
+        "setting": "Available",
+        "settingGroup": "marketplace_access_status",
+        "settingGroupDisplayName": "Marketplace Access"
+       },
+       {
+        "displayName": "Site",
+        "groupName": "account_level_ranger",
+        "setting": "Site",
+        "settingGroup": "account_level_ranger",
+        "settingGroupDisplayName": "Network Discovery Consolidation Level"
+       },
+       {
+        "displayName": "365 Days",
+        "groupName": "malicious_data_retention",
+        "setting": "365 Days",
+        "settingGroup": "malicious_data_retention",
+        "settingGroupDisplayName": "Malicious Data Retention"
+       },
+       {
+        "displayName": "90 Days",
+        "groupName": "dv_retention",
+        "setting": "90 Days",
+        "settingGroup": "dv_retention",
+        "settingGroupDisplayName": "Deep Visibility Data Retention"
+       }
+      ]
+     },
+     "sku": "Complete",
+     "state": "active"
+    },
+    {
+     "id": "2234182308100323724",
+     "name": "Apo Site",
+     "accountId": "1546714269129639359",
+     "accountName": "N-ABLE TECHNOLOGIES LTD",
+     "licenses": {
+      "bundles": [
+       {
+        "displayName": "CNS Pro",
+        "majorVersion": 1,
+        "minorVersion": 28,
+        "name": "cloud_native_security_pro",
+        "surfaces": [
+         {
+          "count": 1,
+          "name": "Workloads"
+         }
+        ],
+        "totalSurfaces": 1
+       },
+       {
+        "displayName": "Endpoint Security - Control",
+        "majorVersion": 1,
+        "minorVersion": 12,
+        "name": "control",
+        "surfaces": [
+         {
+          "count": 1,
+          "name": "Total Agents"
+         }
+        ],
+        "totalSurfaces": 1
+       }
+      ],
+      "modules": [],
+      "settings": [
+       {
+        "displayName": "Enabled",
+        "groupName": "remote_shell_availability",
+        "setting": "Enabled",
+        "settingGroup": "remote_shell_availability",
+        "settingGroupDisplayName": "Remote Shell"
+       },
+       {
+        "displayName": "Available",
+        "groupName": "marketplace_access_status",
+        "setting": "Available",
+        "settingGroup": "marketplace_access_status",
+        "settingGroupDisplayName": "Marketplace Access"
+       },
+       {
+        "displayName": "365 Days",
+        "groupName": "malicious_data_retention",
+        "setting": "365 Days",
+        "settingGroup": "malicious_data_retention",
+        "settingGroupDisplayName": "Malicious Data Retention"
+       },
+       {
+        "displayName": "Full",
+        "groupName": "ranger_ad_mode",
+        "setting": "Full",
+        "settingGroup": "ranger_ad_mode",
+        "settingGroupDisplayName": "Identity Security Posture Mode"
+       }
+      ]
+     },
+     "sku": "Control",
+     "state": "active"
+    }
+   ]
+  },
+  "pagination": {
+   "nextCursor": null,
+   "totalItems": 2
+  }
+ }
+}
