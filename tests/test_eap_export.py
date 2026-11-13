@@ -54,3 +54,22 @@ def test_export_workbook_layouts(tmp_path):
     assert t1["Tenant state"] == "confirmed by form" and t1["Requested"] == "Prompt Security; Identity Security; Hyperautomation"
     summary_cells = [c for row in wb["Summary"].iter_rows(values_only=True) for c in row if c]
     assert "Prompt enabled" in summary_cells and 2 in summary_cells
+
+
+def test_match_label_follows_confirmation_and_provisioning():
+    guess = {"match_confidence": "medium"}
+    assert service.match_label(guess) == "medium"
+    assert service.match_label({**guess, "tenant_confirmed": 1}) == "confirmed"
+    assert service.match_label({**guess, "chosen_console": "USEA3", "chosen_account_id": "1"}) == "confirmed"
+    assert service.match_label({**guess, "tenant_confirmed": 1, "status": "provisioned", "s1_prompt_enabled": 1}) == "verified"
+    assert service.match_label({**guess, "status": "provisioned", "s1_prompt_enabled": 0}) == "medium"
+
+
+def test_tracker_match_column_uses_the_settled_label(tmp_path):
+    st = Store(tmp_path / "eap.db")
+    _seed(st)
+    st.update(2, {"match_confidence": "medium", "tenant_confirmed": 1})
+    out = service.export_workbook(st, tmp_path / "EAP.xlsx")
+    tr = list(openpyxl.load_workbook(out["path"])["Tracker"].iter_rows(values_only=True))
+    rows = [dict(zip(tr[0], line)) for line in tr[1:]]
+    assert rows[0]["Match"] == "verified" and rows[1]["Match"] == "confirmed"

@@ -255,8 +255,16 @@
     .aeb-table td.aeb-skus { color: var(--text-dim); font-size: 12px; max-width: 420px; }
     .aeb-status { padding: 14px; text-align: center; font-size: 12px; color: var(--text-muted); display: flex; justify-content: center; align-items: center; gap: 8px; }
     /* Prompt EAP tracker */
-    .eap-toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-    .eap-toolbar input[type=text] { min-width: 260px; }
+    .eap-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .eap-toolbar select { width: auto; flex: 0 0 auto; padding: 4px 26px 4px 8px; font-size: 12px; }
+    .eap-toolbar input[type=text] { width: auto; flex: 1 1 220px; min-width: 180px; padding: 4px 8px; font-size: 12px; }
+    .eap-toolbar .eap-progress { flex-basis: 100%; }
+    .eap-toolbar .eap-progress:empty { display: none; }
+    .eap-notice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 12px; padding: 6px 10px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--border); }
+    .eap-notice.hidden { display: none; }
+    .eap-notice a { cursor: pointer; }
+    .eap-notice .x { margin-left: auto; }
+    .eap-conf-confirmed, .eap-conf-verified { color: var(--success); font-weight: 600; }
     .eap-summary { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-muted); align-items: center; }
     .eap-summary b { color: var(--text); }
     #eap-page .card { min-width: 0; }
@@ -476,14 +484,15 @@
             <a class="btn" id="eap-export-btn" href="/api/eap/export" download title="Excel with a Summary sheet, the Customer List layout and the full table">⬇ Download Excel</a>
           </div>
         </div>
-        <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
           <div class="eap-summary" id="eap-summary"></div>
+          <div class="eap-notice hidden" id="eap-notice"></div>
           <div class="eap-toolbar">
             <select id="eap-f-sku"><option value="">All SKUs requested</option></select>
             <select id="eap-f-status"><option value="">All statuses</option></select>
             <select id="eap-f-console"><option value="">All consoles</option></select>
             <select id="eap-f-country"><option value="">All countries</option></select>
-            <select id="eap-f-conf"><option value="">Any match confidence</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">No match</option></select>
+            <select id="eap-f-conf"><option value="">Match: any</option><option value="verified">Verified on console</option><option value="confirmed">Confirmed</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="none">No match</option><option value="new">New in last sync</option></select>
             <select id="eap-f-tenant"><option value="">Tenant: any</option><option value="confirmed">Confirmed</option><option value="auto">Auto-selected, unconfirmed</option><option value="manual">Manual target</option><option value="none">No tenant</option></select>
             <select id="eap-f-prompt"><option value="">Prompt: any</option><option value="1">Prompt enabled</option><option value="0">Not enabled</option><option value="unknown">Not checked</option></select>
             <input type="text" id="eap-f-q" placeholder="Search company, contact, email, tenant, account, notes…">
@@ -2815,6 +2824,7 @@ function eapInit() {
   document.getElementById("eap-d-enrich").onclick = () => eapOpenId && eapEnrich([eapOpenId]);
 }
 
+let eapNoticeSeen = false;
 async function eapLoad() {
   const res = await fetch("/api/eap/requests");
   const data = await res.json();
@@ -2823,6 +2833,10 @@ async function eapLoad() {
   eapRenderSummary();
   eapFillFilters();
   eapRender();
+  const last = eapMeta.last_sync_result;
+  if (last && last.new && last.new.length && document.getElementById("eap-notice").classList.contains("hidden") && !eapNoticeSeen) {
+    eapNoticeSeen = true; eapShowSyncNotice(last, false);
+  }
 }
 
 function eapRenderSummary() {
@@ -2871,7 +2885,9 @@ function eapFiltered() {
     if (f("eap-f-status") && (r.status || "new") !== f("eap-f-status")) return false;
     if (f("eap-f-console") && (r.s1_console || _eapTenantCode(r.sf_tenant)) !== f("eap-f-console")) return false;
     if (f("eap-f-country") && r.country !== f("eap-f-country")) return false;
-    if (f("eap-f-conf") && (r.match_confidence || "none") !== f("eap-f-conf")) return false;
+    const c = f("eap-f-conf");
+    if (c === "new") { if (!((eapMeta.last_sync_result || {}).new || []).includes(r.id)) return false; }
+    else if (c && (_eapMatch(r)[0] || "none") !== c) return false;
     const t = f("eap-f-tenant");
     if (t && _eapTenantState(r) !== t) return false;
     const p = f("eap-f-prompt");
@@ -2888,6 +2904,20 @@ function eapFiltered() {
   });
 }
 
+function _eapMatch(r) {
+  // Once a human confirmed the tenant, or Prompt is verified on that very account, the Salesforce
+  // guess (high/medium/low) is history — show what settled it instead.
+  if (r.status === "provisioned" && r.s1_prompt_enabled === 1)
+    return ["verified", `Prompt enabled on ${_eapLabel(r.s1_console) || "console"} · ${r.s1_account_name || r.s1_account_id || ""}`];
+  if (r.tenant_confirmed) return ["confirmed", r.tenant_confirmed_by ? `by ${r.tenant_confirmed_by}` : "tenant confirmed"];
+  if (r.chosen_console && r.chosen_account_id) return ["confirmed", `manual target ${_eapLabel(r.chosen_console)} · ${r.chosen_account_id}`];
+  return [r.match_confidence || "", r.match_note || ""];
+}
+function _eapMatchCell(r) {
+  const [label, note] = _eapMatch(r);
+  if (!label) return `<span class="eap-muted">${r.sf_updated_at ? _eapEsc(r.match_note || "no match") : "—"}</span>`;
+  return `<span class="eap-conf-${label}" title="${_eapEsc(note)}">${_eapEsc(label)}</span><span class="eap-sub">${_eapEsc(note)}</span>`;
+}
 function _eapStatusBadge(r) {
   const [label, cls] = EAP_STATUS[r.status] || [r.status || "New", "badge-fetch"];
   return `<span class="${cls}">${_eapEsc(label)}</span>` +
@@ -2906,9 +2936,7 @@ function eapRender() {
   const rows = eapFiltered();
   const tbody = document.getElementById("eap-rows");
   tbody.innerHTML = rows.map(r => {
-    const conf = r.match_confidence
-      ? `<span class="eap-conf-${r.match_confidence}" title="${_eapEsc(r.match_note || "")}">${_eapEsc(r.match_confidence)}</span><span class="eap-sub">${_eapEsc(r.match_note || "")}</span>`
-      : `<span class="eap-muted">${r.sf_updated_at ? _eapEsc(r.match_note || "no match") : "—"}</span>`;
+    const conf = _eapMatchCell(r);
     const consoleCell = r.s1_account_name
       ? `${_eapEsc(_eapLabel(r.s1_console))}<span class="eap-sub">${_eapEsc(r.s1_account_name)} · ${_eapEsc(r.s1_account_id)}</span>`
       : (r.s1_error
@@ -2973,12 +3001,26 @@ async function _eapStream(url, body, onEvent) {
     }
   }
 }
+function eapShowSyncNotice(r, justRan) {
+  const box = document.getElementById("eap-notice");
+  if (!r) { box.classList.add("hidden"); return; }
+  const link = id => `<a onclick="eapOpen(${id})">#${id}</a>`;
+  const newPart = r.new.length
+    ? `<b>${r.new.length} new</b> request${r.new.length === 1 ? "" : "s"}: ${r.new.map(link).join(", ")}`
+    : "<b>no new</b> requests";
+  const updPart = r.updated.length ? `, ${r.updated.length} changed (${r.updated.map(link).join(", ")})` : "";
+  box.innerHTML = `<span>${justRan ? "Sync done" : "Last sync"}${r.at ? ` ${_eapEsc(r.at)}` : ""} — ${r.rows} rows in the workbook: ${newPart}${updPart}, ${r.unchanged} unchanged.</span>` +
+    (r.new.length ? `<a onclick="document.getElementById('eap-f-conf').value='new'; eapRender()">show only the new ones</a>` : "") +
+    `<a class="x" onclick="document.getElementById('eap-notice').classList.add('hidden')">✕</a>`;
+  box.classList.remove("hidden");
+}
 async function eapSync() {
   _eapErr(""); _eapBusy(true, "Reading the workbook…");
   try {
     const r = await _eapPost("/api/eap/sync");
-    _eapBusy(false, `Synced ${r.rows} rows — ${r.new.length} new, ${r.updated.length} updated, ${r.unchanged} unchanged`);
+    _eapBusy(false);
     await eapLoad();
+    eapShowSyncNotice({...r, at: (eapMeta.last_sync_result || {}).at}, true);
   } catch (e) { _eapBusy(false); _eapErr(e.message); }
 }
 async function eapEnrich(ids) {
@@ -3085,7 +3127,8 @@ async function eapOpen(id) {
       ["Account", r.sf_account_name ? `${_eapEsc(r.sf_account_name)} <span class="eap-muted">${_eapEsc(r.sf_account_id)}</span>` : null],
       ["Customer ID", _eapEsc(r.customer_id)],
       ["Country", _eapEsc(r.country)],
-      ["Match", r.match_rule != null ? `<span class="eap-conf-${r.match_confidence}">${_eapEsc(r.match_confidence)}</span> — ${_eapEsc(r.match_note)}` : _eapEsc(r.match_note)],
+      ["Match", (() => { const [l, n] = _eapMatch(r); const sf = r.match_rule != null ? `Salesforce guess: ${_eapEsc(r.match_confidence)} — ${_eapEsc(r.match_note)}` : _eapEsc(r.match_note || "");
+                        return l && l !== r.match_confidence ? `<span class="eap-conf-${l}">${_eapEsc(l)}</span> — ${_eapEsc(n)}<span class="eap-sub">${sf}</span>` : (l ? `<span class="eap-conf-${l}">${_eapEsc(l)}</span> — ${_eapEsc(n)}` : sf); })()],
       ["Selected tenant", _eapEsc(r.sf_tenant)],
     ])}<div style="margin-top:8px">${cands}</div></div>
     <div class="eap-sec"><h4>Tenants to provision</h4>${_eapKV([

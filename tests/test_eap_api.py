@@ -132,3 +132,19 @@ def test_additional_tenants_lifecycle(api, monkeypatch):
     s = service.summary(st.list())
     assert s["tenants"] == 2 and s["tenants_enabled"] == 1
     assert "1000_EUCE1_11 | 1000_EUCE2_22" in service.export_rows(st.list())[0]
+
+
+def test_requests_meta_remembers_the_last_sync(api, tmp_path):
+    client, st = api
+    from s1am.eap import service
+    assert client.get("/api/eap/requests").json["meta"]["last_sync_result"] is None
+    import openpyxl
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["ID", "Start time", "Completion time", "Email", "Name", "Company", "Name", "Email", "Products", "Super admin", "Details"])
+    ws.append([3, None, None, "c@cheops.com", "Cheops", "Cheops", "C", "c@cheops.com", "Prompt Security", "C c@cheops.com", ""])
+    ws.append([7, None, None, "d@dcom.be", "Dcom", "Dcom", "D", "d@dcom.be", "Prompt Security", "D d@dcom.be", ""])
+    path = tmp_path / "forms.xlsx"; wb.save(path)
+    r = client.post("/api/eap/sync", json={"path": str(path)}).json
+    assert r["new"] == [7] and r["rows"] == 2
+    meta = client.get("/api/eap/requests").json["meta"]["last_sync_result"]
+    assert meta["new"] == [7] and meta["rows"] == 2 and meta["at"]

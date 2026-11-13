@@ -1337,6 +1337,7 @@ def eap_requests():
     path = svc.form_path()
     meta = {
         "last_sync": st.get_meta("last_sync"), "sf_as_of": st.get_meta("sf_as_of"), "s1_as_of": st.get_meta("s1_as_of"),
+        "last_sync_result": svc.last_sync_result(st),
         "form_path": str(path or ""), "form_exists": bool(path and path.exists()),
         "sf": sf_auth.status().as_dict(), "labels": _load_labels(), "consoles": sorted(svc.profiles()),
     }

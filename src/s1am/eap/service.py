@@ -12,6 +12,7 @@ Settings — an environment variable S1AM_EAP_<KEY> wins over the [eap] section 
   dry_run        "true" (default) — the enable path only shows the PUT body
 """
 import datetime
+import json
 import os
 from pathlib import Path
 
@@ -131,7 +132,18 @@ def sync(st, path=None):
                            else "Form response changed in the workbook")
     st.set_meta("last_sync", _now())
     st.set_meta("form_path", str(path))
+    # Remembered so the UI can say "N new in the last sync" after a reload too.
+    st.set_meta("last_sync_result", json.dumps({"at": _now(), "new": result["new"], "updated": result["updated"],
+                                                "unchanged": result["unchanged"], "rows": result["rows"]}))
     return result
+
+
+def last_sync_result(st):
+    raw = st.get_meta("last_sync_result")
+    try:
+        return json.loads(raw) if raw else None
+    except ValueError:
+        return None
 
 
 # ── Salesforce ──────────────────────────────────────────────────────────────
@@ -191,7 +203,7 @@ TRACKER_COLUMNS = [
     ("#", "id"), ("Submitted", "completion_time"), ("Company", "company"), ("Contact", "contact_name"),
     ("Contact Email", "contact_email"), ("Super Admin", "super_admin_name"), ("Super Admin Email", "super_admin_email"),
     ("Requested", "products"), ("SF Account", "sf_account_name"), ("Customer ID", "customer_id"), ("Country", "country"),
-    ("Tenant", "sf_tenant"), ("Tenant state", "_tenant_state"), ("Match", "match_confidence"), ("Match note", "match_note"),
+    ("Tenant", "sf_tenant"), ("Tenant state", "_tenant_state"), ("Match", "_match"), ("Match note", "match_note"),
     ("Status", "status"), ("Status reason", "status_reason"), ("Console", "s1_console"), ("S1 Account", "s1_account_name"),
     ("S1 Account ID", "s1_account_id"), ("Prompt on console", "_prompt"), ("Prompt tenant", "s1_prompt_tenant"),
     ("Prompt admins", "_admins"), ("Prompt SKUs", "s1_prompt_bundles"), ("Checked", "s1_checked_at"),
@@ -210,6 +222,19 @@ def _enabled_yn(r):
     if r.get("s1_prompt_enabled") == 0:
         return "N"
     return ""
+
+
+def match_label(r):
+    """What the Match column should say once a human or the console has settled the tenant.
+
+    The Salesforce confidence (high/medium/low) describes the automatic guess. Once the tenant is
+    confirmed, or Prompt is verified enabled on that very account, the guess no longer matters.
+    """
+    if r.get("status") == "provisioned" and r.get("s1_prompt_enabled") == 1:
+        return "verified"
+    if r.get("tenant_confirmed") or (r.get("chosen_console") and r.get("chosen_account_id")):
+        return "confirmed"
+    return r.get("match_confidence") or ""
 
 
 def _tenant_state(r):
@@ -308,6 +333,8 @@ def export_workbook(st, path):
         for _, key in TRACKER_COLUMNS:
             if key == "_tenant_state":
                 value = tenant_state
+            elif key == "_match":
+                value = match_label(r)
             elif key == "_prompt":
                 value = {1: "Enabled", 0: "Not enabled"}.get(r.get("s1_prompt_enabled"), "not checked")
             elif key == "_admins":
