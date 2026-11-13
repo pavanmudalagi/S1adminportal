@@ -148,3 +148,18 @@ def test_requests_meta_remembers_the_last_sync(api, tmp_path):
     assert r["new"] == [7] and r["rows"] == 2
     meta = client.get("/api/eap/requests").json["meta"]["last_sync_result"]
     assert meta["new"] == [7] and meta["rows"] == 2 and meta["at"]
+
+
+def test_sf_record_url_only_for_well_formed_ids():
+    from s1am.salesforce import auth
+    assert auth.record_url("https://acme.my.salesforce.com/", "0015000001G23oqAAB") == "https://acme.my.salesforce.com/0015000001G23oqAAB"
+    assert auth.record_url("", "0015000001G23oqAAB") == ""
+    assert auth.record_url("https://acme.my.salesforce.com", "../evil") == ""
+    assert auth.ConnectionStatus(False).as_dict()["instance_url"] == ""
+
+
+def test_requests_meta_carries_the_sf_instance_url(api, monkeypatch):
+    client, _ = api
+    from s1am.salesforce import auth
+    monkeypatch.setattr(auth, "load_token", lambda: {"access_token": "x", "instance_url": "https://acme.my.salesforce.com", "id": ""})
+    assert client.get("/api/eap/requests").json["meta"]["sf"]["instance_url"] == "https://acme.my.salesforce.com"

@@ -3307,6 +3307,13 @@ const EAP_STATUS = {
   closed:       ["Closed",       "eap-muted"],
 };
 const _eapEsc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+// Link a Salesforce record by ID when the signed-in session told us the instance URL; plain text otherwise.
+const _eapSfLink = (id, text) => {
+  const base = (eapMeta.sf || {}).instance_url;
+  return base && id && /^[A-Za-z0-9]{15,18}$/.test(id)
+    ? `<a href="${_eapEsc(base.replace(/\/$/, ""))}/${_eapEsc(id)}" target="_blank" rel="noopener" title="Open in Salesforce">${_eapEsc(text)}</a>`
+    : _eapEsc(text || "");
+};
 const _eapLabel = code => code ? ((eapMeta.labels && eapMeta.labels[code]) ? `${eapMeta.labels[code]} (${code})` : code) : "";
 const _eapTenantCode = t => { const m = /^1000_([A-Za-z0-9]+)_/.exec(t || ""); return m ? m[1].toUpperCase() : ""; };
 // "confirmed" = the user locked this tenant; "auto" = the enrichment's proposal; "manual" = console+ID override
@@ -3650,7 +3657,7 @@ async function eapOpen(id) {
       ["Joe's columns", [r.joe_status ? _eapEsc(r.joe_status) : "", r.joe_ref ? `<a href="${_eapEsc(r.joe_ref)}" target="_blank" rel="noopener">${_eapEsc(r.joe_ref)}</a>` : ""].filter(Boolean).join("<br>") || null],
     ])}<div class="eap-raw" style="margin-top:8px">${_eapEsc(r.details_raw || "(details left empty)")}</div></div>
     <div class="eap-sec"><h4>Salesforce${asOf("as of", r.sf_updated_at)}</h4>${_eapKV([
-      ["Account", r.sf_account_name ? `${_eapEsc(r.sf_account_name)} <span class="eap-muted">${_eapEsc(r.sf_account_id)}</span>` : null],
+      ["Account", r.sf_account_name ? `${_eapSfLink(r.sf_account_id, r.sf_account_name)} <span class="eap-muted">${_eapEsc(r.sf_account_id)}</span>` : null],
       ["Customer ID", _eapEsc(r.customer_id)],
       ["Country", _eapEsc(r.country)],
       ["Match", (() => { const [l, n] = _eapMatch(r); const sf = r.match_rule != null ? `Salesforce guess: ${_eapEsc(r.match_confidence)} — ${_eapEsc(r.match_note)}` : _eapEsc(r.match_note || "");

@@ -22,6 +22,7 @@ has no token file yet but the dashboard does, its Salesforce entry is imported o
 single sign-in serves both apps. Nothing here is ever logged.
 """
 import base64
+import re
 import hashlib
 import json
 import os
@@ -132,16 +133,25 @@ class ConnectionStatus:
     connected: bool
     detail: str = ""
     identity: str = ""
+    instance_url: str = ""
 
     def as_dict(self):
-        return {"connected": self.connected, "detail": self.detail, "identity": self.identity}
+        return {"connected": self.connected, "detail": self.detail, "identity": self.identity,
+                "instance_url": self.instance_url}
+
+
+def record_url(instance_url, record_id):
+    """Browser link to a Salesforce record; Salesforce redirects /<id> into the Lightning record page."""
+    if not instance_url or not record_id or not re.fullmatch(r"[A-Za-z0-9]{15,18}", str(record_id)):
+        return ""
+    return f"{instance_url.rstrip('/')}/{record_id}"
 
 
 def status():
     """Report whether credentials are available. Never performs a login."""
     cached = load_token()
     if cached and cached.get("access_token") and cached.get("instance_url"):
-        return ConnectionStatus(True, "OAuth session cached", _identity_from(cached.get("id", "")))
+        return ConnectionStatus(True, "OAuth session cached", _identity_from(cached.get("id", "")), cached["instance_url"])
     if os.getenv("SF_USERNAME") and os.getenv("SF_PASSWORD"):
         return ConnectionStatus(True, "Using SF_USERNAME / SF_PASSWORD from the environment")
     return ConnectionStatus(False, "Not signed in — run `s1am sf-check --login`")
