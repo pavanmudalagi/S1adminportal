@@ -27,7 +27,8 @@ def test_literals_are_double_quoted_and_escaped():
 def test_usage_query_shapes():
     q = m.usage_query("server_endpoints", "2026-10-01", "2026-10-31", "account")
     assert q == ('| datasource "metering" from "server_endpoints" | filter date >= "2026-10-01" and date <= "2026-10-31" '
-                 '| group value=sum(value) by date, account_scope_id, state | limit 100000')
+                 '| group value=sum(value) by date, account_scope_id, tenant_scope_id, tenant_scope_level, organization_level_1_scope_id, '
+                 'organization_level_1_scope_level, state | limit 100000')
     q = m.usage_query("xdr_ingested_bytes", "2026-10-01", "2026-10-31", "site", account_id='12"3', breakdown="source_name")
     assert 'account_scope_id="12\\"3"' in q and "site_scope_id, source_name, state" in q
     q = m.usage_query("cns_workloads", "2026-10-01", "2026-10-31", "org1")
@@ -42,6 +43,13 @@ def test_usage_query_shapes():
 
 
 # ── parser ─────────────────────────────────────────────────────────────────
+
+def test_scope_fallbacks_for_identity_reports():
+    assert m._scope_ids({"account_scope_id": "A", "site_scope_id": "S"}, "site") == ("A", "S")
+    assert m._scope_ids({"account_scope_id": None, "tenant_scope_id": "T", "tenant_scope_level": "account"}, "site") == ("T", "")
+    assert m._scope_ids({"account_scope_id": None, "tenant_scope_id": "T", "tenant_scope_level": "site", "organization_level_1_scope_id": "O", "organization_level_1_scope_level": "account"}, "site") == ("O", "T")
+    assert m._scope_ids({"account_scope_id": None, "tenant_scope_id": "T", "tenant_scope_level": "site"}, "account") == ("", "")
+
 
 def test_parse_response_zips_columns_and_fixes_typo():
     payload = {"columns": [{"name": "date"}, {"name": "tentant_scope_level"}, {"name": "value"}], "values": [["2026-10-01", "site", 3], ["2026-10-02", "account"]]}

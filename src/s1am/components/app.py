@@ -2508,7 +2508,8 @@ def usage_summary():
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     all_consoles = _usage_consoles()
-    s = svc.summary(store, month, products, consoles, rules, cfg["bytes_base"])
+    hide_zero = request.args.get("zero") != "1"
+    s = svc.summary(store, month, products, consoles, rules, cfg["bytes_base"], hide_zero)
     return jsonify({**s, "products": [{k: p[k] for k in ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")} for p in products],
                     "health": svc.health(store, all_consoles, cfg["products"]), "consoles": all_consoles, "labels": _load_labels(),
                     "last_sync": store.get_meta("last_sync"), "last_sync_month": store.get_meta("last_sync_month"),
@@ -2550,7 +2551,7 @@ def usage_export():
     fmt = request.args.get("format", "csv")
     if level not in ("account", "site") or fmt not in ("csv", "xlsx"):
         return jsonify({"error": "level must be account|site and format csv|xlsx"}), 400
-    rows, used_rules = svc.export_rows(store, month, products, level, consoles, rules, cfg["bytes_base"])
+    rows, used_rules = svc.export_rows(store, month, products, level, consoles, rules, cfg["bytes_base"], request.args.get("zero") != "1")
     if request.args.get("final") == "1" and any(r["state"] != "final" for r in rows):
         return jsonify({"error": "This month still has live (provisional) days — it cannot be exported as final yet"}), 409
     name = f"s1-usage-{month}-{level}.{fmt}"

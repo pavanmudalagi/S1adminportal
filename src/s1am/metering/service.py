@@ -120,7 +120,8 @@ def build_query(report, start=None, end=None, group_by=(), filters=None, agg="va
 
 def usage_query(report, start, end, level="site", account_id=None, breakdown=None):
     """Account- or site-level daily sums, always split by ``state`` so provisional days are visible."""
-    dims = ["date", "account_scope_id"]
+    # Identity reports leave account_scope_id empty and put the scope in tenant_scope_id/level, so those ride along.
+    dims = ["date", "account_scope_id", "tenant_scope_id", "tenant_scope_level", "organization_level_1_scope_id", "organization_level_1_scope_level"]
     if level == "site":
         dims += ["site_scope_id"]
     elif level == "org1":
@@ -351,6 +352,7 @@ def list_tenants(client):
 
 
 NAME_REPORTS = ("server_endpoints", "workstation_endpoints", "singularity_identity_endpoints", "container_hosts")
+TENANT_NAME_REPORTS = ("singularity_identity_users", "singularity_identity_endpoints")
 
 
 def collect_names(client, available, start, end):
@@ -372,6 +374,17 @@ def collect_names(client, available, start, end):
     return []
 
 
+def collect_tenant_names(client, available, start, end):
+    """Identity reports scope rows by tenant_scope_id; their names live on the same rows."""
+    for rep in TENANT_NAME_REPORTS:
+        if rep not in available:
+            continue
+        rows = client.query(build_query(rep, start, end, group_by=["tenant_scope_id", "tenant_scope_name", "tenant_scope_level"], agg="n=count()", limit=ROW_LIMIT), start, _plus_day(end))
+        return [{"scope_id": str(r["tenant_scope_id"]), "name": r.get("tenant_scope_name"), "level": r.get("tenant_scope_level"), "salesforce_id": None}
+                for r in rows if r.get("tenant_scope_id")]
+    return []
+
+
 def get_usage(client, report, start, end, level="site", account_id=None, breakdown=None):
     """Daily sums for one report. Returns normalised rows: date, account_id, site_id, breakdown, value, state (+ org names)."""
     rows = client.query(usage_query(report, start, end, level, account_id, breakdown), start, _plus_day(end))
@@ -383,9 +396,26 @@ def get_usage(client, report, start, end, level="site", account_id=None, breakdo
                         "name": r.get(f"organization_level_{n}_name"), "salesforce_id": r.get(f"organization_level_{n}_salesforce_id"),
                         "breakdown": str(r.get(breakdown) or "") if breakdown else "", "value": float(r.get("value") or 0), "state": r.get("state") or "live"})
         else:
-            out.append({"date": r.get("date"), "account_id": str(r.get("account_scope_id") or ""), "site_id": str(r.get("site_scope_id") or "") if level == "site" else "",
+            acc, site = _scope_ids(r, level)
+            out.append({"date": r.get("date"), "account_id": acc, "site_id": site,
                         "breakdown": str(r.get(breakdown) or "") if breakdown else "", "value": float(r.get("value") or 0), "state": r.get("state") or "live"})
     return out
+
+
+def _scope_ids(r, level):
+    """(account_id, site_id) with fallbacks: tenant_scope_* when the account/site columns are empty (identity
+    reports), then organization level 1 when it is an account."""
+    acc = str(r.get("account_scope_id") or "")
+    site = str(r.get("site_scope_id") or "") if level == "site" else ""
+    t_level = (r.get("tenant_scope_level") or "").lower()
+    t_id = str(r.get("tenant_scope_id") or "")
+    if not acc and t_level == "account" and t_id:
+        acc = t_id
+    if not site and level == "site" and t_level == "site" and t_id:
+        site = t_id
+    if not acc and (r.get("organization_level_1_scope_level") or "").lower() == "account":
+        acc = str(r.get("organization_level_1_scope_id") or "")
+    return acc, site
 
 
 def _plus_day(d):
@@ -467,6 +497,7 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
             store.save_names(console, list_tenants(client))
             if end >= start:
                 store.save_names(console, collect_names(client, available, start, end))
+                store.save_names(console, collect_tenant_names(client, available, start, end))
         except MeteringError as exc:
             if exc.kind in ("permission", "unsupported"):
                 raise
@@ -523,6 +554,8 @@ def sync_all(store, consoles, month, products, client_for=None, workers=MAX_WORK
 # ── views ──────────────────────────────────────────────────────────────────
 
 def _name(names, console, scope_id, fallback=None):
+    if not scope_id:
+        return fallback or "(console-wide — no account scope)"
     r = names.get((console, str(scope_id)))
     return (r["name"] if r and r.get("name") else None) or fallback or str(scope_id)
 
@@ -532,8 +565,9 @@ def _sf(names, console, scope_id):
     return r.get("salesforce_id") if r else None
 
 
-def summary(store, month, products, consoles=None, rules=None, bytes_base=1000):
-    """One row per (console, account) with the billable value per product under the active rollup rule."""
+def summary(store, month, products, consoles=None, rules=None, bytes_base=1000, hide_zero=True):
+    """One row per (console, account) with the billable value per product under the active rollup rule.
+    ``hide_zero`` drops accounts whose every product rolls up to 0 (hundreds of empty test tenants on Staging)."""
     start, end = month_bounds(month)
     rules = rules or {}
     prods = {p["report"]: p for p in products}
@@ -560,6 +594,8 @@ def summary(store, month, products, consoles=None, rules=None, bytes_base=1000):
                 a["state"] = "provisional"
         a["products"] = cells
         a["sites"] = len(a["sites"])
+        if hide_zero and not any((c["value"] or 0) > 0 for c in cells.values()):
+            continue
         out.append(a)
     out.sort(key=lambda a: (a["console"], (a["account"] or "").lower()))
     totals = {}
@@ -567,7 +603,8 @@ def summary(store, month, products, consoles=None, rules=None, bytes_base=1000):
         vals = [a["products"][p["key"]]["value"] for a in out if p["key"] in a["products"] and a["products"][p["key"]]["value"] is not None]
         tot = sum(vals) if vals else None
         totals[p["key"]] = {"value": tot, "display": format_bytes(tot, bytes_base) if p["unit"] == "bytes" else (f"{tot:,.0f}" if tot is not None else "")}
-    return {"month": month, "accounts": out, "totals": totals, "rules": {p["key"]: rules.get(p["key"]) or p["rollup"] for p in products}}
+    return {"month": month, "accounts": out, "totals": totals, "rules": {p["key"]: rules.get(p["key"]) or p["rollup"] for p in products},
+            "hidden_zero": len(acc) - len(out) if hide_zero else 0}
 
 
 def _series(rows):
@@ -659,9 +696,9 @@ def health(store, consoles, products):
 
 # ── export ─────────────────────────────────────────────────────────────────
 
-def export_rows(store, month, products, level="account", consoles=None, rules=None, bytes_base=1000):
+def export_rows(store, month, products, level="account", consoles=None, rules=None, bytes_base=1000, hide_zero=True):
     """Flat rows for CSV/XLSX: one per scope with a column per product plus rule/state columns."""
-    s = summary(store, month, products, consoles, rules, bytes_base)
+    s = summary(store, month, products, consoles, rules, bytes_base, hide_zero)
     out = []
     if level == "account":
         for a in s["accounts"]:
@@ -693,6 +730,8 @@ def export_rows(store, month, products, level="account", consoles=None, rules=No
                         row["state"] = "provisional"
                 else:
                     row[p["key"]] = None; row[p["key"] + "_display"] = ""; row[p["key"] + "_state"] = ""
+            if hide_zero and not any((row.get(p["key"]) or 0) > 0 for p in products):
+                continue
             out.append(row)
     return out, s["rules"]
 

@@ -469,6 +469,45 @@
     .mp-link { color: var(--primary); cursor: pointer; }
     .mp-link:hover { text-decoration: underline; }
 
+    /* ── Usage & billing ── */
+    .us-health { display: flex; flex-wrap: wrap; gap: 6px; }
+    .us-chip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px; border-radius: var(--radius); border: 1px solid var(--border); font-size: 12px; color: var(--text-dim); cursor: default; }
+    .us-chip .status-dot { width: 7px; height: 7px; }
+    .us-chip.ok .status-dot { background: var(--success); } .us-chip.permission .status-dot, .us-chip.error .status-dot, .us-chip.config .status-dot { background: var(--error); }
+    .us-chip.not_enabled .status-dot, .us-chip.no_reports .status-dot { background: var(--warn); } .us-chip.never .status-dot { background: var(--text-muted); }
+    .us-chip.sel { border-color: var(--primary); color: var(--text); }
+    .us-prod { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--border); font-size: 12px; font-weight: 500; color: var(--text-dim); cursor: pointer; user-select: none; }
+    .us-prod.on { background: var(--primary-a); border-color: var(--primary); color: var(--text); }
+    .us-table { font-size: 13px; width: 100%; }
+    .us-table th[data-key] { cursor: pointer; user-select: none; } .us-table th .arrow { font-size: 10px; margin-left: 4px; color: var(--primary); }
+    .us-table th select { height: 22px; padding: 0 20px 0 6px; font-size: 11px; width: auto; margin-left: 6px; background-position: right 5px center; vertical-align: middle; text-transform: none; font-weight: 400; }
+    .us-table td.num, .us-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .us-table tbody tr { cursor: pointer; }
+    .us-table tfoot td { font-weight: 600; background: var(--surface-2); border-top: 1px solid var(--border); height: 40px; }
+    .us-table tr.sel > td { background: var(--surface-2); }
+    .us-badge-prov { display: inline-block; padding: 1px 8px; border-radius: 3px; background: var(--warn-a); color: var(--warn); font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .us-badge-final { display: inline-block; padding: 1px 8px; border-radius: 3px; background: var(--success-a); color: var(--success); font-size: 11px; font-weight: 500; }
+    .us-rule { display: inline-block; padding: 0 6px; border-radius: 3px; background: var(--surface-2); color: var(--text-muted); font-size: 11px; margin-left: 6px; }
+    .us-card { border: 1px solid var(--border); border-radius: 8px; background: var(--surface); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .us-card .big { font-size: 26px; font-weight: 500; line-height: 1.1; }
+    .us-card .sub { font-size: 12px; color: var(--text-muted); }
+    .us-chart { width: 100%; height: 120px; display: block; }
+    .us-chart .line { fill: none; stroke: var(--primary); stroke-width: 2; stroke-linejoin: round; }
+    .us-chart .area { fill: var(--primary); opacity: .3; }
+    .us-chart .axis { stroke: var(--border); stroke-width: 1; }
+    .us-chart .live { fill: var(--warn); }
+    .us-chart text { font-size: 11px; fill: var(--text-muted); }
+    .us-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+    .us-bd { display: flex; flex-wrap: wrap; gap: 4px; }
+    .us-back { color: var(--primary); cursor: pointer; font-size: 12px; }
+    .us-month { width: auto; }
+    .us-dd { position: relative; display: inline-block; }
+    .us-dd-menu { position: absolute; right: 0; top: 36px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); min-width: 240px; z-index: 50; display: none; flex-direction: column; padding: 4px; }
+    .us-dd.open .us-dd-menu { display: flex; }
+    .us-dd-menu a { padding: 7px 10px; border-radius: var(--radius); font-size: 13px; color: var(--text); cursor: pointer; text-decoration: none; }
+    .us-dd-menu a:hover { background: var(--surface-2); text-decoration: none; }
+    .us-dd-menu a.off { color: var(--text-muted); cursor: not-allowed; }
+
     /* ── Account Editor Modal ── */
     .ae-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: flex; align-items: center; justify-content: center; z-index: 200; }
     .ae-backdrop.hidden { display: none; }
@@ -824,6 +863,51 @@
       </div>
     </div>
 
+    <!-- Usage & billing -->
+    <div id="usage-page" style="display:none; flex-direction:column; gap:12px;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Usage &amp; Billing</div>
+            <div class="card-desc">Daily usage from the SDL metering datasource, rolled up to one billable number per account and site. Click a row for the daily trend and the site breakdown.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;">
+            <span class="eap-muted" id="us-synced"></span>
+            <button class="btn" id="us-sync" title="Fetch this month from every console (live days are re-fetched, archived days kept)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Sync month</button>
+            <div class="us-dd" id="us-export-dd">
+              <button class="btn" id="us-export-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export ▾</button>
+              <div class="us-dd-menu" id="us-export-menu"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="us-health" id="us-health"></div>
+          <div class="eap-toolbar">
+            <input type="month" id="us-month" class="us-month" title="Billing month">
+            <select id="us-console"><option value="">All consoles</option></select>
+            <div id="us-products" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            <input type="text" id="us-q" placeholder="Search account, ID, Salesforce ID…" style="flex:1 1 220px">
+            <label class="checkbox-row" style="margin:0;font-size:12px;min-height:28px" title="Accounts whose every product rolls up to zero are hidden by default"><input type="checkbox" id="us-zero"> Show zero-usage accounts <span class="eap-muted" id="us-zero-n"></span></label>
+          </div>
+          <div class="ae-err" id="us-err"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="eap-table-wrap" style="max-height: calc(100vh - 380px);">
+          <table class="rtable us-table" id="us-table"><thead id="us-head"></thead><tbody id="us-rows"></tbody><tfoot id="us-foot"></tfoot></table>
+          <div class="aeb-status" id="us-status"></div>
+        </div>
+      </div>
+    </div>
+    <div class="eap-drawer hidden" id="us-drawer">
+      <div class="eap-drawer-grip" id="us-d-grip" title="Drag to resize"></div>
+      <div class="eap-drawer-head">
+        <div><div class="card-title" id="us-d-title">Account</div><div class="card-desc" id="us-d-sub"></div></div>
+        <div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-sm" id="us-d-close">✕</button></div>
+      </div>
+      <div class="eap-drawer-body" id="us-d-body"></div>
+    </div>
+
     <div id="command-area" style="display:none; flex-direction:column; gap:16px;">
       <!-- Command card -->
       <div class="card" id="cmd-card">
@@ -1127,7 +1211,7 @@ document.getElementById("ac-save-btn").addEventListener("click", async () => {
 });
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Marketplace","Threats","Groups & Exclusions","Metering","Config","Advanced"];
+const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Marketplace","Usage & Billing","Threats","Groups & Exclusions","Metering","Config","Advanced"];
 
 
 // 16px line icons (Lucide paths, 1.5px stroke) — the console uses line icons, not emoji.
@@ -1150,9 +1234,10 @@ const ICONS = {
   layers: '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83ZM2 12l9.17 4.17a2 2 0 0 0 1.66 0L22 12M2 17l9.17 4.17a2 2 0 0 0 1.66 0L22 17"/>',
   dot: '<circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="1"/>',
   plug: '<path d="M12 22v-5M9 8V2M15 8V2M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z"/>',
+  receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/>',
 };
 function icon(name, cls) { return `<svg class="ico${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.dot}</svg>`; }
-const CAT_ICONS = {"Accounts": "building", "Sites": "pin", "Agents": "monitor", "Prompt EAP": "shield", "Threats": "bug", "Groups & Exclusions": "folder", "Metering": "chart", "Config": "settings", "Advanced": "flask", "XDR / Data Lake": "database", "Marketplace": "plug"};
+const CAT_ICONS = {"Accounts": "building", "Sites": "pin", "Agents": "monitor", "Prompt EAP": "shield", "Threats": "bug", "Groups & Exclusions": "folder", "Metering": "chart", "Config": "settings", "Advanced": "flask", "XDR / Data Lake": "database", "Marketplace": "plug", "Usage & Billing": "receipt"};
 let _catOrder = [];
 
 function _groups() {
@@ -1215,8 +1300,9 @@ function goHome() {
   try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.cat === "__home__"));
   document.getElementById("page-header").style.display = "none";
-  ["command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
+  ["command-area", "ae-browser", "eap-page", "mp-page", "usage-page"].forEach(id => document.getElementById(id).style.display = "none");
   document.getElementById("eap-drawer").classList.add("hidden");
+  document.getElementById("us-drawer").classList.add("hidden");
   document.getElementById("welcome").style.display = "flex";
   renderHub();
 }
@@ -1329,6 +1415,18 @@ function selectCommand(id) {
   // EAP tracker has its own page too
   const eapPage = document.getElementById("eap-page");
   const mpPage = document.getElementById("mp-page");
+  const usPage = document.getElementById("usage-page");
+  usPage.style.display = "none";
+  document.getElementById("us-drawer").classList.add("hidden");
+  if (cmd.type === "usage") {
+    activeCmd = cmd;
+    ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
+    document.getElementById("eap-drawer").classList.add("hidden");
+    usPage.style.display = "flex";
+    usInit();
+    usLoad();
+    return;
+  }
   if (cmd.type === "eap-tracker") {
     activeCmd = cmd;
     document.getElementById("welcome").style.display = "none";
@@ -4051,6 +4149,245 @@ async function mpLoadDetail(kind, console, instId, btn) {
     }
   } catch (e) { box.innerHTML = `<div class="ae-err" style="display:block">${_mpEsc(e.message)}</div>`; }
   finally { btn.disabled = false; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Usage & billing
+// ═══════════════════════════════════════════════════════════════════════════
+let usData = null, usInited = false, usBusy = false, usPoll = null;
+const usState = {month: "", console: "", products: null, rules: {}, q: "", sort: {key: "", dir: 1}, account: "", site: "", zero: false};
+const _usEsc = _eapEsc;
+const _usLabel = code => code ? ((usData && usData.labels && usData.labels[code]) ? `${usData.labels[code]} (${code})` : code) : "";
+const US_RULE = {peak: "peak day", average: "average", month_end: "month end", sum: "sum"};
+const US_HEALTH = {ok: "data", permission: "token lacks Metering Reports – View", not_enabled: "metering not enabled", no_reports: "no reports yet", never: "not synced", error: "error", config: "no token"};
+
+function usInit() {
+  if (usInited) { usReadHash(); return; }
+  usInited = true;
+  const d = new Date(); usState.month = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  usReadHash();
+  document.getElementById("us-month").value = usState.month;
+  document.getElementById("us-month").onchange = e => { if (e.target.value) { usState.month = e.target.value; usLoad(); } };
+  document.getElementById("us-console").onchange = e => { usState.console = e.target.value; usLoad(); };
+  document.getElementById("us-q").oninput = e => { usState.q = e.target.value; usRender(); };
+  document.getElementById("us-zero").onchange = e => { usState.zero = e.target.checked; usLoad(); };
+  document.getElementById("us-sync").onclick = usSync;
+  document.getElementById("us-export-btn").onclick = e => { e.stopPropagation(); document.getElementById("us-export-dd").classList.toggle("open"); };
+  document.addEventListener("click", () => document.getElementById("us-export-dd").classList.remove("open"));
+  document.getElementById("us-d-close").onclick = usCloseDrawer;
+  // Drag-resize like the EAP drawer.
+  const drawer = document.getElementById("us-drawer"), grip = document.getElementById("us-d-grip");
+  try { const w = localStorage.getItem("eapDrawerWidth"); if (w) drawer.style.width = w; } catch (e) {}
+  grip.addEventListener("mousedown", e => {
+    e.preventDefault(); grip.classList.add("active");
+    const move = ev => { const w = Math.max(420, Math.min(window.innerWidth - 40, window.innerWidth - ev.clientX)); drawer.style.width = w + "px"; };
+    const up = () => { grip.classList.remove("active"); document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); try { localStorage.setItem("eapDrawerWidth", drawer.style.width); } catch (e) {} };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+}
+function usReadHash() {
+  if (!_deepQs) return;
+  const qs = new URLSearchParams(_deepQs); _deepQs = "";
+  if (qs.get("month")) usState.month = qs.get("month");
+  if (qs.has("console")) usState.console = qs.get("console");
+  if (qs.get("products")) usState.products = qs.get("products").split(",");
+  if (qs.get("rules")) qs.get("rules").split(",").forEach(kv => { const [k, v] = kv.split("="); if (k && v) usState.rules[k] = v; });
+  usState.account = qs.get("account") || ""; usState.site = qs.get("site") || "";
+}
+function usQuery() {
+  const qs = new URLSearchParams(); qs.set("month", usState.month);
+  if (usState.console) qs.set("consoles", usState.console);
+  if (usState.products && usState.products.length) qs.set("products", usState.products.join(","));
+  const rules = Object.entries(usState.rules).map(([k, v]) => `${k}=${v}`).join(",");
+  if (rules) qs.set("rules", rules);
+  if (usState.zero) qs.set("zero", "1");
+  return qs;
+}
+function usSyncHash() {
+  const qs = usQuery(); qs.delete("consoles"); if (usState.console) qs.set("console", usState.console);
+  if (usState.account) qs.set("account", usState.account); if (usState.site) qs.set("site", usState.site);
+  try { history.replaceState(null, "", "#usage?" + qs.toString()); } catch (e) {}
+  const allFinal = usData && usData.accounts.length && usData.accounts.every(a => a.state === "final");
+  const menu = document.getElementById("us-export-menu");
+  const link = (label, level, fmt, final) => `<a href="/api/usage/export?${usQuery().toString()}&level=${level}&format=${fmt}${final ? "&final=1" : ""}" download class="${final && !allFinal ? "off" : ""}" ${final && !allFinal ? 'title="Only when every row is final (all days archived)" onclick="event.preventDefault()"' : ""}>${label}</a>`;
+  menu.innerHTML = link("CSV — accounts", "account", "csv") + link("CSV — sites", "site", "csv") + link("Excel — accounts (sheet per product)", "account", "xlsx") + link("Excel — sites (sheet per product)", "site", "xlsx")
+    + `<div style="border-top:1px solid var(--border);margin:4px 0"></div>` + link(`Finalize for billing — Excel, accounts${allFinal ? "" : " (month still provisional)"}`, "account", "xlsx", true);
+}
+
+async function usLoad() {
+  if (usBusy) return;
+  usBusy = true; document.getElementById("us-err").textContent = "";
+  if (!usData) document.getElementById("us-status").textContent = "Loading…";
+  try {
+    const res = await fetch("/api/usage/summary?" + usQuery().toString());
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    usData = data;
+    usFillControls();
+    usRender();
+    if (data.sync && data.sync.running) usStartPoll();
+    if (usState.account) usOpenAccount(...usState.account.split(":"), true);
+    else if (usState.site) usOpenSite(...usState.site.split(":"), true);
+  } catch (e) { document.getElementById("us-err").textContent = e.message; document.getElementById("us-status").textContent = "Could not load — " + e.message; }
+  finally { usBusy = false; }
+}
+function usFillControls() {
+  _eapFill("us-console", usData.consoles, _usLabel);
+  document.getElementById("us-console").value = usState.console;
+  const wrap = document.getElementById("us-products");
+  const all = usData.products;
+  if (!usState.products) usState.products = all.map(p => p.key);
+  wrap.innerHTML = all.map(p => `<span class="us-prod ${usState.products.includes(p.key) ? "on" : ""}" data-key="${p.key}" title="${_usEsc(p.label)} — ${_usEsc(p.note || "")}">${_usEsc(p.short)}</span>`).join("");
+  wrap.querySelectorAll(".us-prod").forEach(el => el.onclick = () => {
+    const k = el.dataset.key;
+    usState.products = usState.products.includes(k) ? usState.products.filter(x => x !== k) : [...usState.products, k];
+    if (!usState.products.length) usState.products = all.map(p => p.key);
+    usLoad();
+  });
+  document.getElementById("us-zero-n").textContent = usData.hidden_zero ? `(${usData.hidden_zero} hidden)` : "";
+  const sync = usData.sync || {};
+  document.getElementById("us-synced").textContent = sync.running ? `Syncing ${sync.month}…` : (usData.last_sync ? `Last sync ${usData.last_sync}${usData.last_sync_month ? ` (${usData.last_sync_month})` : ""}` : "Never synced — click Sync month");
+  document.getElementById("us-sync").disabled = !!sync.running;
+}
+function usHealth() {
+  return (usData.health || []).map(h => {
+    const txt = US_HEALTH[h.state] || h.state;
+    const tip = `${_usLabel(h.console)}: ${h.message || txt}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.missing && h.missing.length ? ` · missing: ${h.missing.join(", ")}` : ""}`;
+    return `<span class="us-chip ${h.state} ${usState.console === h.console ? "sel" : ""}" title="${_usEsc(tip)}" data-console="${_usEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_usEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? `${h.reports.length}/${usData.products.length}` : txt}</span></span>`;
+  }).join("");
+}
+function usProductsShown() { return usData.products.filter(p => usState.products.includes(p.key)); }
+function usFiltered() {
+  const q = usState.q.trim().toLowerCase();
+  return usData.accounts.filter(a => !q || [a.account, a.account_id, a.salesforce_id, a.console].join(" ").toLowerCase().includes(q));
+}
+function usSort(rows) {
+  const key = usState.sort.key || "console", dir = usState.sort.key ? usState.sort.dir : 1;
+  return rows.sort((a, b) => {
+    const get = r => key.startsWith("p:") ? (r.products[key.slice(2)] ? r.products[key.slice(2)].value : null) : r[key];
+    let x = get(a), y = get(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    const r = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, {sensitivity: "base", numeric: true});
+    return r * dir;
+  });
+}
+function usRender() {
+  if (!usData) return;
+  usSyncHash();
+  document.getElementById("us-health").innerHTML = usHealth();
+  document.querySelectorAll("#us-health .us-chip").forEach(el => el.onclick = () => { usState.console = usState.console === el.dataset.console ? "" : el.dataset.console; document.getElementById("us-console").value = usState.console; usLoad(); });
+  const prods = usProductsShown();
+  const th = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && usState.sort.key === key ? `<span class="arrow">${usState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
+  document.getElementById("us-head").innerHTML = "<tr>" + th("Console", "console") + th("Account", "account") + th("Account ID", "account_id") + th("Salesforce ID", "salesforce_id") + th("State", "state") +
+    prods.map(p => th(`${_usEsc(p.short)}<span class="eap-sub" style="font-weight:400">${_usEsc(p.unit)}</span>` +
+      (p.alt_rollups.length ? `<select data-rule="${p.key}" title="Rollup rule for ${_usEsc(p.label)}" onclick="event.stopPropagation()">${[p.rollup, ...p.alt_rollups].map(r => `<option value="${r}" ${(usData.rules[p.key] || p.rollup) === r ? "selected" : ""}>${US_RULE[r]}</option>`).join("")}</select>` : `<span class="us-rule">${US_RULE[p.rollup]}</span>`), "p:" + p.key, "num")).join("") + "</tr>";
+  document.querySelectorAll("#us-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; usState.sort = usState.sort.key === k ? {key: k, dir: -usState.sort.dir} : {key: k, dir: 1}; usRender(); });
+  document.querySelectorAll("#us-head select[data-rule]").forEach(sel => sel.onchange = () => { usState.rules[sel.dataset.rule] = sel.value; usLoad(); });
+  const rows = usSort(usFiltered());
+  document.getElementById("us-rows").innerHTML = rows.map(a => `<tr data-acc="${_usEsc(a.console)}:${_usEsc(a.account_id)}" class="${usState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
+      <td>${_usEsc(_usLabel(a.console))}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>
+      <td>${a.state === "final" ? '<span class="us-badge-final">final</span>' : '<span class="us-badge-prov" title="Some days are still live and can change">provisional</span>'}</td>
+      ${prods.map(p => { const c = a.products[p.key]; return `<td class="num" title="${c ? `${c.days} days, ${c.live_days} live · ${US_RULE[c.rule]}` : "no data"}">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}
+    </tr>`).join("");
+  const tot = usData.totals || {};
+  document.getElementById("us-foot").innerHTML = rows.length ? `<tr><td colspan="5">Total · ${rows.length} account${rows.length === 1 ? "" : "s"}${usState.q ? " (filtered rows summed)" : ""}</td>` +
+    prods.map(p => { const vals = rows.map(a => a.products[p.key] ? a.products[p.key].value : null).filter(v => v != null); const sum = vals.length ? vals.reduce((x, y) => x + y, 0) : null;
+      const disp = sum == null ? "—" : (p.unit === "bytes" ? _usBytes(sum) : (usData.rules[p.key] === "average" ? sum.toLocaleString(undefined, {maximumFractionDigits: 2}) : Math.round(sum).toLocaleString())); return `<td class="num">${disp}</td>`; }).join("") + "</tr>" : "";
+  document.querySelectorAll("#us-rows tr").forEach(tr => tr.onclick = () => { const [c, id] = tr.dataset.acc.split(":"); usOpenAccount(c, id); });
+  const synced = usData.health.some(h => h.state === "ok");
+  document.getElementById("us-status").textContent = !usData.accounts.length
+    ? (synced ? `No usage stored for ${usState.month}. Click “Sync month” to fetch it.` : "No console has been synced yet — click “Sync month”.")
+    : `${rows.length} of ${usData.accounts.length} accounts · rules: ${prods.map(p => `${p.short} = ${US_RULE[usData.rules[p.key]]}`).join(", ")}`;
+}
+const _usBytes = (n, base) => { base = base || (usData && usData.bytes_base) || 1000; const u = ["B", "KB", "MB", "GB", "TB", "PB"]; let v = n, i = 0; while (v >= base && i < u.length - 1) { v /= base; i++; } return `${v.toLocaleString(undefined, {maximumFractionDigits: 2})} ${u[i]}`; };
+
+async function usSync() {
+  const btn = document.getElementById("us-sync"); btn.disabled = true;
+  document.getElementById("us-err").textContent = "";
+  try {
+    const res = await fetch("/api/usage/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({month: usState.month, consoles: usState.console ? [usState.console] : null})});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    document.getElementById("us-synced").textContent = `Syncing ${usState.month}…`;
+    usStartPoll();
+  } catch (e) { document.getElementById("us-err").textContent = e.message; btn.disabled = false; }
+}
+function usStartPoll() {
+  if (usPoll) return;
+  usPoll = setInterval(async () => {
+    try {
+      const s = await fetch("/api/usage/sync-status").then(r => r.json());
+      if (!s.running) { clearInterval(usPoll); usPoll = null; await usLoad(); if (s.result) usReportSync(s.result); }
+    } catch (e) { clearInterval(usPoll); usPoll = null; }
+  }, 2000);
+}
+function usReportSync(result) {
+  const bad = (result.consoles || []).filter(c => !c.ok);
+  if (bad.length) document.getElementById("us-err").textContent = bad.map(c => `${c.console}: ${c.message}`).join(" · ");
+}
+
+// ── drilldown drawer ──
+function usChart(series, unit) {
+  if (!series || !series.length) return '<div class="eap-muted">no daily rows</div>';
+  const W = 420, H = 120, L = 6, R = 6, T = 8, B = 20;
+  const max = Math.max(...series.map(s => s.value), 1e-9);
+  const n = series.length, x = i => L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)), y = v => T + (H - T - B) * (1 - v / max);
+  const pts = series.map((s, i) => `${x(i).toFixed(1)},${y(s.value).toFixed(1)}`);
+  const area = `M${x(0).toFixed(1)},${(H - B).toFixed(1)} L${pts.join(" L")} L${x(n - 1).toFixed(1)},${(H - B).toFixed(1)} Z`;
+  const live = series.map((s, i) => s.state === "live" ? `<circle class="live" cx="${x(i).toFixed(1)}" cy="${y(s.value).toFixed(1)}" r="3"><title>${s.date}: ${s.value} (live)</title></circle>` : "").join("");
+  const fmt = v => unit === "bytes" ? _usBytes(v) : v.toLocaleString(undefined, {maximumFractionDigits: 2});
+  return `<svg class="us-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+    <path class="area" d="${area}"/><polyline class="line" points="${pts.join(" ")}"/>
+    <line class="axis" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"/>${live}
+    <text x="${L}" y="${H - 6}">${series[0].date.slice(5)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${series[n - 1].date.slice(5)}</text>
+    <text x="${W - R}" y="${T + 10}" text-anchor="end">max ${fmt(max)}</text>
+    ${series.map((s, i) => `<rect x="${(x(i) - (W / n) / 2).toFixed(1)}" y="0" width="${(W / n).toFixed(1)}" height="${H}" fill="transparent"><title>${s.date}: ${fmt(s.value)}${s.state === "live" ? " (live)" : ""}</title></rect>`).join("")}
+  </svg>`;
+}
+function usProductCards(detail) {
+  const prods = usData.products.filter(p => detail.products[p.key]);
+  if (!prods.length) return '<div class="eap-muted">No usage for the selected products.</div>';
+  return `<div class="us-grid2">${prods.map(p => { const c = detail.products[p.key]; return `<div class="us-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px"><div><div class="sub">${_usEsc(p.label)} · ${_usEsc(p.unit)}</div><div class="big">${_usEsc(c.display)}</div></div>
+        <div style="text-align:right"><span class="us-rule" title="${_usEsc(p.note || "")}">${US_RULE[c.rule]}</span><div class="sub" style="margin-top:4px">${c.days} day${c.days === 1 ? "" : "s"}${c.live_days ? ` · <span class="us-badge-prov">${c.live_days} live</span>` : ' · <span class="us-badge-final">final</span>'}</div></div></div>
+      ${usChart(c.series, p.unit)}
+      ${c.breakdown && c.breakdown.length ? `<div class="us-bd">${c.breakdown.map(b => `<span class="mp-chip" title="${_usEsc(p.breakdown)}">${_usEsc(b.key)} · ${p.unit === "bytes" ? _usBytes(b.value) : b.value.toLocaleString(undefined, {maximumFractionDigits: 1})}</span>`).join("")}</div>` : ""}
+    </div>`; }).join("")}</div>`;
+}
+function usOpenDrawer(title, sub, body) {
+  document.getElementById("us-d-title").textContent = title; document.getElementById("us-d-sub").innerHTML = sub; document.getElementById("us-d-body").innerHTML = body;
+  document.getElementById("us-drawer").classList.remove("hidden");
+}
+function usCloseDrawer() { document.getElementById("us-drawer").classList.add("hidden"); usState.account = ""; usState.site = ""; usRender(); }
+async function usOpenAccount(console, accountId, silent) {
+  usState.account = `${console}:${accountId}`; usState.site = "";
+  if (!silent) usRender();
+  usOpenDrawer("Account", `${_usEsc(_usLabel(console))} · ${_usEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
+  try {
+    const res = await fetch(`/api/usage/accounts/${encodeURIComponent(console)}/${encodeURIComponent(accountId)}?${usQuery().toString()}`);
+    const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    const prods = usData.products.filter(p => d.sites.some(s => s.products[p.key]));
+    const sites = `<table class="rtable us-table" style="font-size:12px"><thead><tr><th>Site</th><th>Site ID</th>${prods.map(p => `<th class="num">${_usEsc(p.short)}<span class="us-rule">${US_RULE[usData.rules[p.key]]}</span></th>`).join("")}</tr></thead><tbody>${
+      d.sites.map(s => `<tr data-site="${_usEsc(s.site_id)}"><td>${_usEsc(s.site)}</td><td class="eap-muted">${_usEsc(s.site_id || "—")}</td>${prods.map(p => { const c = s.products[p.key]; return `<td class="num">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table>`;
+    usOpenDrawer(d.account || accountId, `${_usEsc(_usLabel(console))} · account ${_usEsc(accountId)}${d.salesforce_id ? ` · Salesforce ${_usEsc(d.salesforce_id)}` : ""} · ${_usEsc(d.month)}`,
+      `<div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>
+       <div class="eap-sec"><h4>Sites · ${d.sites.length}</h4><div style="overflow-x:auto">${sites}</div><div class="eap-muted" style="margin-top:6px">Click a site for its daily trend and breakdown. “(account level)” rows are usage the report attributes to the account itself.</div></div>`);
+    document.querySelectorAll("#us-d-body tr[data-site]").forEach(tr => { tr.onclick = () => { if (tr.dataset.site) usOpenSite(console, tr.dataset.site); }; });
+  } catch (e) { usOpenDrawer("Account", _usEsc(accountId), `<div class="ae-err" style="display:block">${_usEsc(e.message)}</div>`); }
+}
+async function usOpenSite(console, siteId, silent) {
+  const backTo = usState.account;
+  usState.site = `${console}:${siteId}`;
+  usOpenDrawer("Site", `${_usEsc(_usLabel(console))} · ${_usEsc(siteId)}`, '<div class="eap-muted">Loading…</div>');
+  try {
+    const res = await fetch(`/api/usage/sites/${encodeURIComponent(console)}/${encodeURIComponent(siteId)}?${usQuery().toString()}`);
+    const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    if (d.account_id) usState.account = `${console}:${d.account_id}`;
+    usOpenDrawer(d.site || siteId, `${_usEsc(_usLabel(console))} · site ${_usEsc(siteId)}${d.account ? ` · account ${_usEsc(d.account)}` : ""} · ${_usEsc(d.month)}`,
+      `<div><span class="us-back" id="us-back">← Back to account</span></div><div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>`);
+    document.getElementById("us-back").onclick = () => usOpenAccount(console, d.account_id || (backTo || "").split(":")[1]);
+    usSyncHash();
+  } catch (e) { usOpenDrawer("Site", _usEsc(siteId), `<div class="ae-err" style="display:block">${_usEsc(e.message)}</div>`); }
 }
 
 </script>
