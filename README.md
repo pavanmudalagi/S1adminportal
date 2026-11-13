@@ -158,6 +158,41 @@ What the API gives us (observed on the Staging console): each installed app's `s
 `errorLog`, `retryUntil`, creator/modifier and timestamps. The list accepts `accountIds` and `siteIds` filters;
 `groupIds` is ignored. The instance `log` endpoint ignores `limit`, so the server truncates it.
 
+## Usage & Billing (SDL metering)
+
+Daily usage from the SDL PowerQuery `metering` datasource, rolled up to one billable number per account and site per
+month. Open **Usage & Billing** in the UI or `#usage?month=2026-10`.
+
+**Token permission.** Each console's token needs **Metering Reports – View** (Admin and C-Level roles have it). The MGMT
+API token works as the `Bearer` token for `/sdl/api/powerQuery`; set `s1_powerquery_token` in a profile to use a separate
+one. A console whose token lacks the permission shows "token lacks Metering Reports – View" in the health strip and the
+other consoles still load. Consoles without metering show "not enabled"; products a console does not report are skipped.
+
+**Product config.** `src/s1am/metering/products.json` lists the billable reports: `report` (metering `report_name`),
+`label`/`short`/`unit`, `rollup` (`peak` | `average` | `month_end` | `sum`), `alt_rollups` offered in the UI, and an
+optional `breakdown` column (`endpoint_bundle`, `cloud_provider`, `source_name`…). `bytes_base` (1000 or 1024) drives
+GB/TB display. To add a report (for example `ltdr_queries`, `workstation_endpoints`, `enrolled_mobile_devices` or
+`hyper_automate_workflow_actions_ran`) append an entry and restart; discovery (`from "reports"`) decides per console
+whether it is fetched.
+
+**Data flow.** `Sync month` (or `s1am usage-sync [--month YYYY-MM] [--consoles A,B] [--force]` from cron) fans out across
+consoles, runs one aggregated query per product (`group value=sum(value) by date, account, site, state`) and stores daily
+rows in `~/.config/s1am/usage.db`. Archived days are never re-fetched; live days are. A daily background sync of the
+previous and current month runs while the web server is up (`[usage] daily_sync = false` disables it, `daily_sync_hour`
+sets the hour). Scope the consoles with `S1AM_USAGE_CONSOLES=Staging` or `[usage] consoles`.
+
+**Rollups.** Agent and user counts default to the peak daily value (average and month-end selectable per column), CNS to
+the average, Data Ingest to the sum of bytes. Rows with any `live` day carry a *provisional* badge; the "Finalize for
+billing" export is only enabled when every row is final.
+
+API facts observed on Staging: always send `endTime` (with only `startTime` the window is wrong); `endTime: "now"` is
+rejected, use dates; results are capped at 1000 rows unless the query sets `| limit`; `xdr_ingested_bytes` and
+`cns_workloads` carry scope ids but no names (joined from the `tenants` table); identity reports leave
+`account_scope_id` empty and scope by `tenant_scope_id` / `tenant_scope_level`; data lags about two days.
+
+Note: the older **Metering** category commands in the UI call a `metering` CLI subcommand that does not exist in this
+repo; use Usage & Billing instead.
+
 ## Build A Standalone App (shareable)
 
 Build a standalone binary with PyInstaller:
