@@ -1,0 +1,539 @@
+{
+ "data": [
+  {
+   "applicationCatalogId": "1113536532666384454",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2023-06-01T14:05:06.35142",
+   "name": "Alien Labs OTX Enrichment",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "Apolando",
+     "accountId": "1656371856876149744",
+     "alertMessage": "",
+     "createdAt": "2023-06-01T14:05:06.35142",
+     "creator": "user@example.com",
+     "creatorId": "1639893952499255877",
+     "desiredStatus": "disabled",
+     "hasAlert": false,
+     "id": "1697850118194239227",
+     "lastEntityCreatedAt": "2023-06-01T14:05:06.349699",
+     "modifier": "user@example.com",
+     "modifierId": "1639893952499255877",
+     "scopeId": "1656372326856301800",
+     "scopeLevel": "site",
+     "site": "Support Training",
+     "siteId": "1656372326856301800",
+     "status": "disabled",
+     "updatedAt": "2025-04-12T04:08:10.186276",
+     "applicationInstanceName": "Alien Labs OTX Enrichment"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1113536534344106064",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2025-03-13T13:11:16.838383",
+   "name": "Alien Labs OTX Sandbox",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "Paul Cayanan Test MSP",
+     "accountId": "2163001430582264642",
+     "alertMessage": "",
+     "createdAt": "2025-03-13T13:11:16.838383",
+     "creator": "user@example.com",
+     "creatorId": "2153745085131442574",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2169652028077176403",
+     "lastEntityCreatedAt": "2025-03-13T13:11:16.838382",
+     "modifier": "user@example.com",
+     "modifierId": "2153745085131442574",
+     "scopeId": "2163001430582264642",
+     "scopeLevel": "account",
+     "status": "active",
+     "updatedAt": "2025-03-13T13:12:04.608662",
+     "applicationInstanceName": "Alien Labs OTX Sandbox"
+    },
+    {
+     "account": "TGS",
+     "accountId": "1711740797593686253",
+     "alertMessage": "",
+     "createdAt": "2023-07-19T15:17:44.469553",
+     "creator": "user@example.com",
+     "creatorId": "1721080964607621690",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "1732675911831440929",
+     "lastEntityCreatedAt": "2023-07-19T15:17:44.467651",
+     "modifier": "user@example.com",
+     "modifierId": "1721080964607621690",
+     "scopeId": "1726839261252073113",
+     "scopeLevel": "site",
+     "site": "Cards",
+     "siteId": "1726839261252073113",
+     "status": "active",
+     "updatedAt": "2023-07-19T15:18:05.63045",
+     "applicationInstanceName": "Alien Labs OTX Sandbox"
+    },
+    {
+     "account": "Apolando",
+     "accountId": "1656371856876149744",
+     "alertMessage": "",
+     "createdAt": "2024-01-18T20:49:42.267965",
+     "creator": "user@example.com",
+     "creatorId": "1865357928840207080",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "1865476953243751312",
+     "lastEntityCreatedAt": "2024-01-18T20:49:42.267965",
+     "modifier": "user@example.com",
+     "modifierId": "1707459220965461937",
+     "scopeId": "1656372326856301800",
+     "scopeLevel": "site",
+     "site": "Support Training",
+     "siteId": "1656372326856301800",
+     "status": "active",
+     "updatedAt": "2025-04-12T04:08:10.390113",
+     "applicationInstanceName": "Alien Labs OTX Sandbox"
+    },
+    {
+     "account": "MSP Blaine",
+     "accountId": "1792807150525658312",
+     "alertMessage": "",
+     "createdAt": "2023-10-13T14:28:51.059025",
+     "creator": "user@example.com",
+     "creatorId": "1787916279082630180",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "1794982017493040783",
+     "lastEntityCreatedAt": "2023-10-13T14:28:51.059024",
+     "modifier": "user@example.com",
+     "modifierId": "1787916279082630180",
+     "scopeId": "1792811969562850767",
+     "scopeLevel": "site",
+     "site": "MSP Company 1 _ Complete_SKU",
+     "siteId": "1792811969562850767",
+     "status": "active",
+     "updatedAt": "2023-10-13T14:29:03.002358",
+     "applicationInstanceName": "Alien Labs OTX Sandbox"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1480525569884247443",
+   "hasAlert": true,
+   "icon": "<icon>",
+   "lastInstalledAt": "2024-06-25T18:01:36.95626",
+   "name": "Atlassian JIRA",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "Apolando",
+     "accountId": "1656371856876149744",
+     "alertMessage": "Either entered Email address - user@example.com / API token is invalid or could not find project with provided project key - SANDBOX",
+     "createdAt": "2024-06-25T18:01:36.95626",
+     "creator": "user@example.com",
+     "creatorId": "1707459220965461937",
+     "desiredStatus": "active",
+     "hasAlert": true,
+     "id": "1980631692777174211",
+     "lastEntityCreatedAt": "2025-02-19T18:27:59.015604",
+     "modifier": "user@example.com",
+     "modifierId": "2165252447923531914",
+     "scopeId": "1656371856876149744",
+     "scopeLevel": "account",
+     "status": "activationfailed",
+     "updatedAt": "2026-01-20T06:35:11.12569",
+     "errorLog": {
+      "createdAt": "2026-01-20T06:35:10.985156Z",
+      "applicationId": "1980631692777174211",
+      "title": "Validation error for app config fields",
+      "status": "Failure",
+      "message": "Either entered Email address - user@example.com / API token is invalid or could not find project with provided project key - SANDBOX"
+     },
+     "applicationInstanceName": "Atlassian JIRA"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1670383733240362131",
+   "hasAlert": true,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-05-06T05:46:25.265353",
+   "name": "Cisco Duo",
+   "applicationCatalogIsHidden": false,
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "scopes": [
+    {
+     "account": "DataIngestUsageTestStandaloneTeskMK (113d3aaf-b3e9-42fd-b74e-4a0a40ab1765)",
+     "accountId": "2469769307701704430",
+     "alertMessage": "Invalid Integration Key Provided. Please check and update the config. Response: Received 401 Invalid identity in request credentials for Monitor LifeCycle",
+     "createdAt": "2026-05-06T05:46:25.265353",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": true,
+     "id": "2473109154321877820",
+     "lastEntityCreatedAt": "2026-05-06T05:46:25.265352",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2469787279942023296",
+     "scopeLevel": "site",
+     "site": "Test Site",
+     "siteId": "2469787279942023296",
+     "status": "activationfailed",
+     "updatedAt": "2026-05-19T06:39:10.161958",
+     "errorLog": {
+      "createdAt": "2026-05-19T06:39:09.978580Z",
+      "applicationId": "2473109154321877820",
+      "title": "Validation error for app config fields",
+      "status": "Failure",
+      "message": "Invalid Integration Key Provided. Please check and update the config. Response: Received 401 Invalid identity in request credentials for Monitor LifeCycle"
+     },
+     "applicationInstanceName": "Cisco Duo"
+    },
+    {
+     "alertMessage": "",
+     "createdAt": "2026-05-06T05:40:41.902123",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "disabled",
+     "hasAlert": false,
+     "id": "2473106273992640394",
+     "lastEntityCreatedAt": "2026-05-06T05:44:03.042459",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "1546714251496783963",
+     "scopeLevel": "global",
+     "status": "disabled",
+     "updatedAt": "2026-05-06T05:47:34.614248",
+     "applicationInstanceName": "Cisco Duo"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1970122996349687375",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-07-02T07:00:42.689505",
+   "name": "Google Workspace Log Ingestion",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "DataIngestUsageTestStandaloneTeskMK (113d3aaf-b3e9-42fd-b74e-4a0a40ab1765)",
+     "accountId": "2469769307701704430",
+     "alertMessage": "",
+     "createdAt": "2026-05-05T11:57:37.601318",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2472571212507661055",
+     "lastEntityCreatedAt": "2026-05-05T11:57:37.601317",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2469787279942023296",
+     "scopeLevel": "site",
+     "site": "Test Site",
+     "siteId": "2469787279942023296",
+     "status": "active",
+     "updatedAt": "2026-05-05T12:02:19.52113",
+     "applicationInstanceName": "Google Workspace Log Ingestion"
+    },
+    {
+     "account": "N-ABLE TECHNOLOGIES LTD",
+     "accountId": "1546714269129639359",
+     "alertMessage": "",
+     "createdAt": "2026-07-02T07:00:42.689505",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2514458762599710685",
+     "lastEntityCreatedAt": "2026-07-02T07:00:42.689505",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "1546714269129639359",
+     "scopeLevel": "account",
+     "status": "active",
+     "updatedAt": "2026-07-02T07:00:48.461626",
+     "applicationInstanceName": "Google Workspace Log Ingestion"
+    },
+    {
+     "account": "PavanTestAccount",
+     "accountId": "2230298126148037741",
+     "alertMessage": "",
+     "createdAt": "2026-01-22T14:17:36.839124",
+     "creator": "user@example.com",
+     "creatorId": "2391124097133413391",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2397989770082946793",
+     "lastEntityCreatedAt": "2026-01-22T14:17:36.839123",
+     "modifier": "user@example.com",
+     "modifierId": "2391124097133413391",
+     "scopeId": "2230298606731390351",
+     "scopeLevel": "site",
+     "site": "Pavan-Site1",
+     "siteId": "2230298606731390351",
+     "status": "active",
+     "updatedAt": "2026-01-22T14:17:38.106489",
+     "applicationInstanceName": "Google Workspace Log Ingestion"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1311654660550080548",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2025-03-27T17:37:48.493848",
+   "name": "Microsoft Entra ID",
+   "applicationCatalogIsHidden": false,
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "scopes": [
+    {
+     "account": "Apolando",
+     "accountId": "1656371856876149744",
+     "alertMessage": "",
+     "createdAt": "2025-03-27T17:37:48.493848",
+     "creator": "user@example.com",
+     "creatorId": "1707459220965461937",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2179933040194150148",
+     "lastEntityCreatedAt": "2025-03-27T17:37:48.493847",
+     "modifier": "user@example.com",
+     "modifierId": "1707459220965461937",
+     "scopeId": "1656371856876149744",
+     "scopeLevel": "account",
+     "status": "active",
+     "updatedAt": "2025-04-12T04:08:10.473938",
+     "applicationInstanceName": "Microsoft Azure AD"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1236256162376512646",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-05-19T06:47:57.976913",
+   "name": "Mimecast ",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "PavanTestAccount",
+     "accountId": "2230298126148037741",
+     "alertMessage": "",
+     "createdAt": "2026-05-19T06:47:57.976913",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2482562223596765840",
+     "lastEntityCreatedAt": "2026-05-19T06:47:57.976912",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2230298606731390351",
+     "scopeLevel": "site",
+     "site": "Pavan-Site1",
+     "siteId": "2230298606731390351",
+     "status": "active",
+     "updatedAt": "2026-05-19T06:48:38.20564",
+     "applicationInstanceName": "Mimecast "
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1376869203519113062",
+   "hasAlert": true,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-05-19T07:03:18.878011",
+   "name": "Okta",
+   "applicationCatalogIsHidden": false,
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "scopes": [
+    {
+     "account": "PavanTestAccount",
+     "accountId": "2230298126148037741",
+     "alertMessage": "List the email domain names cannot be empty, Please check config",
+     "createdAt": "2026-05-19T07:03:18.878011",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "disabled",
+     "hasAlert": true,
+     "id": "2482569945394356497",
+     "lastEntityCreatedAt": "2026-05-19T07:03:55.439159",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2230298606731390351",
+     "scopeLevel": "site",
+     "site": "Pavan-Site1",
+     "siteId": "2230298606731390351",
+     "status": "disabled",
+     "updatedAt": "2026-05-19T07:03:57.991663",
+     "errorLog": {
+      "createdAt": "2026-06-18T08:10:36.579371Z",
+      "applicationId": "2482569945394356497",
+      "title": "Validation error for app config fields",
+      "status": "Failure",
+      "message": "List the email domain names cannot be empty, Please check config"
+     },
+     "applicationInstanceName": "Okta"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1936771999681299790",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-05-19T07:01:39.593553",
+   "name": "Palo Alto Networks Firewall Alerts",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "PavanTestAccount",
+     "accountId": "2230298126148037741",
+     "alertMessage": "",
+     "createdAt": "2026-05-19T07:01:39.593553",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2482569112715955012",
+     "lastEntityCreatedAt": "2026-05-19T07:01:39.593552",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2230298606731390351",
+     "scopeLevel": "site",
+     "site": "Pavan-Site1",
+     "siteId": "2230298606731390351",
+     "status": "active",
+     "updatedAt": "2026-05-19T07:01:44.560847",
+     "applicationInstanceName": "Palo Alto Networks Firewall Alerts"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1411659330449730100",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2026-05-19T07:05:42.196694",
+   "name": "Proofpoint",
+   "applicationCatalogIsHidden": false,
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "scopes": [
+    {
+     "account": "PavanTestAccount",
+     "accountId": "2230298126148037741",
+     "alertMessage": "",
+     "createdAt": "2026-05-19T07:05:42.196694",
+     "creator": "user@example.com",
+     "creatorId": "2452826140045120979",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "2482571147582551993",
+     "lastEntityCreatedAt": "2026-05-19T07:06:02.475984",
+     "modifier": "user@example.com",
+     "modifierId": "2452826140045120979",
+     "scopeId": "2230298606731390351",
+     "scopeLevel": "site",
+     "site": "Pavan-Site1",
+     "siteId": "2230298606731390351",
+     "status": "active",
+     "updatedAt": "2026-05-19T07:06:48.031053",
+     "applicationInstanceName": "Proofpoint"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1210156164239899160",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2024-01-18T20:02:59.41825",
+   "name": "Singularity Conditional Policy",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "Apolando",
+     "accountId": "1656371856876149744",
+     "alertMessage": "",
+     "createdAt": "2024-01-18T20:02:59.41825",
+     "creator": "user@example.com",
+     "creatorId": "1707459220965461937",
+     "desiredStatus": "active",
+     "hasAlert": false,
+     "id": "1865453441225299251",
+     "lastEntityCreatedAt": "2024-01-18T20:02:59.418249",
+     "modifier": "user@example.com",
+     "modifierId": "1707459220965461937",
+     "scopeId": "1656372326856301800",
+     "scopeLevel": "site",
+     "site": "Support Training",
+     "siteId": "1656372326856301800",
+     "status": "active",
+     "updatedAt": "2025-04-12T04:08:10.657591",
+     "applicationInstanceName": "Singularity Conditional Policy"
+    }
+   ]
+  },
+  {
+   "applicationCatalogId": "1113536534142779471",
+   "hasAlert": false,
+   "icon": "<icon>",
+   "lastInstalledAt": "2024-08-21T16:43:51.569755",
+   "name": "VirusTotal Threat Enrichment",
+   "applicationCatalogIsHidden": false,
+   "scopes": [
+    {
+     "account": "MSP_Company",
+     "accountId": "2016012620996580604",
+     "alertMessage": "",
+     "createdAt": "2024-08-21T16:43:51.569755",
+     "creator": "user@example.com",
+     "creatorId": "2011019491431699167",
+     "desiredStatus": "deactivated",
+     "hasAlert": false,
+     "id": "2021904773395681054",
+     "lastEntityCreatedAt": "2024-08-21T17:14:14.987197",
+     "modifier": "user@example.com",
+     "modifierId": "2011019491431699167",
+     "scopeId": "2016019203797325386",
+     "scopeLevel": "site",
+     "site": "MSP_Training site_del_e754aa34111e42fc892ba16b7924c9bd",
+     "siteId": "2016019203797325386",
+     "status": "deactivated",
+     "updatedAt": "2024-12-06T23:28:31.595688",
+     "applicationInstanceName": "VirusTotal Threat Enrichment"
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "nextCursor": null,
+  "totalItems": 12
+ }
+}

@@ -1,0 +1,276 @@
+{
+ "data": [
+  {
+   "id": "1113536532666384454",
+   "name": "Alien Labs OTX Enrichment",
+   "updatedAt": "2026-11-13T06:48:39.222791",
+   "summary": "Enrich threats with Alien Labs OTX intelligence",
+   "description": "\n\n\n Functionality: \n\t - The OTX integration automatically enriches and gives context to endpoint incident data in the Se",
+   "category": "Threat Intelligence",
+   "categoryId": "1113536532322451524",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "otx-enrich-threats",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==18 || @.activityType==19 || @.activityType==20 || @.activityType==4003 || @.activityType==2030 || @.type_uid==9960200101)]"
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1113536534344106064",
+   "name": "Alien Labs OTX Sandbox",
+   "updatedAt": "2026-11-13T06:48:38.534859",
+   "summary": "Detonate threats from SentinelOne into Alien Labs OTX Sandbox for further analysis.",
+   "description": "OTX provides open access to a global community of threat researchers and security professionals. It now has more than 15",
+   "category": "Sandbox",
+   "categoryId": "1113536533278752841",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "otx-sandbox-threats",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.activityType==86)]"
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1480525569884247443",
+   "name": "Atlassian JIRA",
+   "createdAt": "2022-08-05T17:40:01.34622",
+   "updatedAt": "2026-11-13T06:48:38.568764",
+   "summary": "Streamline and automate creating and updating tickets in Jira based on new threats detected in SentinelOne or a new vulnerability that requires patching is discovered.",
+   "description": "This app streamlines workflows between SentinelOne and Jira by creating incidents in Jira from threats found by Sentinel",
+   "category": "Ticketing",
+   "categoryId": "1696178665889772970",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "atlassianjira",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==18 || @.activityType==19 || @.activityType==20 || @.activityType==4003 || @.activityType==4104 || @.activityType==4105 || @.activityType==4106 || @.activityType==4107 || @.activityType==2030 || @.activityType==3663)]"
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1670383733240362131",
+   "name": "Cisco Duo",
+   "createdAt": "2023-04-24T16:34:18.115903",
+   "updatedAt": "2026-11-13T06:48:38.199852",
+   "summary": "Ingest events from Cisco Duo into SentinelOne and respond to threats with actions in Cisco Duo.",
+   "description": "This app integrates Cisco Duo and SentinelOne by ingesting data from Cisco Duo into  Singularity Data Lake (SDL) that ca",
+   "category": "Identity",
+   "categoryId": "1292879965969951379",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "ciscoduoingestion",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false)]"
+   },
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "toggleState": true
+  },
+  {
+   "id": "1970122996349687375",
+   "name": "Google Workspace Log Ingestion",
+   "createdAt": "2024-06-11T06:02:42.705446",
+   "updatedAt": "2026-11-13T06:48:38.203791",
+   "summary": "Google Workspace provides users with the capability to retrieve activity logs from various applications within the Google Workspace suite.",
+   "description": "This application ensures the seamless ingestion of various Google Workspace logs, including Drive, Admin, SAML, Token, a",
+   "category": "Collaboration",
+   "categoryId": "1586482001169904602",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "googleworkspacelogingest",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "toggleState": true
+  },
+  {
+   "id": "1311654660550080548",
+   "name": "Microsoft Entra ID",
+   "createdAt": "2021-12-15T17:43:40.214151",
+   "updatedAt": "2026-11-13T06:48:38.613669",
+   "summary": "Respond to threats by sharing risk, enforcing zero trust via conditional access policies and ending sessions for users.",
+   "description": "This app passes risk levels of the users on infected devices to Entra ID. By limiting user access of risky identities, t",
+   "category": "Identity",
+   "categoryId": "1292879965969951379",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "oauthUrl": "https://login.microsoftonline.com/common/adminconsent?client_id=c0e7ae5a-48cf-49f5-beca-9c68658b674f",
+   "key": "azure-zerotrust-threats",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==19 || @.activityType==18 || @.activityType==20 || @.activityType==21 || @.activityType==22 || @.activityType==221 || @.activityType==2016 || @.activityType==4001 || @.activityType==4009 || @.activityType==2004 || @.activityType==2022 || @.activityType==4003 || @.activityType==4002 || @.activityType==2030 || @.activityType==4007 || @.activityType==4107 || @.activityType==4106 || @.activityType==4105 || @.activityType==4104 || @.type_uid==9960200101)]"
+   },
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "toggleState": true
+  },
+  {
+   "id": "1236256162376512646",
+   "name": "Mimecast ",
+   "updatedAt": "2026-11-13T01:48:37.78289",
+   "summary": "Threat enrichment, response, and data ingest",
+   "description": "This app can be configured to enrich threats to centralize relevant data into one threat and accelerate investigations. ",
+   "category": "Email Security",
+   "categoryId": "1292867597915359982",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "mimecast-blockuser",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==18 || @.activityType==19 || @.activityType==20 || @.activityType==4003 || @.activityType==4104 || @.activityType==4105 || @.activityType==4106 || @.activityType==4107  || @.activityType==2030 || @.activityType==2028 || @.activityType==4100 || @.type_uid==9960200101)]"
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1376869203519113062",
+   "name": "Okta",
+   "createdAt": "2022-03-15T17:13:19.555227",
+   "updatedAt": "2026-11-13T06:48:40.419775",
+   "summary": "Respond with Okta actions, Enrich SentinelOne threats with Okta data, and ingest Okta logs.",
+   "description": "Enrich threats, orchestrate responses, and ingest data.\n\n **How it works** \n\nThe Okta app allows SentinelOne to accelera",
+   "category": "Identity",
+   "categoryId": "1292879965969951379",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "okta-xdr-response",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==18 || @.activityType==19 || @.activityType==20 || @.activityType==4003 || @.activityType==4104 || @.activityType==4105 || @.activityType==4106 || @.activityType==4107  || @.activityType==2030 || @.activityType==2028 || @.type_uid==9960200101)]"
+   },
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "toggleState": true
+  },
+  {
+   "id": "1936771999681299790",
+   "name": "Palo Alto Networks Firewall Alerts",
+   "createdAt": "2024-04-26T05:40:14.100559",
+   "updatedAt": "2026-11-13T06:48:38.210548",
+   "summary": "Palo Alto Network's NGFW platform protects your entire business, no matter the size or complexity.",
+   "description": "This app enable the ingestion of Palo Alto Network's NGFW Threats Logs into SentinelOne as alerts. You will be able to t",
+   "category": "Threat Logs",
+   "categoryId": "1930323964733365557",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "paloaltonetworksfw",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": ""
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1411659330449730100",
+   "name": "Proofpoint",
+   "createdAt": "2022-05-02T17:15:05.870177",
+   "updatedAt": "2026-11-13T06:48:38.993102",
+   "summary": "Threat enrichment, threat intelligence exchange and log ingest",
+   "description": "This app allows users to enrich their SentinelOne Threats with additional context from Proofpoint TAP. The additional co",
+   "category": "Threat Intelligence",
+   "categoryId": "1113536532322451524",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "proofpointiocs",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.type_uid==9960200101)]"
+   },
+   "capabilityAnnotations": [
+    {
+     "name": "ingestion",
+     "status": "legacy"
+    }
+   ],
+   "toggleState": true
+  },
+  {
+   "id": "1210156164239899160",
+   "name": "Singularity Conditional Policy",
+   "updatedAt": "2026-11-13T06:48:38.672422",
+   "summary": "Dynamically change security policies applied to an endpoint based on the risk level of the endpoint",
+   "description": "When a SentinelOne protected endpoint is associated with an active threat, the endpoint automatically increases the secu",
+   "category": "Automation",
+   "categoryId": "1113536533933064269",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "rbsm-zerotrust-threats",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.activityType==70 || @.activityType==48 || @.activityType==120 || @.activityType==29 || @.activityType==18 || @.activityType==19 || @.activityType==4003 || @.activityType==2030 || @.activityType==4009 || @.activityType==20 || @.activityType==221 || @.activityType==22 || @.activityType==2036 || @.activityType==2037 || @.activityType==2028 || @.activityType==4001 || @.activityType==2001 || @.activityType==2004 || @.activityType==2002 || @.activityType==2003 || @.activityType==2026 || @.activityType==4008 || @.activityType==2024 || @.activityType==2025 || @.activityType==2022 || @.activityType==28 || @.activityType==4007 || @.activityType==21 || @.activityType==4002 || @.activityType==4011 || @.activityType==34 || @.activityType==2016 || @.activityType==2014 || @.activityType==2012 || @.activityType==2013 || @.activityType==2015)]"
+   },
+   "toggleState": true
+  },
+  {
+   "id": "1113536534142779471",
+   "name": "VirusTotal Threat Enrichment",
+   "updatedAt": "2026-11-13T06:48:39.152742",
+   "summary": "Enrich threats with VirusTotal intelligence",
+   "description": "VirusTotal real-time threat intelligence automatically enriches, contextualizes, and triages endpoint incidents. Indicat",
+   "category": "Threat Intelligence",
+   "categoryId": "1113536532322451524",
+   "installed": true,
+   "icon": "<icon>",
+   "type": "openfaas",
+   "key": "virustotal-enrich-threats",
+   "retryPolicy": 900,
+   "viewPolicy": "enabled",
+   "filter": {
+    "type": "JsonPath",
+    "value": "$[?(@.entityType==\"threat\" || @.action.action_id empty false || @.activityType==18 || @.activityType==19 || @.activityType==4003 || @.activityType==20 || @.activityType==4009 || @.activityType==4107 || @.activityType==4106 || @.activityType==4109 || @.activityType==4108 || @.activityType==4105 || @.activityType==4104 || @.activityType==4001 || @.activityType==2016 || @.activityType==3608 || @.activityType==4100 || @.activityType==2030 || @.type_uid==9960200101)]"
+   },
+   "toggleState": true
+  }
+ ],
+ "pagination": {
+  "nextCursor": null,
+  "totalItems": 12
+ }
+}

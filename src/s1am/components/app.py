@@ -228,6 +228,21 @@ COMMANDS = [
         "build_args": lambda f: [],
     },
     {
+        "id": "marketplace",
+        "category": "Marketplace",
+        "icon": "🔌",
+        "label": "Marketplace Connectors",
+        "description": (
+            "Singularity Marketplace connectors (data ingest, SIEM, identity, threat intel…) installed on every "
+            "configured console: one row per account, drill down to site and instance, reverse view per connector. "
+            "Read-only."
+        ),
+        "requires": "none",
+        "type": "marketplace",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "update-account",
         "category": "Accounts",
         "icon": "✏️",
@@ -2266,3 +2281,125 @@ def run(host="127.0.0.1", port=5173, debug=False, open_browser=True):
         threading.Thread(target=_open, daemon=True).start()
 
     app.run(host=host, port=port, debug=debug)
+
+
+# ── Marketplace connectors (read-only) ───────────────────────────────────────
+
+def _mp():
+    from s1am.marketplace import service
+    return service
+
+
+def _mp_consoles():
+    """Consoles to scan: every profile with a base URL, unless S1AM_MP_CONSOLES / [marketplace] consoles narrows it."""
+    from s1am.api.config import Config
+    from s1am.eap import service as eap_service
+    known = sorted(eap_service.profiles())
+    wanted = os.environ.get("S1AM_MP_CONSOLES") or Config.section("marketplace").get("consoles") or ""
+    picked = [c.strip() for c in wanted.split(",") if c.strip()]
+    return [c for c in picked if c in known] or known
+
+
+def _mp_scan(force=False):
+    svc = _mp()
+    return svc, svc.cached_scan(_build_client_for_console, _mp_consoles(), force=force)
+
+
+@app.route("/api/marketplace/summary")
+def marketplace_summary():
+    """Every console scanned (parallel), accounts + connectors views, totals. ?refresh=1 bypasses the cache."""
+    force = request.args.get("refresh") in ("1", "true", "yes")
+    svc, result = _mp_scan(force)
+    instances = svc.instances_of(result)
+    return jsonify({
+        "fetched_at": result["fetched_at"], "from_cache": result.get("from_cache", False), "age": result.get("age", 0),
+        "ttl": svc.DEFAULT_TTL, "labels": _load_labels(),
+        "consoles": [{k: v for k, v in c.items() if k != "instances"} | {"instances": len(c["instances"]),
+                      "accounts": len({i["account_id"] for i in c["instances"]})} for c in result["consoles"]],
+        "totals": svc.totals(result),
+        "accounts": svc.account_rows(instances),
+        "connectors": svc.connector_rows(instances),
+        "instances": instances,
+    })
+
+
+@app.route("/api/marketplace/accounts/<console>/<account_id>")
+def marketplace_account(console, account_id):
+    svc, result = _mp_scan()
+    detail = svc.account_detail(result, console, account_id)
+    if not detail["instances"]:
+        return jsonify({"error": f"No Marketplace connectors for account {account_id} on {console}"}), 404
+    return jsonify(detail)
+
+
+def _mp_instance_call(console, fn):
+    from s1am.api.exceptions import SentinelOneError
+    try:
+        client = _build_client_for_console(console)
+        return jsonify(fn(client))
+    except SentinelOneError as exc:
+        kind, msg = _mp()._classify(exc)
+        return jsonify({"error": msg, "error_kind": kind}), 502
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/marketplace/instances/<console>/<instance_id>/log")
+def marketplace_instance_log(console, instance_id):
+    """Invocation log for one instance — loaded on demand, never for the whole list."""
+    svc = _mp()
+    limit = min(int(request.args.get("limit", 50) or 50), 200)
+    return _mp_instance_call(console, lambda c: {"entries": svc.instance_log(c, instance_id, limit)})
+
+
+@app.route("/api/marketplace/instances/<console>/<instance_id>/config")
+def marketplace_instance_config(console, instance_id):
+    """Config fields for one instance with secrets masked server-side."""
+    svc = _mp()
+    return _mp_instance_call(console, lambda c: svc.instance_config(c, instance_id))
+
+
+@app.route("/api/marketplace/export.csv")
+def marketplace_export():
+    """CSV of the accounts, instances or connectors view, filtered like the page (same query params)."""
+    svc, result = _mp_scan()
+    view = request.args.get("view", "accounts")
+    inst = svc.instances_of(result)
+    q = (request.args.get("q") or "").lower().strip()
+    console = request.args.get("console") or ""
+    connector = request.args.get("connector") or ""
+    status = request.args.get("status") or ""
+
+    def keep(i):
+        if console and i["console"] != console: return False
+        if connector and i["app_name"] != connector: return False
+        if status == "enabled" and i["desired_status"] != "active": return False
+        if status == "disabled" and i["desired_status"] == "active": return False
+        if status == "alert" and not (i["has_alert"] or i["status"] == "activationfailed"): return False
+        if q and q not in " ".join(str(v or "") for v in i.values()).lower(): return False
+        return True
+    inst = [i for i in inst if keep(i)]
+    if view == "instances":
+        cols = [("Console", "console"), ("Account", "account"), ("Account ID", "account_id"), ("Scope", "scope_level"), ("Site", "site"),
+                ("Site ID", "site_id"), ("Connector", "app_name"), ("Category", "category"), ("Instance", "instance_name"),
+                ("Instance ID", "instance_id"), ("Desired", "desired_status"), ("Status", "status"), ("Alert", "has_alert"),
+                ("Alert message", "alert_message"), ("Creator", "creator"), ("Created", "created_at"),
+                ("Last entity created", "last_entity_created_at"), ("App last installed", "app_last_installed_at")]
+        rows = inst
+    elif view == "connectors":
+        cols = [("Connector", "app_name"), ("Category", "category"), ("Instances", "instances"), ("Enabled", "enabled"),
+                ("With alerts", "alerts"), ("Consoles", "consoles"), ("Accounts", "account_count"), ("Sites", "site_count"),
+                ("Account list", "_accounts"), ("Site list", "_sites")]
+        rows = svc.connector_rows(inst)
+        for r in rows:
+            r["_accounts"] = [f"{a['console']}:{a['account']}" for a in r["accounts"]]
+            r["_sites"] = [f"{s['console']}:{s['account']}/{s['site']}" for s in r["sites"]]
+    else:
+        cols = [("Console", "console"), ("Account", "account"), ("Account ID", "account_id"), ("Connectors installed", "instances"),
+                ("Enabled", "enabled"), ("With alerts/errors", "alerts"), ("Site-level", "site_level"), ("Account-level", "account_level"),
+                ("Last installed", "last_installed_at"), ("Last entity created", "last_entity_created_at"),
+                ("Sites", "sites"), ("Connector names", "connectors")]
+        rows = svc.account_rows(inst)
+    body = svc.to_csv(rows, cols)
+    name = f"marketplace-{view}-{datetime.datetime.now().strftime('%Y%m%d-%H%M')}.csv"
+    return Response(body, mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename={name}"})

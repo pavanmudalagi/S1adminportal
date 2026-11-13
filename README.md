@@ -136,6 +136,28 @@ Graph mode (pulling the workbook straight from the sharing link) is implemented 
 `s1am.eap.graph` but needs an Entra app registration that Conditional Access allows; the
 default public client is blocked in this tenant.
 
+## Marketplace Connectors Tracker
+
+A read-only page that lists every account with Singularity Marketplace connectors (data ingest, SIEM, identity, threat
+intel…) across all configured consoles, with a drilldown console → account → site → connector and a reverse view per
+connector. Open it from **Marketplace → Marketplace Connectors** or `#marketplace`.
+
+- Consoles are scanned in parallel; calls inside one console are sequential with a small delay and back off on HTTP 429
+  (the Marketplace API allows 5 requests/s per token). A console whose token is invalid or lacks the *Singularity
+  Marketplace · View* permission shows an error banner and row while the others still load.
+- Results are cached in memory for 5 minutes; **Refresh** bypasses the cache. Tokens never leave the server.
+- Filters: view (Accounts / Connectors / All instances), console, connector, status (enabled, disabled, has alert) and
+  free text. The URL hash carries the state, so `#marketplace?console=USEA1&account=<id>` links straight to an account.
+- **Export CSV** downloads the rows currently shown (same filters, applied server-side).
+- Clicking an instance shows its fields plus two on-demand loads: the invocation log and the config with secrets masked.
+- Set `S1AM_MP_CONSOLES=Staging,USEA1` (or `consoles = …` under `[marketplace]` in `~/.config/s1am/config`) to limit the
+  scan to some consoles.
+
+What the API gives us (observed on the Staging console): each installed app's `scopes[]` holds one instance with
+`scopeLevel` (`account`, `site` or `global`), `scopeId`, `site`/`siteId`, the actual `status` next to `desiredStatus`,
+`errorLog`, `retryUntil`, creator/modifier and timestamps. The list accepts `accountIds` and `siteIds` filters;
+`groupIds` is ignored. The instance `log` endpoint ignores `limit`, so the server truncates it.
+
 ## Build A Standalone App (shareable)
 
 Build a standalone binary with PyInstaller:
