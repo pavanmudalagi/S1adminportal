@@ -47,6 +47,19 @@ python -m s1am raw GET sites --param limit=50
 python -m s1am raw POST sites --payload '{"name":"Demo Site","accountId":"<account_id>"}'
 ```
 
+## Web UI
+
+```bash
+./scripts/start.sh            # opens http://127.0.0.1:5173
+python run_web.py --port 8080 --no-browser
+```
+
+The browser UI follows the SentinelOne "Unity" console design language: dark theme by default, a light theme from
+**⚙ My preferences** (instant apply, remembered per browser; `?theme=light` in the URL also works), a 46px top bar with the
+console scope selector, and a narrow sidebar of categories. Picking a category shows its commands as a tab strip; the landing
+page is a searchable directory of every command, with pages greyed out when their token is not configured.
+Press **⌘K / Ctrl+K** to find a page by name. Every page has a deep link (`#list-accounts`, `#eap-tracker`, …).
+
 ## Notes
 
 - This project is aligned to the attached `swagger_2.1.json` (S1 MGMT API 2.1). Paths use `/web/api/v2.1/...`.
