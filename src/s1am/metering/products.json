@@ -1,0 +1,27 @@
+{
+  "_comment": "Billable products pulled from the SDL metering datasource. Add a report here — no code change needed. rollup: peak | average | month_end | sum. breakdown: a report column to offer as a secondary dimension (or null).",
+  "bytes_base": 1000,
+  "products": [
+    {"key": "cns", "report": "cns_workloads", "label": "Cloud Native Security", "short": "CNS", "unit": "workloads",
+     "rollup": "average", "alt_rollups": ["peak", "month_end"], "breakdown": "cns_cloud_provider",
+     "note": "S1 already reports an average number of workloads per day."},
+    {"key": "cws_servers", "report": "server_endpoints", "label": "CWS – Servers", "short": "CWS Srv", "unit": "agents",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": "endpoint_bundle",
+     "note": "Daily snapshot of installed, not-decommissioned agents."},
+    {"key": "cws_container_hosts", "report": "container_hosts", "label": "CWS – Container hosts", "short": "CWS CH", "unit": "agents",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": "endpoint_bundle",
+     "note": "Daily snapshot of installed, not-decommissioned agents."},
+    {"key": "cws_serverless", "report": "serverless_containers", "label": "CWS – Serverless containers", "short": "CWS SL", "unit": "agents",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": "cloud_provider",
+     "note": "Max concurrently connected agents per day."},
+    {"key": "data_ingest", "report": "xdr_ingested_bytes", "label": "Data Ingest", "short": "Ingest", "unit": "bytes",
+     "rollup": "sum", "alt_rollups": [], "breakdown": "source_name",
+     "note": "Third-party data ingested; summed over the month and shown in GB/TB."},
+    {"key": "idr", "report": "singularity_identity_endpoints", "label": "Identity – IDR", "short": "IDR", "unit": "agents",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": null,
+     "note": "Max deployed, not-decommissioned agents per day."},
+    {"key": "ispm", "report": "singularity_identity_users", "label": "Identity – ISPM / ISIDP", "short": "ISPM", "unit": "users",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": null,
+     "note": "Snapshot of active on-prem AD users."}
+  ]
+}
