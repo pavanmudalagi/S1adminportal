@@ -257,6 +257,21 @@ COMMANDS = [
         "build_args": lambda f: [],
     },
     {
+        "id": "churn",
+        "category": "Churn",
+        "icon": "📉",
+        "label": "Platform Churn",
+        "description": (
+            "Churn trend across consoles from SentinelOne activity indicators: agents uninstalled and agents moved to "
+            "another console (the target console is the competitor indicator). Stored for good, rolled up by month, "
+            "quarter or year. LWT-2192."
+        ),
+        "requires": "none",
+        "type": "churn",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "update-account",
         "category": "Accounts",
         "icon": "✏️",
@@ -2298,6 +2313,10 @@ def run(host="127.0.0.1", port=5173, debug=False, open_browser=True):
         start_usage_scheduler()
     except Exception as exc:  # never block the UI on the scheduler
         _log.warning("usage scheduler not started: %s", exc)
+    try:
+        start_churn_scheduler()
+    except Exception as exc:
+        _log.warning("churn scheduler not started: %s", exc)
     app.run(host=host, port=port, debug=debug)
 
 
@@ -2588,3 +2607,174 @@ def usage_sync():
 @app.route("/api/usage/sync-status")
 def usage_sync_status():
     return jsonify(_usage_sync_state)
+
+
+# ── Platform churn (LWT-2192) ──────────────────────────────────────────────
+_churn_store = None
+_churn_lock = threading.Lock()
+_churn_sync_state = {"running": False, "started": None, "finished": None, "result": None}
+
+
+def _churn():
+    """(service, store, indicator config) — the store is opened once per process."""
+    global _churn_store
+    from s1am.churn import service as svc
+    with _churn_lock:
+        if _churn_store is None:
+            from s1am.api.config import Config
+            db = os.environ.get("S1AM_CHURN_DB_PATH") or Config.section("churn").get("db_path") or None
+            _churn_store = svc.Store(db)
+    return svc, _churn_store, svc.load_indicators()
+
+
+def _churn_consoles():
+    """Consoles to scan: every profile with a base URL unless S1AM_CHURN_CONSOLES / [churn] consoles narrows it."""
+    from s1am.api.config import Config
+    from s1am.eap import service as eap_service
+    known = sorted(eap_service.profiles())
+    wanted = os.environ.get("S1AM_CHURN_CONSOLES") or Config.section("churn").get("consoles") or ""
+    picked = [c.strip() for c in wanted.split(",") if c.strip()]
+    return [c for c in picked if c in known] or known
+
+
+def _churn_args():
+    svc, store, cfg = _churn()
+    months = int(request.args.get("months") or 12)
+    start_d, end_d = svc.default_range(max(1, min(months, 120)))
+    start = request.args.get("start") or start_d
+    end = request.args.get("end") or end_d
+    for v in (start, end):
+        if not re.fullmatch(r"\d{4}-\d{2}", v):
+            raise ValueError("start/end must be YYYY-MM")
+    if start > end:
+        raise ValueError("start must not be after end")
+    gran = request.args.get("granularity") or "month"
+    if gran not in svc.GRANULARITIES:
+        raise ValueError("granularity must be month, quarter or year")
+    consoles = [c for c in (request.args.get("consoles") or "").split(",") if c] or None
+    indicators = [k for k in (request.args.get("indicators") or "").split(",") if k] or None
+    dest_kind = request.args.get("destination") or None
+    return svc, store, cfg, start, end, gran, consoles, indicators, dest_kind
+
+
+def _churn_run_sync(consoles=None):
+    svc, store, cfg = _churn()
+    consoles = consoles or _churn_consoles()
+    _churn_sync_state.update(running=True, started=svc._now(), result=None)
+    try:
+        from s1am.api.config import Config
+        backfill = int(Config.section("churn").get("backfill_days", 365) or 365)
+        result = svc.sync_all(store, consoles, cfg, backfill_days=backfill)
+        try:  # Salesforce names are optional: only when a session is cached, and never fatal
+            from s1am.salesforce import client as sf_client
+            from s1am.salesforce import eap_queries
+            if sf_client.is_connected():
+                result["salesforce_names"] = svc.enrich_salesforce(store, eap_queries.accounts_by_id)
+        except Exception as exc:
+            result["salesforce_error"] = str(exc)[:200]
+        _churn_sync_state["result"] = result
+        return result
+    finally:
+        _churn_sync_state.update(running=False, finished=svc._now())
+
+
+def start_churn_scheduler():
+    """Daily incremental pull (default 05:00 local) so the activity log is captured before the console ages it out."""
+    from s1am.api.config import Config
+    sect = Config.section("churn")
+    if str(sect.get("daily_sync", "true")).lower() in ("0", "false", "no", "off"):
+        return None
+    from s1am.metering.service import DailySync
+    t = DailySync(lambda: _churn_run_sync(), hour=int(sect.get("daily_sync_hour", 5) or 5))
+    t.name = "churn-daily-sync"
+    t.start()
+    return t
+
+
+@app.route("/api/churn/summary")
+def churn_summary():
+    """Trend per period, per-account rows, destinations and console health for a month range."""
+    try:
+        svc, store, cfg, start, end, gran, consoles, indicators, dest_kind = _churn_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    all_consoles = _churn_consoles()
+    s = svc.summary(store, start, end, gran, consoles, indicators, dest_kind, cfg)
+    return jsonify({**s, "health": svc.health(store, all_consoles), "consoles": all_consoles, "labels": _load_labels(),
+                    "all_indicators": [{k: i[k] for k in ("type", "key", "label", "short", "kind", "enabled", "note")} for i in cfg["indicators"]],
+                    "last_sync": store.get_meta("last_sync"), "sync": _churn_sync_state})
+
+
+@app.route("/api/churn/accounts/<console>/<account_id>")
+def churn_account(console, account_id):
+    try:
+        svc, store, cfg, start, end, gran, _, _, _ = _churn_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    d = svc.account_detail(store, console, account_id, start, end, gran, cfg)
+    if not d["events"]:
+        return jsonify({"error": f"No churn events for account {account_id} on {console} between {start} and {end}"}), 404
+    return jsonify(d)
+
+
+@app.route("/api/churn/destinations/<host>", methods=["PATCH"])
+def churn_destination(host):
+    """Rename a destination console or change its kind (internal / sentinelone / competitor / other). Labels only, no S1 call."""
+    svc, store, _ = _churn()
+    body = request.get_json() or {}
+    try:
+        d = store.set_destination(host, label=body.get("label"), kind=body.get("kind"), note=body.get("note"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not d:
+        return jsonify({"error": f"Unknown destination {host}"}), 404
+    return jsonify(d)
+
+
+@app.route("/api/churn/export")
+def churn_export():
+    """CSV (devices, accounts or trend) or one XLSX workbook with all four sheets."""
+    try:
+        svc, store, cfg, start, end, gran, consoles, indicators, dest_kind = _churn_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    fmt = request.args.get("format", "csv")
+    view = request.args.get("view", "devices")
+    if fmt not in ("csv", "xlsx") or view not in ("devices", "accounts", "trend"):
+        return jsonify({"error": "format must be csv|xlsx and view devices|accounts|trend"}), 400
+    s = svc.summary(store, start, end, gran, consoles, indicators, dest_kind, cfg)
+    devices = svc.device_rows(store, start, end, consoles, indicators, dest_kind, cfg)
+    name = f"s1-churn-{start}-{end}-{view if fmt == 'csv' else 'all'}.{fmt}"
+    if fmt == "xlsx":
+        return Response(svc.to_xlsx(s, devices), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        headers={"Content-Disposition": f"attachment; filename={name}"})
+    keys = [i["key"] for i in s["indicators"]]
+    note = f"SentinelOne platform churn {start}..{end} per {gran} — devices counted once per period; device view keeps the latest record per device"
+    if view == "devices":
+        text = svc.to_csv(devices, svc.DEVICE_COLUMNS, note)
+    elif view == "trend":
+        text = svc.to_csv(svc.flatten_trend(s["trend"], keys), svc.trend_columns(keys), note)
+    else:
+        cols = [("Console", "console"), ("Account ID", "account_id"), ("Account", "account"), ("Salesforce ID", "salesforce_id"), ("Salesforce account", "sf_account"),
+                ("Devices", "devices"), ("Events", "events"), *[(k, k) for k in keys], ("Destinations", "destinations_text"), ("First event", "first_event"), ("Last event", "last_event")]
+        rows = [{**a, **a["by_indicator"], "destinations_text": "; ".join(f"{d['label']} ({d['devices']})" for d in a["destinations"])} for a in s["accounts"]]
+        text = svc.to_csv(rows, cols, note)
+    return Response(text, mimetype="text/csv", headers={"Content-Disposition": f"attachment; filename={name}"})
+
+
+@app.route("/api/churn/sync", methods=["POST"])
+def churn_sync():
+    """Incremental pull from every console (parallel). Runs in the background unless wait=true."""
+    body = request.get_json() or {}
+    consoles = [c for c in (body.get("consoles") or []) if c in _churn_consoles()] or None
+    if _churn_sync_state["running"]:
+        return jsonify({"error": "A sync is already running", "sync": _churn_sync_state}), 409
+    if body.get("wait"):
+        return jsonify(_churn_run_sync(consoles))
+    threading.Thread(target=_churn_run_sync, args=(consoles,), daemon=True).start()
+    return jsonify({"started": True})
+
+
+@app.route("/api/churn/sync-status")
+def churn_sync_status():
+    return jsonify(_churn_sync_state)

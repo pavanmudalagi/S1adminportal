@@ -366,6 +366,18 @@ def cmd_usage_sync(args):
             print(f"{month} {c['console']:8} {'ok' if c['ok'] else c['kind']:12} fetched={sum(c['fetched'].values())} skipped={','.join(c['skipped']) or '-'} {c['message'] or ''}")
 
 
+def cmd_churn_sync(args):
+    """Pull churn-indicator activities from every console into ~/.config/s1am/churn.db (for cron)."""
+    from .churn import service
+    from .eap import service as eap_service
+    store = service.Store(args.db)
+    cfg = service.load_indicators()
+    consoles = [c for c in (args.consoles or "").split(",") if c] or sorted(eap_service.profiles())
+    res = service.sync_all(store, consoles, cfg, backfill_days=args.backfill_days)
+    for c in res["consoles"]:
+        print(f"{c['console']:8} {'ok' if c['ok'] else c['kind']:12} since={c.get('since') or '-'} fetched={c['fetched']} new={c['new']} {c['message'] or ''}")
+
+
 def cmd_eap_sync(args):
     from .eap import service
     st = service.open_store()
@@ -1062,6 +1074,12 @@ def build_parser():
     usage.add_argument("--force", action="store_true", help="Re-fetch archived days too")
     usage.add_argument("--db", default=None, help="SQLite path (default ~/.config/s1am/usage.db)")
     usage.set_defaults(func=cmd_usage_sync)
+
+    churn = sub.add_parser("churn-sync", help="Store churn-indicator activities (uninstall, move to another console) from every console (daily cron)")
+    churn.add_argument("--consoles", default=None, help="Comma-separated profile codes (default: all)")
+    churn.add_argument("--backfill-days", type=int, default=365, help="How far back a console's first sync reaches (default 365)")
+    churn.add_argument("--db", default=None, help="SQLite path (default ~/.config/s1am/churn.db)")
+    churn.set_defaults(func=cmd_churn_sync)
 
     eap_sync = sub.add_parser("eap-sync", help="Import Prompt EAP requests from the Microsoft Forms workbook")
     eap_sync.add_argument("--path", default=None, help="Workbook path (default: [eap] form_path / synced copy)")

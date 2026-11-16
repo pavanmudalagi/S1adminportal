@@ -224,3 +224,51 @@ def test_exports(store, cfg):
     wb = openpyxl.load_workbook(io.BytesIO(svc.to_xlsx(s, devices)))
     assert wb.sheetnames == ["Trend", "Accounts", "Destinations", "Devices"]
     assert wb["Trend"].max_row == 2 + 4 and wb["Devices"].max_row == 1 + 6
+
+
+# ── Flask routes ───────────────────────────────────────────────────────────
+
+@pytest.fixture
+def api(tmp_path, monkeypatch):
+    monkeypatch.setenv("S1AM_CHURN_DB_PATH", str(tmp_path / "churn.db"))
+    monkeypatch.setenv("S1AM_CHURN_CONSOLES", "Staging")
+    import s1am.components.app as a
+    a._churn_store = None
+    monkeypatch.setattr(svc, "client_for_profile", lambda code: FakeClient())
+    monkeypatch.setattr(svc, "own_console_hosts", lambda: OWN)
+    monkeypatch.setattr(svc, "time", type("T", (), {"sleep": staticmethod(lambda s: None), "time": staticmethod(__import__("time").time)}))
+    from s1am.salesforce import client as sf_client
+    monkeypatch.setattr(sf_client, "is_connected", lambda: False)
+    return a.app.test_client()
+
+
+def test_routes_sync_summary_detail_export(api):
+    r = api.post("/api/churn/sync", json={"wait": True}).json
+    assert r["consoles"][0]["ok"] and r["consoles"][0]["new"] == 9
+    s = api.get("/api/churn/summary?start=2026-08&end=2026-11").json
+    assert s["totals"]["devices"] == 6 and s["health"][0]["state"] == "ok" and s["consoles"] == ["Staging"]
+    assert [i["key"] for i in s["indicators"]] == ["move_commanded", "move_completed", "uninstalled"] and len(s["all_indicators"]) == 6
+    assert api.get("/api/churn/summary?start=2026-13&end=2026-11").status_code == 400
+    assert api.get("/api/churn/summary?granularity=week").status_code == 400
+    q = api.get("/api/churn/summary?start=2026-07&end=2026-12&granularity=quarter").json
+    assert q["periods"] == ["2026-Q3", "2026-Q4"]
+    d = api.get("/api/churn/accounts/Staging/200?start=2026-08&end=2026-11").json
+    assert d["devices"] == 2 and d["device_rows"][0]["indicator"] in ("move_completed", "move_commanded")
+    assert api.get("/api/churn/accounts/Staging/999?start=2026-08&end=2026-11").status_code == 404
+    csv_text = api.get("/api/churn/export?start=2026-08&end=2026-11&view=devices").data.decode()
+    assert csv_text.count("\n") == 2 + 6 and "ACME-PC-3" in csv_text
+    acc_csv = api.get("/api/churn/export?start=2026-08&end=2026-11&view=accounts").data.decode()
+    assert "Beta Networks" in acc_csv and "Other SentinelOne console (1)" in acc_csv
+    x = api.get("/api/churn/export?start=2026-08&end=2026-11&format=xlsx")
+    assert x.status_code == 200 and x.data[:2] == b"PK"
+    assert api.get("/api/churn/export?view=nope").status_code == 400
+
+
+def test_routes_destination_edit(api):
+    api.post("/api/churn/sync", json={"wait": True})
+    r = api.patch("/api/churn/destinations/console.rival-edr.example.com", json={"label": "Rival EDR", "kind": "competitor"})
+    assert r.status_code == 200 and r.json["label"] == "Rival EDR"
+    assert api.patch("/api/churn/destinations/console.rival-edr.example.com", json={"kind": "x"}).status_code == 400
+    assert api.patch("/api/churn/destinations/nope.example", json={"label": "x"}).status_code == 404
+    s = api.get("/api/churn/summary?start=2026-08&end=2026-11&destination=competitor").json
+    assert s["totals"]["devices"] == 1 and s["destinations"][0]["label"] == "Rival EDR" and s["destinations"][0]["edited"]
