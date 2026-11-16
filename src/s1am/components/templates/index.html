@@ -509,6 +509,27 @@
     .us-dd-menu a:hover { background: var(--surface-2); text-decoration: none; }
     .us-dd-menu a.off { color: var(--text-muted); cursor: not-allowed; }
 
+    /* ── Platform churn ── */
+    .ch-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px; }
+    .ch-chart { width: 100%; height: 230px; display: block; }
+    .ch-chart text { font-size: 11px; fill: var(--text-muted); }
+    .ch-chart .axis { stroke: var(--border); stroke-width: 1; }
+    .ch-chart .grid { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 4; }
+    .ch-chart rect.seg:hover { opacity: .75; }
+    .ch-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--text-dim); align-items: center; }
+    .ch-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+    .ch-spark { width: 110px; height: 22px; display: block; }
+    .ch-kind { display: inline-block; padding: 1px 7px; border-radius: 3px; font-size: 11px; font-weight: 500; white-space: nowrap; }
+    .ch-kind.internal { background: var(--surface-2); color: var(--text-dim); }
+    .ch-kind.sentinelone { background: var(--primary-a); color: var(--primary); }
+    .ch-kind.competitor { background: var(--error-a); color: var(--error); }
+    .ch-kind.other { background: var(--warn-a); color: var(--warn); }
+    .ch-dest { display: inline-flex; align-items: center; gap: 4px; margin: 1px 6px 1px 0; font-size: 12px; white-space: nowrap; }
+    .ch-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+    .ch-edit input, .ch-edit select { height: 26px; font-size: 12px; width: auto; }
+    .ch-edit input.lbl { width: 180px; } .ch-edit input.note { width: 200px; }
+    .ch-desc { max-width: 420px; white-space: normal; font-size: 12px; color: var(--text-muted); }
+
     /* ── Account Editor Modal ── */
     .ae-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: flex; align-items: center; justify-content: center; z-index: 200; }
     .ae-backdrop.hidden { display: none; }
@@ -910,6 +931,83 @@
       <div class="eap-drawer-body" id="us-d-body"></div>
     </div>
 
+    <!-- Platform churn (LWT-2192) -->
+    <div id="churn-page" style="display:none; flex-direction:column; gap:12px;">
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Platform Churn</div>
+            <div class="card-desc">Agents uninstalled or moved to another console, read from every console's activity log and kept for good. The target console of a move is the competitor indicator. A device counts once per period.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;">
+            <span class="eap-muted" id="ch-synced"></span>
+            <button class="btn" id="ch-sync" title="Pull new activity from every console (incremental, read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Sync now</button>
+            <div class="us-dd" id="ch-export-dd">
+              <button class="btn" id="ch-export-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export ▾</button>
+              <div class="us-dd-menu" id="ch-export-menu"></div>
+            </div>
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:10px;">
+          <div class="us-health" id="ch-health"></div>
+          <div class="eap-toolbar">
+            <select id="ch-months" title="Range (ending this month)">
+              <option value="6">Last 6 months</option><option value="12" selected>Last 12 months</option><option value="24">Last 24 months</option>
+              <option value="36">Last 3 years</option><option value="60">Last 5 years</option><option value="120">Last 10 years</option>
+            </select>
+            <div class="result-tabs" id="ch-gran">
+              <button class="result-tab active" data-gran="month">Monthly</button>
+              <button class="result-tab" data-gran="quarter">Quarterly</button>
+              <button class="result-tab" data-gran="year">Yearly</button>
+            </div>
+            <select id="ch-console"><option value="">All consoles</option></select>
+            <select id="ch-dest" title="Only devices moved to this kind of console">
+              <option value="">Any destination</option><option value="competitor">Competitor</option><option value="sentinelone">Other SentinelOne console</option>
+              <option value="other">Unknown destination</option><option value="internal">Internal (N-able)</option>
+            </select>
+            <div id="ch-inds" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+            <input type="text" id="ch-q" placeholder="Search account, Salesforce, device, destination…" style="flex:1 1 220px">
+          </div>
+          <div class="ae-err" id="ch-err"></div>
+        </div>
+      </div>
+      <div class="ch-tiles" id="ch-tiles"></div>
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title" id="ch-chart-title">Trend</div><div class="card-desc" id="ch-chart-sub"></div></div>
+          <div class="result-tabs" id="ch-stack">
+            <button class="result-tab active" data-stack="indicator">By indicator</button>
+            <button class="result-tab" data-stack="destination">By destination</button>
+          </div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+          <div id="ch-chart"></div>
+          <div class="ch-legend" id="ch-legend"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="result-tabs" id="ch-view">
+            <button class="result-tab active" data-view="accounts">Accounts</button>
+            <button class="result-tab" data-view="destinations">Destinations</button>
+            <button class="result-tab" data-view="devices">Devices</button>
+          </div>
+          <span class="eap-muted" id="ch-status"></span>
+        </div>
+        <div class="eap-table-wrap" style="max-height: calc(100vh - 300px);">
+          <table class="rtable us-table" id="ch-table"><thead id="ch-head"></thead><tbody id="ch-rows"></tbody></table>
+        </div>
+      </div>
+    </div>
+    <div class="eap-drawer hidden" id="ch-drawer">
+      <div class="eap-drawer-grip" id="ch-d-grip" title="Drag to resize"></div>
+      <div class="eap-drawer-head">
+        <div><div class="card-title" id="ch-d-title">Account</div><div class="card-desc" id="ch-d-sub"></div></div>
+        <div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-sm" id="ch-d-close">✕</button></div>
+      </div>
+      <div class="eap-drawer-body" id="ch-d-body"></div>
+    </div>
+
     <div id="command-area" style="display:none; flex-direction:column; gap:16px;">
       <!-- Command card -->
       <div class="card" id="cmd-card">
@@ -1213,11 +1311,12 @@ document.getElementById("ac-save-btn").addEventListener("click", async () => {
 });
 
 // ── Sidebar ────────────────────────────────────────────────────────────────
-const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Marketplace","Usage & Billing","Threats","Groups & Exclusions","Metering","Config","Advanced"];
+const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Marketplace","Usage & Billing","Churn","Threats","Groups & Exclusions","Metering","Config","Advanced"];
 
 
 // 16px line icons (Lucide paths, 1.5px stroke) — the console uses line icons, not emoji.
 const ICONS = {
+  trend: '<path d="M22 17l-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/>',
   home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
   building: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
   pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>',
@@ -1239,7 +1338,7 @@ const ICONS = {
   receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8M12 17.5v-11"/>',
 };
 function icon(name, cls) { return `<svg class="ico${cls ? " " + cls : ""}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ICONS.dot}</svg>`; }
-const CAT_ICONS = {"Accounts": "building", "Sites": "pin", "Agents": "monitor", "Prompt EAP": "shield", "Threats": "bug", "Groups & Exclusions": "folder", "Metering": "chart", "Config": "settings", "Advanced": "flask", "XDR / Data Lake": "database", "Marketplace": "plug", "Usage & Billing": "receipt"};
+const CAT_ICONS = {"Accounts": "building", "Sites": "pin", "Agents": "monitor", "Prompt EAP": "shield", "Threats": "bug", "Groups & Exclusions": "folder", "Metering": "chart", "Config": "settings", "Advanced": "flask", "XDR / Data Lake": "database", "Marketplace": "plug", "Usage & Billing": "receipt", "Churn": "trend"};
 let _catOrder = [];
 
 function _groups() {
@@ -1302,9 +1401,10 @@ function goHome() {
   try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.cat === "__home__"));
   document.getElementById("page-header").style.display = "none";
-  ["command-area", "ae-browser", "eap-page", "mp-page", "usage-page"].forEach(id => document.getElementById(id).style.display = "none");
+  ["command-area", "ae-browser", "eap-page", "mp-page", "usage-page", "churn-page"].forEach(id => document.getElementById(id).style.display = "none");
   document.getElementById("eap-drawer").classList.add("hidden");
   document.getElementById("us-drawer").classList.add("hidden");
+  document.getElementById("ch-drawer").classList.add("hidden");
   document.getElementById("welcome").style.display = "flex";
   renderHub();
 }
@@ -1420,6 +1520,18 @@ function selectCommand(id) {
   const usPage = document.getElementById("usage-page");
   usPage.style.display = "none";
   document.getElementById("us-drawer").classList.add("hidden");
+  const chPage = document.getElementById("churn-page");
+  chPage.style.display = "none";
+  document.getElementById("ch-drawer").classList.add("hidden");
+  if (cmd.type === "churn") {
+    activeCmd = cmd;
+    ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
+    document.getElementById("eap-drawer").classList.add("hidden");
+    chPage.style.display = "flex";
+    chInit();
+    chLoad();
+    return;
+  }
   if (cmd.type === "usage") {
     activeCmd = cmd;
     ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
@@ -4429,6 +4541,332 @@ async function usOpenSite(console, siteId, silent) {
     document.getElementById("us-back").onclick = () => usOpenAccount(console, d.account_id || (backTo || "").split(":")[1]);
     usSyncHash();
   } catch (e) { usOpenDrawer("Site", _usEsc(siteId), `<div class="ae-err" style="display:block">${_usEsc(e.message)}</div>`); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Platform churn (LWT-2192): trend of uninstalls and moves to other consoles
+// ═══════════════════════════════════════════════════════════════════════════
+const chState = {months: 12, gran: "month", console: "", dest: "", inds: null, q: "", view: "accounts", stack: "indicator", sort: {key: "", dir: 1}, account: ""};
+let chData = null, chDevices = null, chInited = false, chBusy = false, chPoll = null;
+const _chEsc = _eapEsc;
+const _chLabel = code => code ? ((chData && chData.labels && chData.labels[code]) ? `${chData.labels[code]} (${code})` : code) : "";
+const CH_HEALTH = {ok: "", never: "not synced", auth: "token rejected", permission: "token lacks Activities – View", unsupported: "no activities API", timeout: "timed out", error: "error", config: "no token"};
+const CH_KIND_LABEL = {internal: "Internal (N-able)", sentinelone: "Other SentinelOne console", competitor: "Competitor", other: "Unknown destination"};
+// Indicator colours: migrations in the accent, uninstalls in the warning colour, decommissions muted.
+const _chColor = (key) => {
+  const ind = chData && chData.indicators.find(i => i.key === key);
+  const kind = ind ? ind.kind : key;
+  const migr = chData ? chData.indicators.filter(i => i.kind === "migration").map(i => i.key) : [];
+  if (kind === "migration") return migr.indexOf(key) === 0 ? "var(--primary)" : "var(--primary-hover, #b7a6f0)";
+  if (kind === "uninstall") return key === "uninstalled" ? "var(--warn)" : "var(--warn-a)";
+  return "var(--text-muted)";
+};
+const _chDestColor = {competitor: "var(--error)", sentinelone: "var(--primary)", other: "var(--warn)", internal: "var(--text-muted)"};
+
+function chInit() {
+  if (chInited) { chReadHash(); return; }
+  chInited = true;
+  chReadHash();
+  document.getElementById("ch-months").value = String(chState.months);
+  document.getElementById("ch-months").onchange = e => { chState.months = parseInt(e.target.value, 10); chLoad(); };
+  document.getElementById("ch-console").onchange = e => { chState.console = e.target.value; chLoad(); };
+  document.getElementById("ch-dest").onchange = e => { chState.dest = e.target.value; chLoad(); };
+  document.getElementById("ch-q").oninput = e => { chState.q = e.target.value; chRender(); };
+  document.querySelectorAll("#ch-gran .result-tab").forEach(b => b.onclick = () => { chState.gran = b.dataset.gran; chLoad(); });
+  document.querySelectorAll("#ch-stack .result-tab").forEach(b => b.onclick = () => { chState.stack = b.dataset.stack; chRender(); });
+  document.querySelectorAll("#ch-view .result-tab").forEach(b => b.onclick = () => { chState.view = b.dataset.view; chState.sort = {key: "", dir: 1}; chRender(); });
+  document.getElementById("ch-sync").onclick = chSync;
+  document.getElementById("ch-export-btn").onclick = e => { e.stopPropagation(); document.getElementById("ch-export-dd").classList.toggle("open"); };
+  document.addEventListener("click", () => document.getElementById("ch-export-dd").classList.remove("open"));
+  document.getElementById("ch-d-close").onclick = chCloseDrawer;
+  const drawer = document.getElementById("ch-drawer"), grip = document.getElementById("ch-d-grip");
+  try { const w = localStorage.getItem("eapDrawerWidth"); if (w) drawer.style.width = w; } catch (e) {}
+  grip.addEventListener("mousedown", e => {
+    e.preventDefault(); grip.classList.add("active");
+    const move = ev => { const w = Math.max(420, Math.min(window.innerWidth - 40, window.innerWidth - ev.clientX)); drawer.style.width = w + "px"; };
+    const up = () => { grip.classList.remove("active"); document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); try { localStorage.setItem("eapDrawerWidth", drawer.style.width); } catch (e) {} };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+}
+function chReadHash() {
+  if (!_deepQs) return;
+  const qs = new URLSearchParams(_deepQs); _deepQs = "";
+  if (qs.get("months")) chState.months = parseInt(qs.get("months"), 10) || 12;
+  if (qs.get("granularity")) chState.gran = qs.get("granularity");
+  if (qs.has("console")) chState.console = qs.get("console");
+  if (qs.has("destination")) chState.dest = qs.get("destination");
+  if (qs.get("indicators")) chState.inds = qs.get("indicators").split(",");
+  if (qs.get("view")) chState.view = qs.get("view");
+  if (qs.get("stack")) chState.stack = qs.get("stack");
+  chState.account = qs.get("account") || "";
+}
+function chQuery() {
+  const qs = new URLSearchParams(); qs.set("months", chState.months); qs.set("granularity", chState.gran);
+  if (chState.console) qs.set("consoles", chState.console);
+  if (chState.dest) qs.set("destination", chState.dest);
+  if (chState.inds && chState.inds.length) qs.set("indicators", chState.inds.join(","));
+  return qs;
+}
+function chSyncHash() {
+  const qs = chQuery(); qs.delete("consoles"); if (chState.console) qs.set("console", chState.console);
+  qs.set("view", chState.view); qs.set("stack", chState.stack);
+  if (chState.account) qs.set("account", chState.account);
+  try { history.replaceState(null, "", "#churn?" + qs.toString()); } catch (e) {}
+  const link = (label, view, fmt) => `<a href="/api/churn/export?${chQuery().toString()}&view=${view}&format=${fmt}" download>${label}</a>`;
+  document.getElementById("ch-export-menu").innerHTML = link("CSV — devices (latest record per device)", "devices", "csv") + link("CSV — accounts", "accounts", "csv") + link("CSV — trend per period", "trend", "csv")
+    + `<div style="border-top:1px solid var(--border);margin:4px 0"></div>` + link("Excel — trend, accounts, destinations, devices", "devices", "xlsx");
+}
+
+async function chLoad() {
+  if (chBusy) return;
+  chBusy = true; document.getElementById("ch-err").textContent = "";
+  if (!chData) document.getElementById("ch-status").textContent = "Loading…";
+  try {
+    const res = await fetch("/api/churn/summary?" + chQuery().toString());
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    chData = data; chDevices = null;
+    chFillControls();
+    chRender();
+    if (chState.view === "devices") chLoadDevices();
+    if (data.sync && data.sync.running) chStartPoll();
+    if (chState.account) chOpenAccount(...chState.account.split(":"), true);
+  } catch (e) { document.getElementById("ch-err").textContent = e.message; document.getElementById("ch-status").textContent = "Could not load — " + e.message; }
+  finally { chBusy = false; }
+}
+function chFillControls() {
+  _eapFill("ch-console", chData.consoles, _chLabel);
+  document.getElementById("ch-console").value = chState.console;
+  document.getElementById("ch-dest").value = chState.dest;
+  document.querySelectorAll("#ch-gran .result-tab").forEach(b => b.classList.toggle("active", b.dataset.gran === chState.gran));
+  const all = chData.all_indicators.filter(i => i.enabled);
+  if (!chState.inds) chState.inds = all.map(i => i.key);
+  const wrap = document.getElementById("ch-inds");
+  wrap.innerHTML = all.map(i => `<span class="us-prod ${chState.inds.includes(i.key) ? "on" : ""}" data-key="${i.key}" title="${_chEsc(i.label)} (activity ${i.type}) — ${_chEsc(i.note || "")}"><span class="ch-legend"><span class="sw" style="background:${_chColor(i.key)}"></span></span>${_chEsc(i.short)}</span>`).join("")
+    + (chData.all_indicators.some(i => !i.enabled) ? `<span class="eap-muted" style="font-size:11px" title="${_chEsc(chData.all_indicators.filter(i => !i.enabled).map(i => `${i.label} (${i.type})`).join(", "))}">+${chData.all_indicators.filter(i => !i.enabled).length} off in indicators.json</span>` : "");
+  wrap.querySelectorAll(".us-prod").forEach(el => el.onclick = () => {
+    const k = el.dataset.key;
+    chState.inds = chState.inds.includes(k) ? chState.inds.filter(x => x !== k) : [...chState.inds, k];
+    if (!chState.inds.length) chState.inds = all.map(i => i.key);
+    chLoad();
+  });
+  const sync = chData.sync || {};
+  document.getElementById("ch-synced").textContent = sync.running ? "Syncing…" : (chData.last_sync ? `Last sync ${chData.last_sync}` : "Never synced — click Sync now");
+  document.getElementById("ch-sync").disabled = !!sync.running;
+}
+function chHealth() {
+  return (chData.health || []).map(h => {
+    const txt = CH_HEALTH[h.state] ?? h.state;
+    const tip = `${_chLabel(h.console)}: ${h.message || txt || "ok"}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.last_event ? ` · last event ${h.last_event}` : ""}`;
+    return `<span class="us-chip ${h.state} ${chState.console === h.console ? "sel" : ""}" title="${_chEsc(tip)}" data-console="${_chEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_chEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? (h.last_event ? h.last_event.slice(0, 10) : "no events") : txt}</span></span>`;
+  }).join("");
+}
+function chTiles() {
+  const t = chData.totals, top = t.top_destination;
+  const tile = (v, k, cls, title) => `<div class="mp-tile ${cls || ""}" ${title ? `title="${_chEsc(title)}"` : ""}><div class="v">${v}</div><div class="k">${k}</div></div>`;
+  return tile(t.devices.toLocaleString(), "devices churned", "", "Distinct devices with at least one indicator in the range")
+    + tile(t.uninstalled_devices.toLocaleString(), "uninstalled")
+    + tile(t.migrated_devices.toLocaleString(), "moved to another console")
+    + tile(t.migrated_external.toLocaleString(), "moved outside N-able", t.migrated_external ? "warn" : "", "Moves whose target console is not one of ours")
+    + tile(t.accounts.toLocaleString(), "accounts affected")
+    + tile(top ? _chEsc(top.label) : "—", top ? `top destination · ${top.devices} device${top.devices === 1 ? "" : "s"}` : "top destination", "", top ? top.host : "");
+}
+function chSegments() {
+  // [{key, label, color}] for the stacked chart, depending on the stack mode.
+  if (chState.stack === "destination") {
+    const kinds = ["competitor", "sentinelone", "other", "internal"].filter(k => chData.trend.some(t => t.by_destination[k]));
+    return kinds.map(k => ({key: k, label: CH_KIND_LABEL[k], color: _chDestColor[k], get: t => t.by_destination[k] || 0}));
+  }
+  return chData.indicators.map(i => ({key: i.key, label: i.label, color: _chColor(i.key), get: t => t.by_indicator[i.key] || 0}));
+}
+function chChart(trend, segs, opts) {
+  opts = opts || {};
+  const W = 900, H = opts.height || 230, L = 44, R = 10, T = 12, B = 28;
+  const n = trend.length; if (!n) return '<div class="eap-muted">no periods</div>';
+  const totals = trend.map(t => segs.reduce((a, s) => a + s.get(t), 0));
+  const max = Math.max(...totals, 1);
+  const step = Math.pow(10, Math.floor(Math.log10(max))), nice = [1, 2, 5, 10].map(m => m * step).find(v => max / v <= 5) || step;
+  const yMax = Math.ceil(max / nice) * nice;
+  const bw = (W - L - R) / n, pad = Math.min(bw * 0.2, 14);
+  const y = v => T + (H - T - B) * (1 - v / yMax);
+  let out = `<svg class="ch-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" style="height:${H}px">`;
+  for (let g = 0; g <= yMax; g += nice) out += `<line class="grid" x1="${L}" y1="${y(g).toFixed(1)}" x2="${W - R}" y2="${y(g).toFixed(1)}"/><text x="${L - 6}" y="${(y(g) + 4).toFixed(1)}" text-anchor="end">${g}</text>`;
+  const every = Math.ceil(n / 18);
+  trend.forEach((t, i) => {
+    let acc = 0; const x = L + i * bw + pad / 2, w = bw - pad;
+    segs.forEach(s => { const v = s.get(t); if (!v) return; const y1 = y(acc + v), y0 = y(acc); acc += v;
+      out += `<rect class="seg" x="${x.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0.5, y0 - y1).toFixed(1)}" fill="${s.color}" rx="1"><title>${_chEsc(t.period)} · ${_chEsc(s.label)}: ${v} device${v === 1 ? "" : "s"}${t.accounts != null ? ` · ${t.accounts} account${t.accounts === 1 ? "" : "s"} in period` : ""}</title></rect>`; });
+    if (totals[i]) out += `<text x="${(x + w / 2).toFixed(1)}" y="${(y(totals[i]) - 3).toFixed(1)}" text-anchor="middle">${totals[i]}</text>`;
+    if (i % every === 0 || i === n - 1) out += `<text x="${(x + w / 2).toFixed(1)}" y="${H - 8}" text-anchor="middle">${_chEsc(t.period)}</text>`;
+  });
+  out += `<line class="axis" x1="${L}" y1="${y(0).toFixed(1)}" x2="${W - R}" y2="${y(0).toFixed(1)}"/></svg>`;
+  return out;
+}
+function chSpark(series) {
+  const n = series.length, W = 110, H = 22, max = Math.max(...series, 1), bw = W / n;
+  return `<svg class="ch-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${series.map((v, i) => v ? `<rect x="${(i * bw + 0.5).toFixed(1)}" y="${(H - (H - 2) * v / max).toFixed(1)}" width="${Math.max(1, bw - 1).toFixed(1)}" height="${((H - 2) * v / max).toFixed(1)}" fill="var(--primary)"><title>${_chEsc(chData.periods[i])}: ${v}</title></rect>` : "").join("")}<line x1="0" y1="${H - 0.5}" x2="${W}" y2="${H - 0.5}" stroke="var(--border)"/></svg>`;
+}
+function chFiltered(rows, fields) {
+  const q = chState.q.trim().toLowerCase();
+  return rows.filter(r => !q || fields(r).join(" ").toLowerCase().includes(q));
+}
+function chSort(rows, defKey, defDir) {
+  const key = chState.sort.key || defKey, dir = chState.sort.key ? chState.sort.dir : (defDir || 1);
+  return rows.sort((a, b) => {
+    const get = r => key.startsWith("i:") ? (r.by_indicator || {})[key.slice(2)] : r[key];
+    let x = get(a), y = get(b);
+    if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+    const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, {sensitivity: "base", numeric: true});
+    return c * dir;
+  });
+}
+const _chTh = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && chState.sort.key === key ? `<span class="arrow">${chState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
+const _chDestChips = dests => dests.map(d => `<span class="ch-dest" title="${_chEsc(d.host)}"><span class="ch-kind ${d.kind}">${_chEsc(d.label)}</span><span class="eap-muted">${d.devices}</span></span>`).join("") || '<span class="eap-muted">—</span>';
+
+function chRender() {
+  if (!chData) return;
+  chSyncHash();
+  document.getElementById("ch-health").innerHTML = chHealth();
+  document.querySelectorAll("#ch-health .us-chip").forEach(el => el.onclick = () => { chState.console = chState.console === el.dataset.console ? "" : el.dataset.console; document.getElementById("ch-console").value = chState.console; chLoad(); });
+  document.getElementById("ch-tiles").innerHTML = chTiles();
+  const segs = chSegments();
+  document.querySelectorAll("#ch-stack .result-tab").forEach(b => b.classList.toggle("active", b.dataset.stack === chState.stack));
+  document.getElementById("ch-chart-title").textContent = `Devices churned per ${chState.gran}`;
+  document.getElementById("ch-chart-sub").textContent = `${chData.start} to ${chData.end} · ${chState.stack === "destination" ? "moves only, split by where the agents went" : "split by indicator"}${chState.console ? ` · ${_chLabel(chState.console)}` : " · all consoles"}`;
+  document.getElementById("ch-chart").innerHTML = chChart(chData.trend, segs);
+  document.getElementById("ch-legend").innerHTML = segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("") + (chState.stack === "destination" && !segs.length ? '<span class="eap-muted">No moves to another console in this range.</span>' : "");
+  document.querySelectorAll("#ch-view .result-tab").forEach(b => b.classList.toggle("active", b.dataset.view === chState.view));
+  if (chState.view === "accounts") chRenderAccounts();
+  else if (chState.view === "destinations") chRenderDestinations();
+  else chRenderDevices();
+  document.querySelectorAll("#ch-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; chState.sort = chState.sort.key === k ? {key: k, dir: -chState.sort.dir} : {key: k, dir: k === "account" || k === "host" || k === "console" ? 1 : -1}; chRender(); });
+}
+function chRenderAccounts() {
+  const inds = chData.indicators;
+  document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("Console", "console") + _chTh("Account", "account") + _chTh("Salesforce", "sf_account") + _chTh("Devices", "devices", "num")
+    + inds.map(i => _chTh(`<span title="${_chEsc(i.label)}">${_chEsc(i.short)}</span>`, "i:" + i.key, "num")).join("") + _chTh("Destinations") + _chTh("Last event", "last_event") + _chTh("Trend") + "</tr>";
+  const rows = chSort(chFiltered(chData.accounts, a => [a.account, a.account_id, a.salesforce_id, a.sf_account, a.customer_id, a.console, ...a.destinations.map(d => d.label + " " + d.host)]), "devices", -1);
+  document.getElementById("ch-rows").innerHTML = rows.map(a => `<tr data-acc="${_chEsc(a.console)}:${_chEsc(a.account_id)}" class="${chState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
+      <td>${_chEsc(_chLabel(a.console))}</td>
+      <td>${_chEsc(a.account)}<span class="eap-sub">${_chEsc(a.account_id)}${a.state && a.state !== "active" ? ` · <span class="badge-partial">${_chEsc(a.state)}</span>` : ""}</span></td>
+      <td>${a.sf_account ? _chEsc(a.sf_account) : (a.salesforce_id ? `<span class="eap-muted">${_chEsc(a.salesforce_id)}</span>` : '<span class="eap-muted">—</span>')}${a.customer_id ? `<span class="eap-sub">Customer ID ${_chEsc(a.customer_id)}</span>` : ""}</td>
+      <td class="num"><b>${a.devices}</b><span class="eap-sub">${a.events} event${a.events === 1 ? "" : "s"}</span></td>
+      ${inds.map(i => `<td class="num">${a.by_indicator[i.key] || '<span class="eap-muted">—</span>'}</td>`).join("")}
+      <td>${_chDestChips(a.destinations)}</td>
+      <td class="eap-muted" style="white-space:nowrap">${_chEsc(a.last_event.slice(0, 10))}</td>
+      <td>${chSpark(a.series)}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#ch-rows tr").forEach(tr => tr.onclick = () => { const [c, id] = tr.dataset.acc.split(":"); chOpenAccount(c, id); });
+  const synced = chData.health.some(h => h.state === "ok");
+  document.getElementById("ch-status").textContent = !chData.accounts.length
+    ? (synced ? `No churn events between ${chData.start} and ${chData.end} for these filters.` : "No console has been synced yet — click “Sync now”.")
+    : `${rows.length} of ${chData.accounts.length} accounts · ${chData.totals.devices} devices · ${chData.totals.events} events`;
+}
+function chRenderDestinations() {
+  document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("Destination console", "host") + _chTh("Label", "label") + _chTh("Kind", "kind") + _chTh("Devices", "devices", "num") + _chTh("Accounts", "accounts", "num") + _chTh("Last event", "last_event") + "<th></th></tr>";
+  const rows = chSort(chFiltered(chData.destinations, d => [d.host, d.label, d.kind, d.note]), "devices", -1);
+  document.getElementById("ch-rows").innerHTML = rows.map(d => `<tr data-host="${_chEsc(d.host)}" style="cursor:default">
+      <td style="font-family:var(--mono, monospace);font-size:12px">${_chEsc(d.host)}</td>
+      <td>${_chEsc(d.label)}${d.note ? `<span class="eap-sub">${_chEsc(d.note)}</span>` : ""}${d.edited ? '<span class="eap-sub">edited</span>' : ""}</td>
+      <td><span class="ch-kind ${d.kind}">${_chEsc(CH_KIND_LABEL[d.kind] || d.kind)}</span></td>
+      <td class="num">${d.devices}</td><td class="num">${d.accounts}</td>
+      <td class="eap-muted" style="white-space:nowrap">${_chEsc(d.last_event.slice(0, 10))}</td>
+      <td style="white-space:nowrap"><button class="btn btn-sm ch-edit-btn">Edit label</button></td>
+    </tr>`).join("");
+  document.querySelectorAll("#ch-rows .ch-edit-btn").forEach(b => b.onclick = e => { e.stopPropagation(); chEditDestination(b.closest("tr")); });
+  document.getElementById("ch-status").textContent = rows.length ? `${rows.length} destination console${rows.length === 1 ? "" : "s"} · labels and kinds are editable; “competitor” marks a console that is not SentinelOne-hosted by us` : "No moves to another console in this range.";
+}
+function chEditDestination(tr) {
+  const host = tr.dataset.host, d = chData.destinations.find(x => x.host === host);
+  const cell = tr.children[1];
+  cell.innerHTML = `<div class="ch-edit"><input class="lbl" value="${_chEsc(d.label)}" placeholder="Label"><select>${Object.entries(CH_KIND_LABEL).map(([k, v]) => `<option value="${k}" ${d.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select><input class="note" value="${_chEsc(d.note || "")}" placeholder="Note (who confirmed, when)"><button class="btn btn-sm btn-primary">Save</button><button class="btn btn-sm">Cancel</button></div>`;
+  const [save, cancel] = cell.querySelectorAll("button");
+  cancel.onclick = () => chRender();
+  save.onclick = async () => {
+    save.disabled = true;
+    try {
+      const res = await fetch(`/api/churn/destinations/${encodeURIComponent(host)}`, {method: "PATCH", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({label: cell.querySelector(".lbl").value.trim() || d.label, kind: cell.querySelector("select").value, note: cell.querySelector(".note").value.trim()})});
+      const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await chLoad();
+    } catch (e) { document.getElementById("ch-err").textContent = e.message; save.disabled = false; }
+  };
+}
+async function chLoadDevices() {
+  if (chDevices) return;
+  document.getElementById("ch-status").textContent = "Loading devices…";
+  try {
+    const res = await fetch("/api/churn/devices?" + chQuery().toString() + "&limit=2000");
+    const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    chDevices = d; chRender();
+  } catch (e) { document.getElementById("ch-err").textContent = e.message; }
+}
+function chRenderDevices() {
+  document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("When (UTC)", "created_at") + _chTh("Console", "console") + _chTh("Account", "account_name") + _chTh("Site", "site_name") + _chTh("Device", "computer_name") + _chTh("Indicator", "indicator") + _chTh("By", "username") + _chTh("Destination", "destination_host") + "</tr>";
+  if (!chDevices) { document.getElementById("ch-rows").innerHTML = ""; chLoadDevices(); return; }
+  const rows = chSort(chFiltered(chDevices.rows, r => [r.account_name, r.sf_account, r.salesforce_id, r.computer_name, r.username, r.destination_host, r.destination_label, r.site_name, r.console, r.os_type]), "created_at", -1);
+  const ind = k => chData.all_indicators.find(i => i.key === k) || {short: k, label: k, kind: ""};
+  document.getElementById("ch-rows").innerHTML = rows.map(r => `<tr data-acc="${_chEsc(r.console)}:${_chEsc(r.account_id)}" title="${_chEsc(r.primary_description)}">
+      <td class="eap-muted" style="white-space:nowrap">${_chEsc(r.created_at.slice(0, 16))}</td><td>${_chEsc(_chLabel(r.console))}</td>
+      <td>${_chEsc(r.account_name)}${r.sf_account ? `<span class="eap-sub">${_chEsc(r.sf_account)}</span>` : ""}</td><td>${_chEsc(r.site_name)}<span class="eap-sub">${_chEsc(r.group_name)}</span></td>
+      <td>${_chEsc(r.computer_name)}<span class="eap-sub">${_chEsc([r.os_type, r.machine_type].filter(Boolean).join(" · "))}${r.device_uuid ? ` · ${_chEsc(r.device_uuid)}` : ""}</span></td>
+      <td><span class="ch-legend"><span class="sw" style="background:${_chColor(r.indicator)}"></span>${_chEsc(ind(r.indicator).label)}</span></td>
+      <td class="eap-muted" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${_chEsc((r.username || "").split(" (")[0])}</td>
+      <td>${r.destination_host ? `<span class="ch-kind ${r.destination_kind}">${_chEsc(r.destination_label)}</span><span class="eap-sub">${_chEsc(r.destination_host)}</span>` : '<span class="eap-muted">—</span>'}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#ch-rows tr").forEach(tr => tr.onclick = () => { const [c, id] = tr.dataset.acc.split(":"); chOpenAccount(c, id); });
+  document.getElementById("ch-status").textContent = `${rows.length}${chDevices.total > chDevices.rows.length ? ` of ${chDevices.total} (first ${chDevices.rows.length} loaded — export for all)` : ""} devices · most recent record per device`;
+}
+
+async function chSync() {
+  const btn = document.getElementById("ch-sync"); btn.disabled = true;
+  document.getElementById("ch-err").textContent = "";
+  try {
+    const res = await fetch("/api/churn/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({consoles: chState.console ? [chState.console] : null})});
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    document.getElementById("ch-synced").textContent = "Syncing…";
+    chStartPoll();
+  } catch (e) { document.getElementById("ch-err").textContent = e.message; btn.disabled = false; }
+}
+function chStartPoll() {
+  if (chPoll) return;
+  chPoll = setInterval(async () => {
+    try {
+      const s = await fetch("/api/churn/sync-status").then(r => r.json());
+      if (!s.running) { clearInterval(chPoll); chPoll = null; await chLoad(); if (s.result) { const bad = (s.result.consoles || []).filter(c => !c.ok); if (bad.length) document.getElementById("ch-err").textContent = bad.map(c => `${c.console}: ${c.message}`).join(" · "); } }
+    } catch (e) { clearInterval(chPoll); chPoll = null; }
+  }, 2000);
+}
+
+// ── account drawer ──
+function chOpenDrawer(title, sub, body) {
+  document.getElementById("ch-d-title").textContent = title; document.getElementById("ch-d-sub").innerHTML = sub; document.getElementById("ch-d-body").innerHTML = body;
+  document.getElementById("ch-drawer").classList.remove("hidden");
+}
+function chCloseDrawer() { document.getElementById("ch-drawer").classList.add("hidden"); chState.account = ""; chRender(); }
+async function chOpenAccount(console, accountId, silent) {
+  chState.account = `${console}:${accountId}`;
+  if (!silent) chRender();
+  chOpenDrawer("Account", `${_chEsc(_chLabel(console))} · ${_chEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
+  try {
+    const res = await fetch(`/api/churn/accounts/${encodeURIComponent(console)}/${encodeURIComponent(accountId)}?${chQuery().toString()}`);
+    const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    const ind = k => chData.all_indicators.find(i => i.key === k) || {label: k};
+    const segs = chData.indicators.map(i => ({key: i.key, label: i.label, color: _chColor(i.key), get: t => t.by_indicator[i.key] || 0}));
+    const sfLine = d.sf_account ? `${_chEsc(d.sf_account)}${d.customer_id ? ` · Customer ID ${_chEsc(d.customer_id)}` : ""}${d.country ? ` · ${_chEsc(d.country)}` : ""}` : (d.salesforce_id ? _chEsc(d.salesforce_id) : null);
+    const sfLink = d.salesforce_id ? _eapSfLink(d.salesforce_id, d.sf_account || d.salesforce_id) : null;
+    chOpenDrawer(d.account || accountId, `${_chEsc(_chLabel(console))} · account ${_chEsc(accountId)}${d.state && d.state !== "active" ? ` · <span class="badge-partial">${_chEsc(d.state)}</span>` : ""} · ${_chEsc(chData.start)} to ${_chEsc(chData.end)}`,
+      `<div class="ch-tiles" style="margin-bottom:12px">${[[d.devices, "devices churned"], [d.events, "events"], [d.sites.length, "sites affected"]].map(([v, k]) => `<div class="mp-tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("")}</div>
+       <div class="eap-sec">${_eapKV([["Salesforce", sfLink ? `${sfLink}${d.customer_id ? ` <span class="eap-muted">· Customer ID ${_chEsc(d.customer_id)}</span>` : ""}${d.country ? ` <span class="eap-muted">· ${_chEsc(d.country)}</span>` : ""}` : (sfLine || null)]])}</div>
+       <div class="eap-sec"><h4>Devices churned per ${_chEsc(chState.gran)}</h4>${chChart(d.series, segs, {height: 180})}<div class="ch-legend" style="margin-top:6px">${segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("")}</div></div>
+       <div class="eap-sec"><h4>Sites</h4>${d.sites.map(s => `<span class="mp-chip" title="${_chEsc(s.site_id)}">${_chEsc(s.site)} · ${s.devices}</span>`).join("") || '<span class="eap-muted">—</span>'}</div>
+       <div class="eap-sec"><h4>Devices · latest record each</h4><div style="overflow-x:auto"><table class="rtable us-table" style="font-size:12px;white-space:nowrap"><thead><tr><th>When (UTC)</th><th>Device</th><th>Indicator</th><th>By</th><th>Destination</th></tr></thead><tbody>${
+         d.device_rows.map(r => `<tr style="cursor:default" title="${_chEsc(r.primary_description)}"><td class="eap-muted" style="white-space:nowrap">${_chEsc(r.created_at.slice(0, 16))}</td>
+           <td>${_chEsc(r.computer_name)}<span class="eap-sub">${_chEsc(r.site_name)}${r.os_type ? ` · ${_chEsc(r.os_type)}` : ""}</span></td>
+           <td><span class="ch-legend"><span class="sw" style="background:${_chColor(r.indicator)}"></span>${_chEsc(ind(r.indicator).label)}</span></td>
+           <td class="eap-muted">${_chEsc((r.username || "").split(" (")[0])}</td>
+           <td>${r.destination_host ? `<span class="ch-kind ${r.destination_kind}">${_chEsc(r.destination_label)}</span><span class="eap-sub">${_chEsc(r.destination_host)}</span>` : '<span class="eap-muted">—</span>'}</td></tr>`).join("")}</tbody></table></div></div>`);
+  } catch (e) { chOpenDrawer("Account", _chEsc(accountId), `<div class="ae-err" style="display:block">${_chEsc(e.message)}</div>`); }
 }
 
 </script>

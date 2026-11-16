@@ -79,7 +79,7 @@ def test_parse_event_keeps_the_ticket_fields(cfg):
     by_type = {i["type"]: i for i in cfg["indicators"]}
     move = svc.parse_event(FIX["activities"][2], "Staging", by_type)
     assert (move["indicator"], move["kind"], move["destination_host"]) == ("move_commanded", "migration", "euce1-100.sentinelone.net")
-    assert move["device_key"] == "aaaa-1" and move["username"].startswith("joe@beta") and move["created_at"] == "2026-09-10 08:00:00"
+    assert move["device_key"] == "6001" and move["device_uuid"] == "aaaa-1" and move["username"].startswith("joe@beta") and move["created_at"] == "2026-09-10 08:00:00"
     assert move["account_id"] == "200" and move["site_id"] == "2001" and move["group_id"] == "20001" and move["agent_id"] == "6001"
     moved = svc.parse_event(FIX["activities"][4], "Staging", by_type)
     assert moved["indicator"] == "move_completed" and moved["destination_host"] == "euce1-100.sentinelone.net"
@@ -188,7 +188,7 @@ def test_account_detail_and_device_rows_keep_the_latest_record_per_device(store,
     _sync(store, cfg)
     d = svc.account_detail(store, "Staging", "200", "2026-08", "2026-11", cfg=cfg)
     assert d["account"] == "Beta Networks" and d["devices"] == 2 and d["events"] == 4
-    srv = next(r for r in d["device_rows"] if r["device_key"] == "aaaa-1")
+    srv = next(r for r in d["device_rows"] if r["device_key"] == "6001")
     assert srv["indicator"] == "move_completed" and srv["destination_label"] == "Other SentinelOne console"
     assert d["sites"][0]["site"] in ("Main", "Branch") and sum(s["devices"] for s in d["sites"]) == 2
     rows = svc.device_rows(store, "2026-08", "2026-11", cfg=cfg)
@@ -262,6 +262,9 @@ def test_routes_sync_summary_detail_export(api):
     x = api.get("/api/churn/export?start=2026-08&end=2026-11&format=xlsx")
     assert x.status_code == 200 and x.data[:2] == b"PK"
     assert api.get("/api/churn/export?view=nope").status_code == 400
+    dv = api.get("/api/churn/devices?start=2026-08&end=2026-11&limit=2").json
+    assert dv["total"] == 6 and len(dv["rows"]) == 2 and dv["rows"][0]["created_at"] >= dv["rows"][1]["created_at"]
+    assert api.get("/api/churn/devices?start=2026-08&end=2026-11&q=rival").json["total"] == 1
 
 
 def test_routes_destination_edit(api):

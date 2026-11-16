@@ -202,6 +202,37 @@ rejected, use dates; results are capped at 1000 rows unless the query sets `| li
 Note: the older **Metering** category commands in the UI call a `metering` CLI subcommand that does not exist in this
 repo; use Usage & Billing instead.
 
+## Platform Churn (LWT-2192)
+
+**Churn → Platform Churn** shows the churn trend across every console with an indicator of where the agents went.
+It reads churn indicators from each console's activity log (`GET /activities?activityTypes=…`), stores every event
+for good in `~/.config/s1am/churn.db`, and rolls them up per month, quarter or year, so the trend outlives the
+console's own activity retention. Everything is read-only against SentinelOne.
+
+Indicators live in `src/s1am/churn/indicators.json`. On by default: **97** "move to another console commanded"
+(carries the target console URL), **99** "moved to another console", **51** "agent uninstalled". Available but off:
+50 uninstall command, 54 user decommission, 47 auto-decommission. Disabled types are still stored, so turning one on
+needs no backfill.
+
+**Competitor indicator.** SentinelOne cannot see what replaces an uninstalled agent, so the only observable
+destination is the target console of a move. Its host is classified as *internal* (one of our console profiles or a
+`*-nabl*.sentinelone.net` host), *other SentinelOne console*, or *unknown*; the Destinations tab lets you rename a
+host and mark it *competitor*, and edited labels survive re-syncs. Uninstalls show churn with no destination.
+
+Counting rules: a device counts once per period and once per indicator (the device key is the agent ID); the
+Devices tab and the device export keep only the most recent record per device, as the ticket asks. Accounts carry the
+console's `salesforceId`; Salesforce names are filled in when a Salesforce session is cached (venv interpreter).
+
+Sync is incremental (`createdAt__gt` from the last stored event minus six hours, keyed on the activity id), parallel
+across consoles, 1000 rows per page with a quarter-second pause and back-off on 429. A daily pull runs at 05:00 while
+the web server is up (`[churn] daily_sync = false` disables it, `daily_sync_hour` moves it); `s1am churn-sync` does
+the same for cron. The first sync of a console reaches back `[churn] backfill_days` (default 365); `[churn] consoles`
+or `S1AM_CHURN_CONSOLES` narrows the console list.
+
+Exports: CSV of devices (latest record each, with accountId / groupId / siteId / agentId / uuid / console URL /
+account name / description / user), accounts, or the trend per period; or one Excel workbook with Trend, Accounts,
+Destinations and Devices sheets. Deep links: `#churn?months=24&granularity=quarter&destination=competitor&account=CODE:ID`.
+
 ## Build A Standalone App (shareable)
 
 Build a standalone binary with PyInstaller:

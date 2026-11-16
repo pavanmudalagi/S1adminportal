@@ -142,7 +142,8 @@ def parse_event(raw, console, by_type):
         dest = d.get("consoleUrl") or d.get("targetUrl") or d.get("console_url") or d.get("target_url")
     uuid = d.get("uuid") or d.get("agentUuid") or ""
     agent_id = str(raw.get("agentId") or "")
-    device_key = uuid or agent_id or (d.get("computerName") or "")
+    # The agent id is on every activity type; data.uuid only on some (97 has it, 99 does not), so it comes second.
+    device_key = agent_id or uuid or (d.get("computerName") or "")
     username = d.get("username") or d.get("realUser") or ""
     return {
         "console": console, "id": str(raw.get("id")), "activity_type": raw.get("activityType"),

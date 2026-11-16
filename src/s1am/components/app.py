@@ -2717,6 +2717,21 @@ def churn_account(console, account_id):
     return jsonify(d)
 
 
+@app.route("/api/churn/devices")
+def churn_devices():
+    """Most recent record per device for the range and filters (the ticket's deduplicated device list), newest first."""
+    try:
+        svc, store, cfg, start, end, gran, consoles, indicators, dest_kind = _churn_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    rows = svc.device_rows(store, start, end, consoles, indicators, dest_kind, cfg)
+    q = (request.args.get("q") or "").strip().lower()
+    if q:
+        rows = [r for r in rows if q in " ".join(str(r.get(k) or "") for k in ("account_name", "computer_name", "username", "destination_host", "destination_label", "site_name", "sf_account", "salesforce_id", "console")).lower()]
+    limit = max(1, min(int(request.args.get("limit") or 500), 5000))
+    return jsonify({"total": len(rows), "rows": rows[:limit]})
+
+
 @app.route("/api/churn/destinations/<host>", methods=["PATCH"])
 def churn_destination(host):
     """Rename a destination console or change its kind (internal / sentinelone / competitor / other). Labels only, no S1 call."""
