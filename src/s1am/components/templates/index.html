@@ -391,6 +391,24 @@
     .eap-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
     .eap-toolbar select { width: auto; flex: 0 0 auto; height: 32px; padding: 0 28px 0 8px; font-size: 14px; font-weight: 500; background-color: var(--border-soft); border: 1px solid var(--border); }
     .eap-toolbar input[type=text] { width: auto; flex: 1 1 240px; min-width: 200px; }
+    /* Multi-select filter: a select-looking button with a checkbox popover. Value is an array; empty = no filter. */
+    .ms { position: relative; display: inline-block; flex: 0 0 auto; }
+    .ms-btn { height: 32px; padding: 0 28px 0 8px; font-size: 14px; font-weight: 500; font-family: inherit; color: var(--text); background-color: var(--border-soft); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237c7a8c'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 9px center; }
+    .ms-btn:hover, .ms.open .ms-btn { border-color: var(--primary); }
+    .ms.on .ms-btn { background-color: var(--primary-a); border-color: var(--primary); }
+    .ms-btn .ms-n { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 11px; line-height: 18px; text-align: center; }
+    .ms-pop { display: none; position: fixed; z-index: 160; width: max-content; min-width: 180px; max-width: 340px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; flex-direction: column; }
+    .ms.open .ms-pop { display: flex; }
+    .ms-pop .ms-q, .eap-toolbar .ms-pop input[type=text] { flex: 0 0 auto; height: 28px; min-width: 0; width: auto; font-size: 13px; margin: 2px 2px 4px; }
+    .ms-list { max-height: 280px; overflow: auto; display: flex; flex-direction: column; }
+    .ms-opt { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; border-radius: var(--radius); font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap; }
+    .ms-opt:hover { background: var(--surface-2); }
+    .ms-opt input[type=checkbox] { width: 15px; height: 15px; margin: 0; flex-shrink: 0; }
+    .ms-opt .ms-cnt { margin-left: auto; color: var(--text-muted); font-size: 11px; padding-left: 10px; }
+    .ms-foot { display: flex; gap: 12px; padding: 6px 8px 4px; border-top: 1px solid var(--border); font-size: 12px; }
+    .ms-foot a { color: var(--primary); cursor: pointer; }
+    .ms-empty { padding: 8px; font-size: 12px; color: var(--text-muted); }
     .eap-toolbar .eap-progress { flex-basis: 100%; }
     .eap-toolbar .eap-progress:empty { display: none; }
     .eap-notice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; min-height: 32px; padding: 4px 8px; border-radius: var(--radius); background: var(--surface-2); }
@@ -961,7 +979,7 @@
               <button class="result-tab" data-gran="year">Yearly</button>
             </div>
             <select id="ch-console"><option value="">All consoles</option></select>
-            <select id="ch-dest" title="Only devices moved to this kind of console">
+            <select id="ch-dest" title="Only devices moved to these kinds of console">
               <option value="">Any destination</option><option value="competitor">Competitor</option><option value="sentinelone">Other SentinelOne console</option>
               <option value="other">Unknown destination</option><option value="internal">Internal (N-able)</option>
             </select>
@@ -3407,6 +3425,81 @@ async function aeSaveAccount() {
 }
 
 // ─── Prompt EAP tracker ───────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// Multi-select filter control. msInit() swaps a <select id> (first option = placeholder, the rest = options)
+// for a button + checkbox popover that keeps the same id. msValue(id) is an array; [] means "no filter".
+// ═══════════════════════════════════════════════════════════════════════════
+const _ms = {};
+function msInit(id, opts = {}) {
+  if (_ms[id]) { if (opts.onChange) _ms[id].onChange = opts.onChange; return _ms[id]; }
+  const el = document.getElementById(id);
+  let options = opts.options || [], placeholder = opts.placeholder || "Any";
+  if (el.tagName === "SELECT") {
+    const all = [...el.options];
+    if (all.length && all[0].value === "") placeholder = opts.placeholder || all[0].textContent;
+    options = all.filter(o => o.value !== "").map(o => ({value: o.value, label: o.textContent}));
+  }
+  // "All SKUs requested" → "SKUs requested", "Match: any" → "Match", "Any destination" → "Destination".
+  const m = placeholder.match(/^(?:All|Any)\s+(.*)$/i) || placeholder.match(/^(.*):\s*any$/i);
+  const noun = opts.noun || (m ? m[1].charAt(0).toUpperCase() + m[1].slice(1) : placeholder);
+  const wrap = document.createElement("div");
+  wrap.className = "ms"; wrap.id = id; if (el.title) wrap.title = el.title;
+  wrap.innerHTML = `<button type="button" class="ms-btn"><span class="ms-label"></span></button>
+    <div class="ms-pop"><input type="text" class="ms-q" placeholder="Type to filter…" style="display:none"><div class="ms-list"></div>
+    <div class="ms-foot"><a class="ms-all">Select all</a><a class="ms-clear">Clear</a></div></div>`;
+  el.replaceWith(wrap);
+  const st = _ms[id] = {id, wrap, options, placeholder, noun, selected: new Set(), onChange: opts.onChange || null, q: ""};
+  wrap.querySelector(".ms-btn").onclick = e => { e.stopPropagation(); const open = wrap.classList.contains("open"); msCloseAll(); if (!open) { wrap.classList.add("open"); _msPlace(st); const q = wrap.querySelector(".ms-q"); if (q.style.display !== "none") q.focus(); } };
+  wrap.querySelector(".ms-pop").onclick = e => e.stopPropagation();
+  wrap.querySelector(".ms-q").oninput = e => { st.q = e.target.value; _msList(st); };
+  wrap.querySelector(".ms-all").onclick = () => { _msVisible(st).forEach(o => st.selected.add(o.value)); _msFire(st); };
+  wrap.querySelector(".ms-clear").onclick = () => { st.selected.clear(); _msFire(st); };
+  _msRender(st);
+  return st;
+}
+function msCloseAll() { document.querySelectorAll(".ms.open").forEach(w => w.classList.remove("open")); }
+// The popover is fixed-positioned so card overflow cannot clip it; it follows the button and flips up near the bottom.
+function _msPlace(st) {
+  const r = st.wrap.querySelector(".ms-btn").getBoundingClientRect(), pop = st.wrap.querySelector(".ms-pop");
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + "px";
+  pop.style.minWidth = Math.max(180, r.width) + "px";
+  const below = window.innerHeight - r.bottom - 8;
+  pop.style.top = (below < Math.min(pop.offsetHeight, 340) && r.top > below) ? Math.max(8, r.top - 4 - pop.offsetHeight) + "px" : (r.bottom + 4) + "px";
+}
+document.addEventListener("click", msCloseAll);
+window.addEventListener("resize", msCloseAll);
+document.addEventListener("scroll", msCloseAll, true);
+document.addEventListener("keydown", e => { if (e.key === "Escape") msCloseAll(); });
+const _msVisible = st => { const q = st.q.trim().toLowerCase(); return st.options.filter(o => !q || o.label.toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)); };
+function _msList(st) {
+  const vis = _msVisible(st);
+  st.wrap.querySelector(".ms-list").innerHTML = vis.length ? vis.map(o => `<label class="ms-opt"><input type="checkbox" value="${_eapEsc(o.value)}" ${st.selected.has(o.value) ? "checked" : ""}><span>${_eapEsc(o.label)}</span>${o.count != null ? `<span class="ms-cnt">${o.count}</span>` : ""}</label>`).join("")
+    : `<div class="ms-empty">${st.options.length ? "No match" : "Nothing to filter on yet"}</div>`;
+  st.wrap.querySelectorAll(".ms-opt input").forEach(cb => cb.onchange = () => { cb.checked ? st.selected.add(cb.value) : st.selected.delete(cb.value); _msFire(st, true); });
+}
+function _msRender(st) {
+  const n = st.selected.size, lbl = st.wrap.querySelector(".ms-label");
+  const names = [...st.selected].map(v => (st.options.find(o => o.value === v) || {label: v}).label);
+  lbl.textContent = !n ? st.placeholder : (n === 1 ? `${st.noun}: ${names[0]}` : `${st.noun}: ${names.slice(0, 2).join(", ")}${n > 2 ? ", …" : ""}`);
+  if (n > 1) { const b = document.createElement("span"); b.className = "ms-n"; b.textContent = n; lbl.appendChild(b); }
+  st.wrap.title = n ? names.join(", ") : (st.wrap.dataset.title || "");
+  st.wrap.classList.toggle("on", n > 0);
+  st.wrap.querySelector(".ms-q").style.display = st.options.length > 8 ? "" : "none";
+  _msList(st);
+}
+function _msFire(st, keepOpen) { _msRender(st); if (st.onChange) st.onChange(msValue(st.id)); }
+function msValue(id) { const st = _ms[id]; if (st) return [...st.selected]; const el = document.getElementById(id); return el && el.value ? [el.value] : []; }
+function msSetValue(id, values, silent) { const st = _ms[id]; if (!st) return; st.selected = new Set((values || []).filter(v => v !== "" && v != null).map(String)); _msRender(st); if (!silent && st.onChange) st.onChange(msValue(id)); }
+function msSetOptions(id, options) {
+  // Options from live data; the selection is kept when the value still exists (a selected value that vanished stays selected but hidden, so nothing silently un-filters).
+  const st = _ms[id]; if (!st) return;
+  st.options = options; _msRender(st);
+}
+// Convenience: values → options with a formatter and per-value counts.
+const msOptionsFrom = (values, fmt = v => v) => { const cnt = {}; values.filter(v => v !== "" && v != null).forEach(v => cnt[v] = (cnt[v] || 0) + 1);
+  return Object.keys(cnt).sort((a, b) => String(fmt(a)).localeCompare(String(fmt(b)), undefined, {sensitivity: "base", numeric: true})).map(v => ({value: v, label: fmt(v), count: cnt[v]})); };
+const _msHas = (id, v) => { const sel = msValue(id); return !sel.length || sel.includes(String(v)); };
+
 let eapRows = [], eapMeta = {}, eapOpenId = null, _eapInited = false;
 const EAP_STATUS = {
   new:          ["New",          "badge-fetch"],
@@ -3447,7 +3540,7 @@ function eapInit() {
   document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
   document.getElementById("eap-check-btn").onclick  = () => eapCheck();
   ["eap-f-sku", "eap-f-status", "eap-f-console", "eap-f-country", "eap-f-conf", "eap-f-prompt", "eap-f-tenant"]
-    .forEach(id => document.getElementById(id).onchange = eapRender);
+    .forEach(id => msInit(id, {onChange: eapRender}));
   document.getElementById("eap-f-q").oninput = eapRender;
   document.getElementById("eap-d-close").onclick  = () => { document.getElementById("eap-drawer").classList.add("hidden"); eapOpenId = null; };
   // Drag the left edge to resize the drawer; the width is remembered per browser.
@@ -3516,29 +3609,29 @@ function _eapFill(selId, values, fmt = v => v) {
   sel.value = [...sel.options].some(o => o.value === cur) ? cur : "";
 }
 function eapFillFilters() {
-  _eapFill("eap-f-status", Object.keys(EAP_STATUS).filter(k => eapRows.some(r => (r.status || "new") === k)), k => EAP_STATUS[k][0]);
-  _eapFill("eap-f-console", eapRows.map(r => r.s1_console || _eapTenantCode(r.sf_tenant)), _eapLabel);
-  _eapFill("eap-f-country", eapRows.map(r => r.country));
-  _eapFill("eap-f-sku", eapRows.flatMap(r => r.products || []));
+  const statusOpts = msOptionsFrom(eapRows.map(r => r.status || "new"), k => (EAP_STATUS[k] || [k])[0]);
+  msSetOptions("eap-f-status", Object.keys(EAP_STATUS).filter(k => statusOpts.some(o => o.value === k)).map(k => statusOpts.find(o => o.value === k)));
+  msSetOptions("eap-f-console", msOptionsFrom(eapRows.map(r => r.s1_console || _eapTenantCode(r.sf_tenant)), _eapLabel));
+  msSetOptions("eap-f-country", msOptionsFrom(eapRows.map(r => r.country)));
+  msSetOptions("eap-f-sku", msOptionsFrom(eapRows.flatMap(r => r.products || [])));
 }
 
 function eapFiltered() {
-  const f = id => document.getElementById(id).value;
-  const q = f("eap-f-q").trim().toLowerCase();
+  const f = id => msValue(id);           // arrays; empty = no filter; several values = any of them
+  const q = document.getElementById("eap-f-q").value.trim().toLowerCase();
+  const sku = f("eap-f-sku"), conf = f("eap-f-conf"), prompt = f("eap-f-prompt");
+  const newIds = (eapMeta.last_sync_result || {}).new || [];
   return eapRows.filter(r => {
-    if (f("eap-f-sku") && !(r.products || []).includes(f("eap-f-sku"))) return false;
-    if (f("eap-f-status") && (r.status || "new") !== f("eap-f-status")) return false;
-    if (f("eap-f-console") && (r.s1_console || _eapTenantCode(r.sf_tenant)) !== f("eap-f-console")) return false;
-    if (f("eap-f-country") && r.country !== f("eap-f-country")) return false;
-    const c = f("eap-f-conf");
-    if (c === "new") { if (!((eapMeta.last_sync_result || {}).new || []).includes(r.id)) return false; }
-    else if (c && (_eapMatch(r)[0] || "none") !== c) return false;
-    const t = f("eap-f-tenant");
-    if (t && _eapTenantState(r) !== t) return false;
-    const p = f("eap-f-prompt");
-    if (p === "1" && r.s1_prompt_enabled !== 1) return false;
-    if (p === "0" && r.s1_prompt_enabled !== 0) return false;
-    if (p === "unknown" && r.s1_prompt_enabled !== null && r.s1_prompt_enabled !== undefined) return false;
+    if (sku.length && !(r.products || []).some(p => sku.includes(p))) return false;
+    if (!_msHas("eap-f-status", r.status || "new")) return false;
+    if (!_msHas("eap-f-console", r.s1_console || _eapTenantCode(r.sf_tenant))) return false;
+    if (!_msHas("eap-f-country", r.country)) return false;
+    if (conf.length && !((conf.includes("new") && newIds.includes(r.id)) || conf.includes(_eapMatch(r)[0] || "none"))) return false;
+    if (!_msHas("eap-f-tenant", _eapTenantState(r))) return false;
+    if (prompt.length) {
+      const state = r.s1_prompt_enabled === 1 ? "1" : (r.s1_prompt_enabled === 0 ? "0" : "unknown");
+      if (!prompt.includes(state)) return false;
+    }
     if (q) {
       const hay = [r.id, r.company, r.contact_name, r.contact_email, r.super_admin_name, r.super_admin_email,
                    r.sf_account_name, r.sf_tenant, r.s1_account_name, r.s1_account_id, r.s1_prompt_tenant,
@@ -3655,7 +3748,7 @@ function eapShowSyncNotice(r, justRan) {
     : "<b>no new</b> requests";
   const updPart = r.updated.length ? `, ${r.updated.length} changed (${r.updated.map(link).join(", ")})` : "";
   box.innerHTML = `<span>${justRan ? "Sync done" : "Last sync"}${r.at ? ` ${_eapEsc(r.at)}` : ""} — ${r.rows} rows in the workbook: ${newPart}${updPart}, ${r.unchanged} unchanged.</span>` +
-    (r.new.length ? `<a onclick="document.getElementById('eap-f-conf').value='new'; eapRender()">show only the new ones</a>` : "") +
+    (r.new.length ? `<a onclick="msSetValue('eap-f-conf', ['new'])">show only the new ones</a>` : "") +
     `<a class="x" onclick="document.getElementById('eap-notice').classList.add('hidden')">✕</a>`;
   box.classList.remove("hidden");
 }
@@ -4546,7 +4639,7 @@ async function usOpenSite(console, siteId, silent) {
 // ═══════════════════════════════════════════════════════════════════════════
 // Platform churn (LWT-2192): trend of uninstalls and moves to other consoles
 // ═══════════════════════════════════════════════════════════════════════════
-const chState = {months: 12, gran: "month", console: "", dest: "", inds: null, q: "", view: "accounts", stack: "indicator", sort: {key: "", dir: 1}, account: ""};
+const chState = {months: 12, gran: "month", console: [], dest: [], inds: null, q: "", view: "accounts", stack: "indicator", sort: {key: "", dir: 1}, account: ""};
 let chData = null, chDevices = null, chInited = false, chBusy = false, chPoll = null;
 const _chEsc = _eapEsc;
 const _chLabel = code => code ? ((chData && chData.labels && chData.labels[code]) ? `${chData.labels[code]} (${code})` : code) : "";
@@ -4569,8 +4662,8 @@ function chInit() {
   chReadHash();
   document.getElementById("ch-months").value = String(chState.months);
   document.getElementById("ch-months").onchange = e => { chState.months = parseInt(e.target.value, 10); chLoad(); };
-  document.getElementById("ch-console").onchange = e => { chState.console = e.target.value; chLoad(); };
-  document.getElementById("ch-dest").onchange = e => { chState.dest = e.target.value; chLoad(); };
+  msInit("ch-console", {onChange: v => { chState.console = v; chLoad(); }});
+  msInit("ch-dest", {onChange: v => { chState.dest = v; chLoad(); }});
   document.getElementById("ch-q").oninput = e => { chState.q = e.target.value; chRender(); };
   document.querySelectorAll("#ch-gran .result-tab").forEach(b => b.onclick = () => { chState.gran = b.dataset.gran; chLoad(); });
   document.querySelectorAll("#ch-stack .result-tab").forEach(b => b.onclick = () => { chState.stack = b.dataset.stack; chRender(); });
@@ -4593,8 +4686,8 @@ function chReadHash() {
   const qs = new URLSearchParams(_deepQs); _deepQs = "";
   if (qs.get("months")) chState.months = parseInt(qs.get("months"), 10) || 12;
   if (qs.get("granularity")) chState.gran = qs.get("granularity");
-  if (qs.has("console")) chState.console = qs.get("console");
-  if (qs.has("destination")) chState.dest = qs.get("destination");
+  if (qs.has("console")) chState.console = qs.get("console").split(",").filter(Boolean);
+  if (qs.has("destination")) chState.dest = qs.get("destination").split(",").filter(Boolean);
   if (qs.get("indicators")) chState.inds = qs.get("indicators").split(",");
   if (qs.get("view")) chState.view = qs.get("view");
   if (qs.get("stack")) chState.stack = qs.get("stack");
@@ -4602,13 +4695,13 @@ function chReadHash() {
 }
 function chQuery() {
   const qs = new URLSearchParams(); qs.set("months", chState.months); qs.set("granularity", chState.gran);
-  if (chState.console) qs.set("consoles", chState.console);
-  if (chState.dest) qs.set("destination", chState.dest);
+  if (chState.console.length) qs.set("consoles", chState.console.join(","));
+  if (chState.dest.length) qs.set("destination", chState.dest.join(","));
   if (chState.inds && chState.inds.length) qs.set("indicators", chState.inds.join(","));
   return qs;
 }
 function chSyncHash() {
-  const qs = chQuery(); qs.delete("consoles"); if (chState.console) qs.set("console", chState.console);
+  const qs = chQuery(); qs.delete("consoles"); if (chState.console.length) qs.set("console", chState.console.join(","));
   qs.set("view", chState.view); qs.set("stack", chState.stack);
   if (chState.account) qs.set("account", chState.account);
   try { history.replaceState(null, "", "#churn?" + qs.toString()); } catch (e) {}
@@ -4635,9 +4728,9 @@ async function chLoad() {
   finally { chBusy = false; }
 }
 function chFillControls() {
-  _eapFill("ch-console", chData.consoles, _chLabel);
-  document.getElementById("ch-console").value = chState.console;
-  document.getElementById("ch-dest").value = chState.dest;
+  msSetOptions("ch-console", chData.consoles.map(c => ({value: c, label: _chLabel(c)})));
+  msSetValue("ch-console", chState.console, true);
+  msSetValue("ch-dest", chState.dest, true);
   document.querySelectorAll("#ch-gran .result-tab").forEach(b => b.classList.toggle("active", b.dataset.gran === chState.gran));
   const all = chData.all_indicators.filter(i => i.enabled);
   if (!chState.inds) chState.inds = all.map(i => i.key);
@@ -4658,7 +4751,7 @@ function chHealth() {
   return (chData.health || []).map(h => {
     const txt = CH_HEALTH[h.state] ?? h.state;
     const tip = `${_chLabel(h.console)}: ${h.message || txt || "ok"}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.last_event ? ` · last event ${h.last_event}` : ""}`;
-    return `<span class="us-chip ${h.state} ${chState.console === h.console ? "sel" : ""}" title="${_chEsc(tip)}" data-console="${_chEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_chEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? (h.last_event ? h.last_event.slice(0, 10) : "no events") : txt}</span></span>`;
+    return `<span class="us-chip ${h.state} ${chState.console.includes(h.console) ? "sel" : ""}" title="${_chEsc(tip)}" data-console="${_chEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_chEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? (h.last_event ? h.last_event.slice(0, 10) : "no events") : txt}</span></span>`;
   }).join("");
 }
 function chTiles() {
@@ -4727,12 +4820,12 @@ function chRender() {
   if (!chData) return;
   chSyncHash();
   document.getElementById("ch-health").innerHTML = chHealth();
-  document.querySelectorAll("#ch-health .us-chip").forEach(el => el.onclick = () => { chState.console = chState.console === el.dataset.console ? "" : el.dataset.console; document.getElementById("ch-console").value = chState.console; chLoad(); });
+  document.querySelectorAll("#ch-health .us-chip").forEach(el => el.onclick = () => { const c = el.dataset.console; chState.console = chState.console.includes(c) ? chState.console.filter(x => x !== c) : [...chState.console, c]; msSetValue("ch-console", chState.console, true); chLoad(); });
   document.getElementById("ch-tiles").innerHTML = chTiles();
   const segs = chSegments();
   document.querySelectorAll("#ch-stack .result-tab").forEach(b => b.classList.toggle("active", b.dataset.stack === chState.stack));
   document.getElementById("ch-chart-title").textContent = `Devices churned per ${chState.gran}`;
-  document.getElementById("ch-chart-sub").textContent = `${chData.start} to ${chData.end} · ${chState.stack === "destination" ? "moves only, split by where the agents went" : "split by indicator"}${chState.console ? ` · ${_chLabel(chState.console)}` : " · all consoles"}`;
+  document.getElementById("ch-chart-sub").textContent = `${chData.start} to ${chData.end} · ${chState.stack === "destination" ? "moves only, split by where the agents went" : "split by indicator"}${chState.console.length ? ` · ${chState.console.map(_chLabel).join(", ")}` : " · all consoles"}`;
   document.getElementById("ch-chart").innerHTML = chChart(chData.trend, segs);
   document.getElementById("ch-legend").innerHTML = segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("") + (chState.stack === "destination" && !segs.length ? '<span class="eap-muted">No moves to another console in this range.</span>' : "");
   document.querySelectorAll("#ch-view .result-tab").forEach(b => b.classList.toggle("active", b.dataset.view === chState.view));
@@ -4822,7 +4915,7 @@ async function chSync() {
   const btn = document.getElementById("ch-sync"); btn.disabled = true;
   document.getElementById("ch-err").textContent = "";
   try {
-    const res = await fetch("/api/churn/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({consoles: chState.console ? [chState.console] : null})});
+    const res = await fetch("/api/churn/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({consoles: chState.console.length ? chState.console : null})});
     const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     document.getElementById("ch-synced").textContent = "Syncing…";
     chStartPoll();

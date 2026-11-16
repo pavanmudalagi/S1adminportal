@@ -180,6 +180,8 @@ def test_summary_filters_and_granularity(store, cfg):
     assert only_moves["totals"]["devices"] == 3 and all(a["by_indicator"].keys() == {"move_commanded"} for a in only_moves["accounts"])
     ext = svc.summary(store, "2026-08", "2026-11", dest_kind="other", cfg=cfg)
     assert ext["totals"]["devices"] == 1 and ext["accounts"][0]["account_id"] == "100"
+    both = svc.summary(store, "2026-08", "2026-11", dest_kind=["other", "sentinelone"], cfg=cfg)
+    assert both["totals"]["devices"] == 2 and both["totals"]["accounts"] == 2
     none = svc.summary(store, "2026-08", "2026-11", consoles=["USEA1"], cfg=cfg)
     assert none["totals"]["devices"] == 0 and none["accounts"] == []
 
@@ -275,3 +277,5 @@ def test_routes_destination_edit(api):
     assert api.patch("/api/churn/destinations/nope.example", json={"label": "x"}).status_code == 404
     s = api.get("/api/churn/summary?start=2026-08&end=2026-11&destination=competitor").json
     assert s["totals"]["devices"] == 1 and s["destinations"][0]["label"] == "Rival EDR" and s["destinations"][0]["edited"]
+    multi = api.get("/api/churn/summary?start=2026-08&end=2026-11&destination=competitor,internal").json
+    assert multi["totals"]["devices"] == 2 and {d["kind"] for d in multi["destinations"]} == {"competitor", "internal"}

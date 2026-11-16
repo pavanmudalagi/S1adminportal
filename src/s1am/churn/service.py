@@ -255,8 +255,9 @@ class Store:
             sql += " AND console=? AND account_id=?"; args += [account[0], account[1]]
         rows = self._q(sql + " ORDER BY created_at", args)
         if dest_kind:
+            kinds = {dest_kind} if isinstance(dest_kind, str) else set(dest_kind)
             dests = self.destinations()
-            rows = [r for r in rows if r["destination_host"] and (dests.get(r["destination_host"]) or {}).get("kind") == dest_kind]
+            rows = [r for r in rows if r["destination_host"] and (dests.get(r["destination_host"]) or {}).get("kind") in kinds]
         return rows
 
     # accounts

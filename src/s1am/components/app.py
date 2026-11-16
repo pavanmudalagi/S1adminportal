@@ -2653,7 +2653,7 @@ def _churn_args():
         raise ValueError("granularity must be month, quarter or year")
     consoles = [c for c in (request.args.get("consoles") or "").split(",") if c] or None
     indicators = [k for k in (request.args.get("indicators") or "").split(",") if k] or None
-    dest_kind = request.args.get("destination") or None
+    dest_kind = [k for k in (request.args.get("destination") or "").split(",") if k] or None
     return svc, store, cfg, start, end, gran, consoles, indicators, dest_kind
 
 
