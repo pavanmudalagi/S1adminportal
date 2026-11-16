@@ -1,0 +1,22 @@
+{
+  "_comment": "Platform-churn indicators read from the SentinelOne activity log (GET /activities, activityTypes). 'destination' names the data field that carries the target console URL for migration events. Disabled indicators are kept in the sync so they can be turned on later without a backfill.",
+  "indicators": [
+    {"type": 97,  "key": "move_commanded", "label": "Move to another console commanded", "short": "Move cmd", "kind": "migration",   "enabled": true,  "destination": "consoleUrl",
+     "note": "A management user commanded the agent to move to another console. The target URL is the competitor indicator."},
+    {"type": 99,  "key": "move_completed", "label": "Moved to another console",          "short": "Moved",    "kind": "migration",   "enabled": true,  "destination": "targetUrl",
+     "note": "The agent reported that it successfully moved to the target console."},
+    {"type": 51,  "key": "uninstalled",    "label": "Agent uninstalled",                 "short": "Uninstall","kind": "uninstall",   "enabled": true,  "destination": null,
+     "note": "The agent was uninstalled from the device. SentinelOne cannot see what replaced it."},
+    {"type": 50,  "key": "uninstall_cmd",  "label": "Uninstall command issued",          "short": "Uninst cmd","kind": "uninstall",  "enabled": false, "destination": null,
+     "note": "A management user issued an uninstall command."},
+    {"type": 54,  "key": "decommissioned", "label": "Agent decommissioned by user",      "short": "Decom",    "kind": "decommission","enabled": false, "destination": null,
+     "note": "A management user decommissioned the agent."},
+    {"type": 47,  "key": "auto_decom",     "label": "Agent auto-decommissioned",         "short": "Auto decom","kind": "decommission","enabled": false, "destination": null,
+     "note": "Offline longer than the auto-decommission period."}
+  ],
+  "destinations": [
+    {"pattern": "*-nabl*.sentinelone.net", "label": "N-able console (internal move)", "kind": "internal"},
+    {"pattern": "*.sentinelone.net",       "label": "Other SentinelOne console",        "kind": "sentinelone"},
+    {"pattern": "*",                       "label": "Unknown destination",              "kind": "other"}
+  ]
+}

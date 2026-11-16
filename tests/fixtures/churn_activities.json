@@ -1,0 +1,36 @@
+{
+  "_comment": "Shapes copied from GET /activities on the Staging console (2026-11-16), names and IDs replaced. Types: 97 move commanded (data.consoleUrl), 99 moved (data.targetUrl), 51 uninstalled, 54 user decommissioned (disabled by default).",
+  "activities": [
+    {"id": "9001", "activityType": 51, "createdAt": "2026-08-03T10:00:00.000000Z", "accountId": "100", "accountName": "Acme MSP", "siteId": "1001", "siteName": "HQ", "groupId": "10001", "groupName": "Default Group", "agentId": "5001", "userId": null,
+     "primaryDescription": "The machine ACME-PC-1 (OS Family: windows, Type: desktop, Cloud Provider:N/A) with IP address 1.2.3.4 was uninstalled.",
+     "data": {"accountName": "Acme MSP", "computerName": "ACME-PC-1", "externalIp": "1.2.3.4", "groupName": "Default Group", "machineType": "desktop", "osType": "windows", "scopeLevel": "Group", "siteName": "HQ", "sourceType": "API"}},
+    {"id": "9002", "activityType": 51, "createdAt": "2026-08-03T10:05:00.000000Z", "accountId": "100", "accountName": "Acme MSP", "siteId": "1001", "siteName": "HQ", "groupId": "10001", "groupName": "Default Group", "agentId": "5002", "userId": null,
+     "primaryDescription": "The machine ACME-PC-2 (OS Family: windows, Type: laptop, Cloud Provider:N/A) with IP address 1.2.3.5 was uninstalled.",
+     "data": {"accountName": "Acme MSP", "computerName": "ACME-PC-2", "externalIp": "1.2.3.5", "groupName": "Default Group", "machineType": "laptop", "osType": "windows", "scopeLevel": "Group", "siteName": "HQ", "sourceType": "API"}},
+    {"id": "9003", "activityType": 97, "createdAt": "2026-09-10T08:00:00.000000Z", "accountId": "200", "accountName": "Beta Networks", "siteId": "2001", "siteName": "Main", "groupId": "20001", "groupName": "Default Group", "agentId": "6001", "userId": "77",
+     "primaryDescription": "The management user joe@beta.example (joe@beta.example) commanded the agent BETA-SRV-1 to move to the console at https://euce1-100.sentinelone.net",
+     "data": {"accountName": "Beta Networks", "computerName": "BETA-SRV-1", "consoleUrl": "https://euce1-100.sentinelone.net", "groupName": "Default Group", "groupType": "Manual", "scopeLevel": "Group", "siteName": "Main", "sourceType": "API", "username": "joe@beta.example (joe@beta.example)", "uuid": "aaaa-1"}},
+    {"id": "9004", "activityType": 97, "createdAt": "2026-09-10T08:30:00.000000Z", "accountId": "200", "accountName": "Beta Networks", "siteId": "2001", "siteName": "Main", "groupId": "20001", "groupName": "Default Group", "agentId": "6001", "userId": "77",
+     "primaryDescription": "The management user joe@beta.example (joe@beta.example) commanded the agent BETA-SRV-1 to move to the console at https://euce1-100.sentinelone.net",
+     "data": {"accountName": "Beta Networks", "computerName": "BETA-SRV-1", "consoleUrl": "https://euce1-100.sentinelone.net", "groupName": "Default Group", "groupType": "Manual", "scopeLevel": "Group", "siteName": "Main", "sourceType": "API", "username": "joe@beta.example (joe@beta.example)", "uuid": "aaaa-1"}},
+    {"id": "9005", "activityType": 99, "createdAt": "2026-09-10T09:00:00.000000Z", "accountId": "200", "accountName": "Beta Networks", "siteId": "2001", "siteName": "Main", "groupId": "20001", "groupName": "Default Group", "agentId": "6001", "userId": null,
+     "primaryDescription": "The agent BETA-SRV-1 successfully moved to the console at https://euce1-100.sentinelone.net",
+     "data": {"accountName": "Beta Networks", "computerName": "BETA-SRV-1", "targetUrl": "https://euce1-100.sentinelone.net", "groupName": "Default Group", "scopeLevel": "Group", "siteName": "Main", "sourceType": "API", "uuid": "aaaa-1"}},
+    {"id": "9006", "activityType": 97, "createdAt": "2026-10-01T12:00:00.000000Z", "accountId": "200", "accountName": "Beta Networks", "siteId": "2002", "siteName": "Branch", "groupId": "20002", "groupName": "Default Group", "agentId": "6002", "userId": "77",
+     "primaryDescription": "The management user joe@beta.example (joe@beta.example) commanded the agent BETA-PC-9 to move to the console at https://usea1-nabl-staging.sentinelone.net",
+     "data": {"accountName": "Beta Networks", "computerName": "BETA-PC-9", "consoleUrl": "https://usea1-nabl-staging.sentinelone.net", "groupName": "Default Group", "groupType": "Manual", "scopeLevel": "Group", "siteName": "Branch", "sourceType": "API", "username": "joe@beta.example (joe@beta.example)", "uuid": "aaaa-2"}},
+    {"id": "9007", "activityType": 51, "createdAt": "2026-10-15T15:00:00.000000Z", "accountId": "300", "accountName": "Gamma IT", "siteId": "3001", "siteName": "Gamma", "groupId": "30001", "groupName": "Default Group", "agentId": "7001", "userId": null,
+     "primaryDescription": "The machine GAMMA-1 (OS Family: macos, Type: laptop, Cloud Provider:N/A) with IP address 9.9.9.9 was uninstalled.",
+     "data": {"accountName": "Gamma IT", "computerName": "GAMMA-1", "externalIp": "9.9.9.9", "groupName": "Default Group", "machineType": "laptop", "osType": "macos", "scopeLevel": "Group", "siteName": "Gamma", "sourceType": "API"}},
+    {"id": "9008", "activityType": 54, "createdAt": "2026-10-16T15:00:00.000000Z", "accountId": "300", "accountName": "Gamma IT", "siteId": "3001", "siteName": "Gamma", "groupId": "30001", "groupName": "Default Group", "agentId": "7002", "userId": "78",
+     "primaryDescription": "The management user ann@gamma.example has decommissioned Agent GAMMA-2.",
+     "data": {"accountName": "Gamma IT", "computerName": "GAMMA-2", "groupName": "Default Group", "scopeLevel": "Group", "siteName": "Gamma", "sourceType": "API", "username": "ann@gamma.example"}},
+    {"id": "9009", "activityType": 97, "createdAt": "2026-11-02T07:00:00.000000Z", "accountId": "100", "accountName": "Acme MSP", "siteId": "1001", "siteName": "HQ", "groupId": "10001", "groupName": "Default Group", "agentId": "5003", "userId": "79",
+     "primaryDescription": "The management user bob@acme.example (bob@acme.example) commanded the agent ACME-PC-3 to move to the console at https://console.rival-edr.example.com",
+     "data": {"accountName": "Acme MSP", "computerName": "ACME-PC-3", "consoleUrl": "https://console.rival-edr.example.com", "groupName": "Default Group", "groupType": "Manual", "scopeLevel": "Group", "siteName": "HQ", "sourceType": "API", "username": "bob@acme.example (bob@acme.example)", "uuid": "aaaa-3"}}
+  ],
+  "accounts": [
+    {"id": "100", "name": "Acme MSP", "salesforceId": "0015000000ACME1AAA", "externalId": "ext-acme", "state": "active"},
+    {"id": "200", "name": "Beta Networks", "salesforceId": "0015000000BETA1AAA", "externalId": "ext-beta", "state": "active"}
+  ]
+}
