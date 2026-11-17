@@ -1388,6 +1388,29 @@ def eap_requests():
     return jsonify({"rows": st.list(), "meta": meta})
 
 
+@app.route("/api/eap/requests", methods=["POST"])
+def eap_request_create():
+    """Add a request by hand (no Forms response). Optionally runs the Salesforce match for it right away."""
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        row = svc.create_manual(st, body)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    enrich_error = None
+    if body.get("enrich"):
+        try:
+            from s1am.salesforce import client as sf_client
+            if sf_client.is_connected():
+                svc.enrich_all(st, ids=[row["id"]])
+                row = st.get(row["id"])
+            else:
+                enrich_error = "Salesforce not signed in — use Enrich Salesforce later"
+        except Exception as exc:
+            enrich_error = str(exc).split(". Response content")[0][:300]
+    return jsonify({"row": row, "enrich_error": enrich_error}), 201
+
+
 @app.route("/api/eap/request/<int:rid>", methods=["GET"])
 def eap_request(rid):
     _, st = _eap()

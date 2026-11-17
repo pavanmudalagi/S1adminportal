@@ -777,6 +777,7 @@
             <div class="card-desc">Form responses → Salesforce account &amp; contract tenant → SentinelOne console check (Prompt enabled? tenant name, first users).</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button class="btn" id="eap-add-btn" title="Add a request that did not come through the form (email, call, partner ask)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add request</button>
             <button class="btn" id="eap-sync-btn" title="Re-read the Forms workbook"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Sync Excel</button>
             <button class="btn" id="eap-enrich-btn" title="Match every request in Salesforce (batched queries)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Enrich Salesforce</button>
             <button class="btn btn-primary" id="eap-check-btn" title="GET each account on its console (read-only)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Check Consoles</button>
@@ -1071,6 +1072,38 @@
 </div>
 
 <!-- ── Account Editor Modal ── -->
+<div id="eapadd-backdrop" class="ae-backdrop hidden">
+  <div class="ae-modal" role="dialog" aria-modal="true" aria-labelledby="eapadd-title" style="width:720px">
+    <div class="ae-hdr">
+      <div class="ae-hdr-left">
+        <div class="ae-hdr-title" id="eapadd-title">Add EAP request</div>
+        <div class="ae-hdr-sub">For a customer who did not fill in the form. The row then goes through the same Salesforce match, console check and provisioning as a form response.</div>
+      </div>
+      <button class="ae-close" id="eapadd-close" aria-label="Close">×</button>
+    </div>
+    <div class="ae-body" style="padding:18px 24px">
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        <div class="form-group"><label for="eapadd-company">Company *</label><input type="text" id="eapadd-company" placeholder="Customer company name"></div>
+        <div class="form-group"><label for="eapadd-contact-name">Contact name</label><input type="text" id="eapadd-contact-name"></div>
+        <div class="form-group"><label for="eapadd-contact-email">Contact email</label><input type="text" id="eapadd-contact-email" placeholder="name@customer.com"></div>
+        <div class="form-group"><label for="eapadd-admin-name">Super admin name <span class="eap-muted">(defaults to contact)</span></label><input type="text" id="eapadd-admin-name"></div>
+        <div class="form-group"><label for="eapadd-admin-email">Super admin email <span class="eap-muted">(defaults to contact)</span></label><input type="text" id="eapadd-admin-email"></div>
+        <div class="form-group"><label>Products requested</label><div id="eapadd-products" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding-top:4px"></div></div>
+        <div class="form-group full-width"><label for="eapadd-details">Console / account details <span class="eap-muted">(free text, parsed like the form: console host, account ID, 1000_ tenant, GUID)</span></label><textarea id="eapadd-details" rows="2" placeholder="e.g. usea1-swprd3.sentinelone.net account 1766364440169716099"></textarea></div>
+        <div class="form-group"><label for="eapadd-tenant">Salesforce tenant <span class="eap-muted">(optional, confirms it)</span></label><input type="text" id="eapadd-tenant" placeholder="1000_USEA3_1766364440169716099"></div>
+        <div class="form-group"><label for="eapadd-console">Console target <span class="eap-muted">(optional)</span></label><div style="display:flex;gap:6px"><select id="eapadd-console" style="flex:0 0 140px"><option value="">console…</option></select><input type="text" id="eapadd-account" placeholder="Account ID"></div></div>
+        <div class="form-group full-width"><label for="eapadd-notes">Notes</label><textarea id="eapadd-notes" rows="2" placeholder="Where the request came from, who asked, anything the team should know"></textarea></div>
+        <div class="form-group full-width"><label class="checkbox-row" style="margin:0"><input type="checkbox" id="eapadd-enrich" checked> Match in Salesforce right away (when signed in)</label></div>
+      </div>
+    </div>
+    <div class="ae-footer">
+      <div class="ae-save-err" id="eapadd-err"></div>
+      <button class="btn" id="eapadd-cancel">Cancel</button>
+      <div class="spinner" id="eapadd-spinner" style="display:none;"></div>
+      <button class="btn btn-primary" id="eapadd-save">Add request</button>
+    </div>
+  </div>
+</div>
 <div id="ae-backdrop" class="ae-backdrop hidden">
   <div class="ae-modal" role="dialog" aria-modal="true" aria-labelledby="ae-title">
     <div class="ae-hdr">
@@ -3536,6 +3569,7 @@ function _eapTenantBadge(r) {
 function eapInit() {
   if (_eapInited) return;
   _eapInited = true;
+  document.getElementById("eap-add-btn").onclick    = eapAddOpen;
   document.getElementById("eap-sync-btn").onclick   = eapSync;
   document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
   document.getElementById("eap-check-btn").onclick  = () => eapCheck();
@@ -3607,6 +3641,44 @@ function _eapFill(selId, values, fmt = v => v) {
     const o = document.createElement("option"); o.value = v; o.textContent = fmt(v); sel.appendChild(o);
   });
   sel.value = [...sel.options].some(o => o.value === cur) ? cur : "";
+}
+// ── add a request by hand ──
+const EAP_PRODUCT_CHOICES = ["Prompt Security", "Identity Security", "Hyperautomation", "Wayfinder MDR Essentials"];
+function eapAddOpen() {
+  const bd = document.getElementById("eapadd-backdrop");
+  ["company", "contact-name", "contact-email", "admin-name", "admin-email", "details", "tenant", "account", "notes"].forEach(k => document.getElementById("eapadd-" + k).value = "");
+  document.getElementById("eapadd-err").textContent = "";
+  document.getElementById("eapadd-products").innerHTML = EAP_PRODUCT_CHOICES.map(p => `<label class="checkbox-row" style="margin:0;min-height:26px"><input type="checkbox" value="${_eapEsc(p)}" ${p === "Prompt Security" ? "checked" : ""}> ${_eapEsc(p)}</label>`).join("");
+  const sel = document.getElementById("eapadd-console");
+  sel.innerHTML = '<option value="">console…</option>' + (eapMeta.consoles || []).map(c => `<option value="${_eapEsc(c)}">${_eapEsc(_eapLabel(c))}</option>`).join("");
+  bd.classList.remove("hidden");
+  document.getElementById("eapadd-company").focus();
+  const close = () => bd.classList.add("hidden");
+  document.getElementById("eapadd-close").onclick = close;
+  document.getElementById("eapadd-cancel").onclick = close;
+  bd.onclick = e => { if (e.target === bd) close(); };
+  document.getElementById("eapadd-save").onclick = eapAddSubmit;
+}
+async function eapAddSubmit() {
+  const v = k => document.getElementById("eapadd-" + k).value.trim();
+  const body = {company: v("company"), contact_name: v("contact-name"), contact_email: v("contact-email"), super_admin_name: v("admin-name"), super_admin_email: v("admin-email"),
+    products: [...document.querySelectorAll("#eapadd-products input:checked")].map(i => i.value), details_raw: v("details"), sf_tenant: v("tenant"),
+    chosen_console: v("console"), chosen_account_id: v("account"), notes: v("notes"), enrich: document.getElementById("eapadd-enrich").checked};
+  if (!body.company) { document.getElementById("eapadd-err").textContent = "Company is required"; return; }
+  if (body.chosen_console && !body.chosen_account_id) { document.getElementById("eapadd-err").textContent = "Give the account ID for the chosen console, or clear the console"; return; }
+  const btn = document.getElementById("eapadd-save"), sp = document.getElementById("eapadd-spinner");
+  btn.disabled = true; sp.style.display = ""; document.getElementById("eapadd-err").textContent = "";
+  try {
+    const res = await fetch("/api/eap/requests", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    document.getElementById("eapadd-backdrop").classList.add("hidden");
+    await eapLoad();
+    eapOpen(data.row.id);
+    const note = document.getElementById("eap-notice");
+    if (note) { note.innerHTML = `<span class="badge-ok">Added</span> #${data.row.id} ${_eapEsc(data.row.company)} by hand${data.enrich_error ? ` · <span class="badge-partial">${_eapEsc(data.enrich_error)}</span>` : (body.enrich ? " · matched in Salesforce" : "")}`; note.classList.remove("hidden"); }
+  } catch (e) { document.getElementById("eapadd-err").textContent = e.message; }
+  finally { btn.disabled = false; sp.style.display = "none"; }
 }
 function eapFillFilters() {
   const statusOpts = msOptionsFrom(eapRows.map(r => r.status || "new"), k => (EAP_STATUS[k] || [k])[0]);
@@ -3686,8 +3758,8 @@ function eapRender() {
                  r.joe_ref ? `<a href="${_eapEsc(r.joe_ref)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">SF link</a>` : ""]
       .filter(Boolean).join("<br>");
     return `<tr data-id="${r.id}">
-      <td class="col-num">${r.id}</td>
-      <td>${_eapEsc(r.company)}<span class="eap-sub">${_eapEsc(r.completion_time || "")}</span></td>
+      <td class="col-num">${r.origin === "manual" ? `<span class="badge-partial" title="Added by hand (not a form response) · id ${r.id}">manual</span>` : r.id}</td>
+      <td>${_eapEsc(r.company)}<span class="eap-sub">${_eapEsc(r.completion_time || "")}${r.origin === "manual" ? " · added by hand" : ""}</span></td>
       <td>${_eapEsc(r.contact_name)}<span class="eap-sub">${_eapEsc(r.contact_email)}</span></td>
       <td>${_eapEsc(r.super_admin_name || "")}<span class="eap-sub">${_eapEsc(r.super_admin_email || (r.super_admin_needs_review ? "⚠ no email" : ""))}</span></td>
       <td class="eap-wrap">${(r.products || []).map(_eapEsc).join("<br>")}</td>
@@ -3852,8 +3924,8 @@ async function eapOpen(id) {
     || '<span class="eap-muted">No history yet.</span>';
   const asOf = (label, ts) => ts ? ` <span style="text-transform:none;letter-spacing:0">· ${label} ${_eapEsc(ts)}</span>` : "";
   document.getElementById("eap-d-body").innerHTML = `
-    <div class="eap-sec"><h4>Form response</h4>${_eapKV([
-      ["Submitted", _eapEsc(r.completion_time)],
+    <div class="eap-sec"><h4>${r.origin === "manual" ? "Request details · added by hand" : "Form response"}</h4>${_eapKV([
+      [r.origin === "manual" ? "Added" : "Submitted", _eapEsc(r.completion_time) + (r.origin === "manual" && r.responder_email ? ` <span class="eap-muted">by ${_eapEsc(r.responder_email)}</span>` : "")],
       ["Contact", `${_eapEsc(r.contact_name)} &lt;${_eapEsc(r.contact_email)}&gt;`],
       ["Super Admin", `${_eapEsc(r.super_admin_name || "")} ${r.super_admin_email ? "&lt;" + _eapEsc(r.super_admin_email) + "&gt;" : '<span class="badge-partial">no email</span>'}` +
                       `<span class="eap-sub">${_eapEsc(r.super_admin_note || "")}${r.super_admin_raw ? " · as written: “" + _eapEsc(r.super_admin_raw) + "”" : ""}</span>`],

@@ -13,6 +13,7 @@ Settings — an environment variable S1AM_EAP_<KEY> wins over the [eap] section 
 """
 import datetime
 import json
+import re
 import os
 from pathlib import Path
 
@@ -136,6 +137,73 @@ def sync(st, path=None):
     st.set_meta("last_sync_result", json.dumps({"at": _now(), "new": result["new"], "updated": result["updated"],
                                                 "unchanged": result["unchanged"], "rows": result["rows"]}))
     return result
+
+
+PRODUCT_CHOICES = ["Prompt Security", "Identity Security", "Hyperautomation", "Wayfinder MDR Essentials"]
+
+
+def create_manual(st, data, who=None):
+    """Add a request that did not come through the Forms workbook (email, call, partner ask).
+
+    Same shape as a synced row so enrichment, console check, provisioning and export treat it alike;
+    the id is allocated above MANUAL_ID_BASE and origin="manual" so a later sync never touches it."""
+    company = (data.get("company") or "").strip()
+    if not company:
+        raise ValueError("Company is required")
+    email = (data.get("contact_email") or "").strip()
+    if email and not forms.EMAIL_RE.fullmatch(email):
+        raise ValueError("Contact email does not look like an email address")
+    admin_email = (data.get("super_admin_email") or "").strip() or email
+    if admin_email and not forms.EMAIL_RE.fullmatch(admin_email):
+        raise ValueError("Super admin email does not look like an email address")
+    products = [p for p in (data.get("products") or ["Prompt Security"]) if p in PRODUCT_CHOICES]
+    if not products:
+        raise ValueError("Pick at least one product")
+    details_raw = (data.get("details_raw") or "").strip()
+    details = forms.parse_details(details_raw)
+    who = who or actor()
+    now = _now()
+    rec = {
+        "id": st.next_manual_id(), "start_time": now, "completion_time": now, "last_modified": now,
+        "responder_email": who, "contact_name": (data.get("contact_name") or "").strip() or None, "company": company,
+        "contact_email": email or None, "super_admin_raw": None,
+        "super_admin_name": (data.get("super_admin_name") or "").strip() or (data.get("contact_name") or "").strip() or None,
+        "super_admin_email": admin_email or None, "super_admin_source": "manual",
+        "super_admin_needs_review": int(not admin_email), "super_admin_note": "entered by hand" if admin_email else "no super admin email given",
+        "products_raw": "; ".join(products), "products": products, "wants_prompt": int("Prompt Security" in products),
+        "details_raw": details_raw or None, "details": details, "no_s1_claimed": int(details["no_s1_claimed"]),
+    }
+    st.upsert_form_row(rec)
+    rid = rec["id"]
+    defaults = {"origin": "manual", "prompt_tenant_name": forms.suggest_tenant_name(company)}
+    if admin_email:
+        defaults["first_users"] = [{"name": rec["super_admin_name"] or "", "email": admin_email}] + [
+            {"name": a["promptUserName"], "email": a["promptUserEmail"]}
+            for a in account_fields.PROMPT_STANDARD_ADMINS if a["promptUserEmail"].lower() != admin_email.lower()]
+    st.update(rid, defaults)
+    user_fields = {}
+    if (data.get("notes") or "").strip():
+        user_fields["notes"] = data["notes"].strip()
+    tenant = (data.get("sf_tenant") or "").strip().upper()
+    if tenant:
+        if not re.fullmatch(r"1000_[A-Z0-9]+_\d+", tenant):
+            raise ValueError("Salesforce tenant must look like 1000_CODE_accountId")
+        user_fields.update(sf_tenant=tenant, tenant_confirmed=1)
+    console = (data.get("chosen_console") or "").strip()
+    if console:
+        if console not in profiles():
+            raise ValueError(f"Unknown console code {console}")
+        acct = (data.get("chosen_account_id") or "").strip()
+        if not acct.isdigit():
+            raise ValueError("Console account ID must be numeric")
+        user_fields.update(chosen_console=console, chosen_account_id=acct)
+    if user_fields:
+        st.update(rid, user_fields, source="user")
+        if tenant:
+            st.update(rid, {"tenant_confirmed_at": now, "tenant_confirmed_by": who})
+    _restatus(st, rid)
+    st.add_history(rid, "manual", f"Added by hand by {who}" + (f" — tenant {tenant}" if tenant else "") + (f" — console {console}" if console else ""))
+    return st.get(rid)
 
 
 def last_sync_result(st):

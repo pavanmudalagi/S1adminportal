@@ -41,7 +41,9 @@ COLUMNS = [
     ("chosen_console", "TEXT"), ("chosen_account_id", "TEXT"), ("bundle_counts", "TEXT"),
     ("tenant_confirmed", "INTEGER"), ("tenant_confirmed_at", "TEXT"), ("tenant_confirmed_by", "TEXT"),
     ("edited_fields", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
+    ("origin", "TEXT"),  # "form" (default, from the workbook) or "manual" (added in the UI / CLI)
 ]
+MANUAL_ID_BASE = 100000  # manual requests live far above the Forms response ids, so a sync can never collide
 JSON_COLUMNS = {"products", "details", "sf_tenants", "s1_skus", "s1_prompt_bundles", "s1_prompt_users",
                 "first_users", "bundle_counts", "edited_fields"}
 
@@ -179,6 +181,11 @@ class Store:
             return "unchanged"
         self.update(rec["id"], changed, source="sync")
         return "updated"
+
+    def next_manual_id(self):
+        with self._conn() as c:
+            row = c.execute("SELECT MAX(id) FROM requests WHERE id >= ?", (MANUAL_ID_BASE,)).fetchone()
+        return (row[0] or MANUAL_ID_BASE) + 1
 
     def update(self, request_id, fields, source="system"):
         """Write fields. source="user" marks them as edited (protected); any other source

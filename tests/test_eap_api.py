@@ -163,3 +163,58 @@ def test_requests_meta_carries_the_sf_instance_url(api, monkeypatch):
     from s1am.salesforce import auth
     monkeypatch.setattr(auth, "load_token", lambda: {"access_token": "x", "instance_url": "https://acme.my.salesforce.com", "id": ""})
     assert client.get("/api/eap/requests").json["meta"]["sf"]["instance_url"] == "https://acme.my.salesforce.com"
+
+
+def test_manual_request_is_created_above_the_forms_id_range(api, monkeypatch):
+    client, st = api
+    from s1am.eap import service, store as store_mod
+    monkeypatch.setattr(service, "profiles", lambda: {"USEA3": "https://u3"})
+    monkeypatch.setattr(service, "actor", lambda: "pavan")
+    r = client.post("/api/eap/requests", json={"company": "Zeta Ltd", "contact_name": "Zed", "contact_email": "zed@zeta.io",
+                                              "products": ["Prompt Security", "Identity Security"],
+                                              "details_raw": "usea1-swprd3.sentinelone.net account 123456789012345678",
+                                              "sf_tenant": "1000_usea3_123456789012345678", "notes": "asked by email"})
+    assert r.status_code == 201, r.json
+    row = r.json["row"]
+    assert row["id"] == store_mod.MANUAL_ID_BASE + 1 and row["origin"] == "manual" and row["wants_prompt"] == 1
+    assert row["super_admin_email"] == "zed@zeta.io" and row["super_admin_source"] == "manual"
+    assert row["details"]["hosts"] == ["usea1-swprd3.sentinelone.net"] and row["details"]["account_ids"] == ["123456789012345678"]
+    assert row["sf_tenant"] == "1000_USEA3_123456789012345678" and row["tenant_confirmed"] == 1 and row["tenant_confirmed_by"] == "pavan"
+    assert row["prompt_tenant_name"] and row["first_users"][0]["email"] == "zed@zeta.io" and row["notes"] == "asked by email"
+    assert row["status"] == "needs_review" and "Salesforce" in row["status_reason"]  # until Enrich Salesforce runs
+    hist = client.get(f"/api/eap/request/{row['id']}").json["history"]
+    assert hist[0]["kind"] == "manual" and "pavan" in hist[0]["message"]
+    # Second one gets the next id; the listing shows both the synced row and the manual ones.
+    r2 = client.post("/api/eap/requests", json={"company": "Eta", "chosen_console": "USEA3", "chosen_account_id": "42"})
+    assert r2.json["row"]["id"] == store_mod.MANUAL_ID_BASE + 2 and r2.json["row"]["chosen_console"] == "USEA3"
+    assert sorted(x["id"] for x in client.get("/api/eap/requests").json["rows"]) == [3, store_mod.MANUAL_ID_BASE + 1, store_mod.MANUAL_ID_BASE + 2]
+
+
+def test_manual_request_validation(api, monkeypatch):
+    client, _ = api
+    from s1am.eap import service
+    monkeypatch.setattr(service, "profiles", lambda: {"USEA3": "https://u3"})
+    bad = lambda body: client.post("/api/eap/requests", json=body)
+    assert bad({"company": ""}).status_code == 400
+    assert bad({"company": "X", "contact_email": "nope"}).status_code == 400
+    assert bad({"company": "X", "products": ["Nonsense"]}).status_code == 400
+    assert bad({"company": "X", "sf_tenant": "ACME"}).status_code == 400
+    assert bad({"company": "X", "chosen_console": "NOPE", "chosen_account_id": "1"}).status_code == 400
+    assert bad({"company": "X", "chosen_console": "USEA3", "chosen_account_id": "abc"}).status_code == 400
+    ok = bad({"company": "X"}).json["row"]
+    assert ok["products"] == ["Prompt Security"] and ok["super_admin_needs_review"] == 1
+
+
+def test_sync_leaves_manual_rows_alone(api, tmp_path, monkeypatch):
+    client, st = api
+    from s1am.eap import service, store as store_mod
+    monkeypatch.setattr(service, "actor", lambda: "pavan")
+    rid = client.post("/api/eap/requests", json={"company": "Manual Co"}).json["row"]["id"]
+    import openpyxl
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["ID", "Start time", "Completion time", "Email", "Name", "Company", "Name", "Email", "Products", "Super admin", "Details"])
+    ws.append([3, None, None, "c@cheops.com", "Cheops", "Cheops", "C", "c@cheops.com", "Prompt Security", "C c@cheops.com", ""])
+    path = tmp_path / "forms.xlsx"; wb.save(path)
+    client.post("/api/eap/sync", json={"path": str(path)})
+    row = st.get(rid)
+    assert row["company"] == "Manual Co" and row["origin"] == "manual" and rid == store_mod.MANUAL_ID_BASE + 1
