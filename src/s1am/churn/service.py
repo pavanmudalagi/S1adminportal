@@ -120,7 +120,9 @@ def fetch_activities(client, types, since, until=None, sleep=time.sleep, page=PA
         nxt = (data.get("pagination") or {}).get("nextCursor")
         if not nxt or not rows:
             break
-        params = {"cursor": nxt, "limit": page}  # the cursor carries the filters
+        # The cursor must travel with the same filters and sort parameters, or the API answers
+        # 400 "Cursor and sorting parameters mismatch" (seen on every console with >1000 events).
+        params = {**params, "cursor": nxt}
         sleep(PAGE_DELAY)
     return out
 

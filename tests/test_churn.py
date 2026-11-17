@@ -95,7 +95,9 @@ def test_fetch_follows_the_cursor_and_retries_429():
     rows = svc.fetch_activities(c, [51, 97, 99, 54], "2026-01-01T00:00:00Z", sleep=lambda s: None)
     assert [r["id"] for r in rows] == [a["id"] for a in sorted(FIX["activities"], key=lambda a: a["createdAt"])]
     pages = [p for p in c.calls if p[0] == "activities"]
-    assert len(pages) == 4 and "cursor" in pages[-1][1] and "activityTypes" not in pages[-1][1]
+    assert len(pages) == 4 and "cursor" in pages[-1][1]
+    # Later pages keep the filters and sort with the cursor; the API rejects a bare cursor.
+    assert pages[-1][1]["sortBy"] == "createdAt" and pages[-1][1]["activityTypes"] == pages[1][1]["activityTypes"] and pages[-1][1]["createdAt__gt"] == pages[1][1]["createdAt__gt"]
     assert pages[1][1]["createdAt__gt"] == "2026-01-01T00:00:00Z" and pages[1][1]["limit"] == 1000
 
 
