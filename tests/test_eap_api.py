@@ -218,3 +218,71 @@ def test_sync_leaves_manual_rows_alone(api, tmp_path, monkeypatch):
     client.post("/api/eap/sync", json={"path": str(path)})
     row = st.get(rid)
     assert row["company"] == "Manual Co" and row["origin"] == "manual" and rid == store_mod.MANUAL_ID_BASE + 1
+
+
+def _workbook(tmp_path, rows):
+    import openpyxl
+    wb = openpyxl.Workbook(); ws = wb.active
+    ws.append(["ID", "Start time", "Completion time", "Email", "Name1", "Company", "Contact Email",
+               "Which products are you interested in?", "Super admin (name and email)", "Please provide your console / account details"])
+    for r in rows:
+        ws.append(r)
+    path = tmp_path / "forms.xlsx"; wb.save(path)
+    return str(path)
+
+
+def test_identical_manual_row_is_merged_into_the_form_response_on_sync(api, tmp_path, monkeypatch):
+    client, st = api
+    from s1am.eap import service
+    monkeypatch.setattr(service, "actor", lambda: "pavan")
+    monkeypatch.setattr(service, "profiles", lambda: {"USEA3": "https://u3"})
+    m = client.post("/api/eap/requests", json={"company": "Dcom", "contact_name": "D", "contact_email": "d@dcom.be",
+                                              "sf_tenant": "1000_USEA3_42", "notes": "called us first", "chosen_console": "USEA3", "chosen_account_id": "42"}).json["row"]
+    client.post(f"/api/eap/request/{m['id']}/tenants", json={"console": "USEA3", "account_id": "77"})  # fails the check but creates the extra tenant
+    path = _workbook(tmp_path, [[3, None, None, "c@cheops.com", "C", "Cheops", "c@cheops.com", "Prompt Security", "C c@cheops.com", ""],
+                                 [7, None, None, "d@dcom.be", "D", "Dcom", "d@dcom.be", "Prompt Security", "D d@dcom.be", ""]])
+    r = client.post("/api/eap/sync", json={"path": path}).json
+    assert r["new"] == [7] and r["merged"] == [{"manual_id": m["id"], "form_id": 7, "company": "Dcom"}] and r["duplicates"] == []
+    rows = {x["id"]: x for x in client.get("/api/eap/requests").json["rows"]}
+    assert m["id"] not in rows  # hidden once merged
+    f = rows[7]
+    assert f["sf_tenant"] == "1000_USEA3_42" and f["tenant_confirmed"] == 1 and f["notes"] == "called us first"
+    assert (f["chosen_console"], f["chosen_account_id"]) == ("USEA3", "42") and f["origin"] is None
+    assert [t["account_id"] for t in f["extra_tenants"]] == ["77"]
+    hist = client.get("/api/eap/request/7").json["history"]
+    assert any(h["kind"] == "duplicate" and f"#{m['id']}" in h["message"] for h in hist) and any(h["kind"] == "manual" for h in hist)
+    assert st.get(m["id"])["merged_into"] == 7 and st.get(m["id"])["status"] == "merged"
+    assert client.get("/api/eap/requests").json["meta"]["last_sync_result"]["merged"][0]["form_id"] == 7
+
+
+def test_differing_manual_row_is_reported_and_resolved_by_the_user(api, tmp_path, monkeypatch):
+    client, st = api
+    from s1am.eap import service
+    monkeypatch.setattr(service, "actor", lambda: "pavan")
+    m = client.post("/api/eap/requests", json={"company": "Dcom NV", "contact_name": "Daniel", "contact_email": "d@dcom.be",
+                                              "products": ["Prompt Security", "Identity Security"]}).json["row"]
+    path = _workbook(tmp_path, [[7, None, None, "d@dcom.be", "D", "Dcom", "d@dcom.be", "Prompt Security", "D d@dcom.be", "usea1-swprd3.sentinelone.net"]])
+    r = client.post("/api/eap/sync", json={"path": path}).json
+    assert r["merged"] == [] and len(r["duplicates"]) == 1
+    d = r["duplicates"][0]
+    assert (d["manual_id"], d["form_id"], d["identical"]) == (m["id"], 7, False) and "email: d@dcom.be" in d["matched_on"]
+    assert {x["field"] for x in d["differences"]} == {"company", "contact_name", "super_admin_name", "products", "details"}
+    assert client.get("/api/eap/requests").json["meta"]["duplicates"][0]["form_id"] == 7
+    # Keep the hand-entered details: they overwrite the form row and survive the next sync.
+    res = client.post("/api/eap/duplicates/resolve", json={"manual_id": m["id"], "form_id": 7, "action": "manual"}).json
+    assert res["duplicates"] == [] and res["row"]["company"] == "Dcom NV" and res["row"]["products"] == ["Prompt Security", "Identity Security"]
+    client.post("/api/eap/sync", json={"path": path})
+    assert st.get(7)["company"] == "Dcom NV" and st.get(m["id"])["merged_into"] == 7
+    assert client.post("/api/eap/duplicates/resolve", json={"manual_id": m["id"], "form_id": 7, "action": "bogus"}).status_code == 400
+    assert client.post("/api/eap/duplicates/resolve", json={"manual_id": 999, "form_id": 7, "action": "form"}).status_code == 404
+
+
+def test_not_a_duplicate_is_remembered(api, tmp_path, monkeypatch):
+    client, st = api
+    from s1am.eap import service
+    monkeypatch.setattr(service, "actor", lambda: "pavan")
+    m = client.post("/api/eap/requests", json={"company": "Cheops Technology", "contact_email": "c@cheops.com"}).json["row"]
+    assert client.get("/api/eap/duplicates").json["duplicates"][0]["form_id"] == 3  # same contact email as the seeded row
+    client.post("/api/eap/duplicates/resolve", json={"manual_id": m["id"], "form_id": 3, "action": "ignore"})
+    assert client.get("/api/eap/duplicates").json["duplicates"] == []
+    assert st.get(m["id"])["merged_into"] is None and len(client.get("/api/eap/requests").json["rows"]) == 2

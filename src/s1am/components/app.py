@@ -1384,6 +1384,7 @@ def eap_requests():
         "last_sync_result": svc.last_sync_result(st),
         "form_path": str(path or ""), "form_exists": bool(path and path.exists()),
         "sf": sf_auth.status().as_dict(), "labels": _load_labels(), "consoles": sorted(svc.profiles()),
+        "duplicates": svc.pending_duplicates(st),
     }
     return jsonify({"rows": st.list(), "meta": meta})
 
@@ -1409,6 +1410,36 @@ def eap_request_create():
         except Exception as exc:
             enrich_error = str(exc).split(". Response content")[0][:300]
     return jsonify({"row": row, "enrich_error": enrich_error}), 201
+
+
+@app.route("/api/eap/duplicates")
+def eap_duplicates():
+    svc, st = _eap()
+    return jsonify({"duplicates": svc.pending_duplicates(st)})
+
+
+@app.route("/api/eap/duplicates/resolve", methods=["POST"])
+def eap_duplicates_resolve():
+    """action: form (keep the workbook details), manual (keep the hand-entered details), ignore (not a duplicate)."""
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        manual_id, form_id, action = int(body.get("manual_id")), int(body.get("form_id")), body.get("action")
+    except (TypeError, ValueError):
+        return jsonify({"error": "manual_id and form_id are required"}), 400
+    try:
+        if action == "ignore":
+            svc.dismiss_duplicate(st, manual_id, form_id)
+            row = st.get(manual_id)
+        elif action in ("form", "manual"):
+            row = svc.merge_manual_into_form(st, manual_id, form_id, keep=action)
+        else:
+            return jsonify({"error": "action must be form, manual or ignore"}), 400
+    except KeyError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"row": row, "duplicates": svc.pending_duplicates(st)})
 
 
 @app.route("/api/eap/request/<int:rid>", methods=["GET"])

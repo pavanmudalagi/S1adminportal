@@ -547,6 +547,15 @@
     .ch-edit input, .ch-edit select { height: 26px; font-size: 12px; width: auto; }
     .ch-edit input.lbl { width: 180px; } .ch-edit input.note { width: 200px; }
     .ch-desc { max-width: 420px; white-space: normal; font-size: 12px; color: var(--text-muted); }
+    /* EAP duplicate review */
+    .dup-pair { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
+    .dup-pair h5 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+    .dup-pair table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 8px; }
+    .dup-pair th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 4px 8px; border-bottom: 1px solid var(--border); }
+    .dup-pair td { padding: 5px 8px; vertical-align: top; border-bottom: 1px solid var(--border-soft); }
+    .dup-pair td.f { color: var(--text-muted); white-space: nowrap; width: 120px; }
+    .dup-pair .diff { background: var(--warn-a); border-radius: 3px; padding: 1px 4px; }
+    .dup-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
 
     /* ── Account Editor Modal ── */
     .ae-backdrop { position: fixed; inset: 0; background: var(--backdrop); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -1101,6 +1110,22 @@
       <button class="btn" id="eapadd-cancel">Cancel</button>
       <div class="spinner" id="eapadd-spinner" style="display:none;"></div>
       <button class="btn btn-primary" id="eapadd-save">Add request</button>
+    </div>
+  </div>
+</div>
+<div id="eapdup-backdrop" class="ae-backdrop hidden">
+  <div class="ae-modal" role="dialog" aria-modal="true" aria-labelledby="eapdup-title" style="width:820px">
+    <div class="ae-hdr">
+      <div class="ae-hdr-left">
+        <div class="ae-hdr-title" id="eapdup-title">Possible duplicates</div>
+        <div class="ae-hdr-sub">A form response looks like a request that was added by hand. Pick which details to keep; the hand-entered row's notes, tenant, console target and history move onto the form response either way.</div>
+      </div>
+      <button class="ae-close" id="eapdup-close" aria-label="Close">×</button>
+    </div>
+    <div class="ae-body" style="padding:16px 24px" id="eapdup-body"></div>
+    <div class="ae-footer">
+      <div class="ae-save-err" id="eapdup-err"></div>
+      <button class="btn" id="eapdup-done">Close</button>
     </div>
   </div>
 </div>
@@ -3609,6 +3634,7 @@ async function eapLoad() {
   if (last && last.new && last.new.length && document.getElementById("eap-notice").classList.contains("hidden") && !eapNoticeSeen) {
     eapNoticeSeen = true; eapShowSyncNotice(last, false);
   }
+  eapDupBanner();
 }
 
 function eapRenderSummary() {
@@ -3819,7 +3845,12 @@ function eapShowSyncNotice(r, justRan) {
     ? `<b>${r.new.length} new</b> request${r.new.length === 1 ? "" : "s"}: ${r.new.map(link).join(", ")}`
     : "<b>no new</b> requests";
   const updPart = r.updated.length ? `, ${r.updated.length} changed (${r.updated.map(link).join(", ")})` : "";
-  box.innerHTML = `<span>${justRan ? "Sync done" : "Last sync"}${r.at ? ` ${_eapEsc(r.at)}` : ""} — ${r.rows} rows in the workbook: ${newPart}${updPart}, ${r.unchanged} unchanged.</span>` +
+  const merged = r.merged || [];
+  const mergedPart = merged.length ? `, <b>${merged.length} manual ${merged.length === 1 ? "entry" : "entries"} merged</b> into matching form responses (${merged.map(m => link(m.form_id)).join(", ")})` : "";
+  const dupN = Array.isArray(r.duplicates) ? r.duplicates.length : (r.duplicates || 0);
+  const dupPart = dupN ? ` <span class="badge-partial">${dupN} possible duplicate${dupN === 1 ? "" : "s"} to review</span>` : "";
+  box.innerHTML = `<span>${justRan ? "Sync done" : "Last sync"}${r.at ? ` ${_eapEsc(r.at)}` : ""} — ${r.rows} rows in the workbook: ${newPart}${updPart}${mergedPart}, ${r.unchanged} unchanged.${dupPart}</span>` +
+    (dupN ? `<a onclick="eapDupOpen()">review duplicates</a>` : "") +
     (r.new.length ? `<a onclick="msSetValue('eap-f-conf', ['new'])">show only the new ones</a>` : "") +
     `<a class="x" onclick="document.getElementById('eap-notice').classList.add('hidden')">✕</a>`;
   box.classList.remove("hidden");
@@ -3831,7 +3862,60 @@ async function eapSync() {
     _eapBusy(false);
     await eapLoad();
     eapShowSyncNotice({...r, at: (eapMeta.last_sync_result || {}).at}, true);
+    if (r.duplicates && r.duplicates.length) eapDupOpen(r.duplicates);
   } catch (e) { _eapBusy(false); _eapErr(e.message); }
+}
+
+// ── duplicates between hand-entered rows and form responses ──
+const EAP_DUP_LABEL = {company: "Company", contact_name: "Contact name", contact_email: "Contact email", super_admin_name: "Super admin", super_admin_email: "Super admin email", products: "Products", details: "Console / account details"};
+function _eapDupVal(field, v) {
+  if (v == null || v === "" || (Array.isArray(v) && !v.length)) return '<span class="eap-muted">—</span>';
+  if (field === "products") return _eapEsc(v.join(", "));
+  if (field === "details") {
+    const parts = [v.hosts?.length ? "console " + v.hosts.join(", ") : "", v.account_ids?.length ? "account " + v.account_ids.join(", ") : "", v.tenants?.length ? "tenant " + v.tenants.join(", ") : "", v.leftover ? "“" + v.leftover + "”" : ""].filter(Boolean);
+    return parts.length ? _eapEsc(parts.join(" · ")) : '<span class="eap-muted">—</span>';
+  }
+  return _eapEsc(v);
+}
+function eapDupOpen(list) {
+  const bd = document.getElementById("eapdup-backdrop");
+  const render = dups => {
+    document.getElementById("eapdup-err").textContent = "";
+    document.getElementById("eapdup-body").innerHTML = dups.length ? dups.map(d => `<div class="dup-pair" data-m="${d.manual_id}" data-f="${d.form_id}">
+        <h5>${_eapEsc(d.company || "")} — form response <a onclick="eapOpen(${d.form_id})">#${d.form_id}</a> vs hand-entered <a onclick="eapOpen(${d.manual_id})">#${d.manual_id}</a></h5>
+        <div class="eap-muted" style="font-size:12px">Matched on ${d.matched_on.map(_eapEsc).join(" · ")}</div>
+        <table><thead><tr><th>Field</th><th>Form response (workbook)</th><th>Added by hand</th></tr></thead><tbody>${
+          d.differences.map(x => `<tr><td class="f">${EAP_DUP_LABEL[x.field] || x.field}</td><td><span class="diff">${_eapDupVal(x.field, x.form)}</span></td><td><span class="diff">${_eapDupVal(x.field, x.manual)}</span></td></tr>`).join("")}</tbody></table>
+        <div class="dup-actions">
+          <button class="btn btn-sm btn-primary" data-act="form" title="Keep the workbook's details; the hand-entered row is folded into this response">Keep form details</button>
+          <button class="btn btn-sm" data-act="manual" title="Replace the form's details with the hand-entered ones (kept on later syncs)">Keep hand-entered details</button>
+          <button class="btn btn-sm" data-act="ignore" title="Different customers — don't ask again for this pair">Not a duplicate</button>
+        </div></div>`).join("") : '<div class="eap-muted">No duplicates left to review.</div>';
+    document.querySelectorAll("#eapdup-body button[data-act]").forEach(b => b.onclick = async () => {
+      const pair = b.closest(".dup-pair"); pair.querySelectorAll("button").forEach(x => x.disabled = true);
+      try {
+        const res = await fetch("/api/eap/duplicates/resolve", {method: "POST", headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({manual_id: parseInt(pair.dataset.m, 10), form_id: parseInt(pair.dataset.f, 10), action: b.dataset.act})});
+        const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        render(data.duplicates || []);
+        if (!(data.duplicates || []).length) { bd.classList.add("hidden"); }
+        await eapLoad();
+      } catch (e) { document.getElementById("eapdup-err").textContent = e.message; pair.querySelectorAll("button").forEach(x => x.disabled = false); }
+    });
+  };
+  render(list || eapMeta.duplicates || []);
+  bd.classList.remove("hidden");
+  const close = () => bd.classList.add("hidden");
+  document.getElementById("eapdup-close").onclick = close; document.getElementById("eapdup-done").onclick = close;
+  bd.onclick = e => { if (e.target === bd) close(); };
+}
+function eapDupBanner() {
+  // Persistent reminder (outside of a sync) that hand-entered rows may duplicate form responses.
+  const dups = eapMeta.duplicates || [], box = document.getElementById("eap-notice");
+  if (!dups.length || !box.classList.contains("hidden")) return;
+  box.innerHTML = `<span><span class="badge-partial">${dups.length} possible duplicate${dups.length === 1 ? "" : "s"}</span> between hand-entered requests and form responses: ${dups.map(d => _eapEsc(d.company || "")).filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).join(", ")}${dups.length > 4 ? ", …" : ""}</span>` +
+    `<a onclick="eapDupOpen()">review</a><a class="x" onclick="document.getElementById('eap-notice').classList.add('hidden')">✕</a>`;
+  box.classList.remove("hidden");
 }
 async function eapEnrich(ids) {
   _eapErr(""); _eapBusy(true, "Querying Salesforce…");

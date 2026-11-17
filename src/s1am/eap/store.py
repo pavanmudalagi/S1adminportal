@@ -42,6 +42,7 @@ COLUMNS = [
     ("tenant_confirmed", "INTEGER"), ("tenant_confirmed_at", "TEXT"), ("tenant_confirmed_by", "TEXT"),
     ("edited_fields", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
     ("origin", "TEXT"),  # "form" (default, from the workbook) or "manual" (added in the UI / CLI)
+    ("merged_into", "INTEGER"),  # manual row folded into this form row (hidden from listings)
 ]
 MANUAL_ID_BASE = 100000  # manual requests live far above the Forms response ids, so a sync can never collide
 JSON_COLUMNS = {"products", "details", "sf_tenants", "s1_skus", "s1_prompt_bundles", "s1_prompt_users",
@@ -126,9 +127,11 @@ class Store:
         d["extra_tenants"] = self.tenants(request_id)
         return d
 
-    def list(self):
+    def list(self, include_merged=False):
         with self._conn() as c:
             rows = [self._decode(r) for r in c.execute("SELECT * FROM requests ORDER BY id")]
+            if not include_merged:
+                rows = [r for r in rows if not r.get("merged_into")]
             extras = {}
             for t in c.execute("SELECT * FROM request_tenants ORDER BY id"):
                 extras.setdefault(t["request_id"], []).append(self._decode(t, TENANT_JSON_COLUMNS))
@@ -181,6 +184,12 @@ class Store:
             return "unchanged"
         self.update(rec["id"], changed, source="sync")
         return "updated"
+
+    def repoint(self, from_id, to_id):
+        """Move the extra tenants and the history of one request onto another (used when merging a duplicate)."""
+        with self._conn() as c:
+            c.execute("UPDATE request_tenants SET request_id = ? WHERE request_id = ?", (to_id, from_id))
+            c.execute("UPDATE history SET request_id = ? WHERE request_id = ?", (to_id, from_id))
 
     def next_manual_id(self):
         with self._conn() as c:

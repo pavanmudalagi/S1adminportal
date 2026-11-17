@@ -131,11 +131,21 @@ def sync(st, path=None):
             result[outcome].append(rec["id"])
             st.add_history(rec["id"], "sync", "Imported from the Forms workbook" if outcome == "new"
                            else "Form response changed in the workbook")
+    # A form response may describe a customer that was already added by hand. Identical pairs are merged
+    # here (the manual row's workflow moves onto the form row); differing pairs are left for the user.
+    result["merged"], result["duplicates"] = [], []
+    for d in pending_duplicates(st):
+        if d["identical"]:
+            merge_manual_into_form(st, d["manual_id"], d["form_id"], keep="form", who="sync")
+            result["merged"].append({"manual_id": d["manual_id"], "form_id": d["form_id"], "company": d["company"]})
+        else:
+            result["duplicates"].append(d)
     st.set_meta("last_sync", _now())
     st.set_meta("form_path", str(path))
     # Remembered so the UI can say "N new in the last sync" after a reload too.
     st.set_meta("last_sync_result", json.dumps({"at": _now(), "new": result["new"], "updated": result["updated"],
-                                                "unchanged": result["unchanged"], "rows": result["rows"]}))
+                                                "unchanged": result["unchanged"], "rows": result["rows"],
+                                                "merged": result["merged"], "duplicates": len(result["duplicates"])}))
     return result
 
 
@@ -204,6 +214,118 @@ def create_manual(st, data, who=None):
     _restatus(st, rid)
     st.add_history(rid, "manual", f"Added by hand by {who}" + (f" — tenant {tenant}" if tenant else "") + (f" — console {console}" if console else ""))
     return st.get(rid)
+
+
+# ── duplicates between manual rows and form responses ───────────────────────
+
+DUP_FIELDS = ["company", "contact_name", "contact_email", "super_admin_name", "super_admin_email", "products", "details"]
+_DISMISSED_KEY = "eap_dup_dismissed"
+
+
+def _norm(field, value):
+    if field == "products":
+        return sorted(value or [])
+    if field == "details":
+        d = value or {}
+        return {k: sorted(x.lower() for x in (d.get(k) or [])) for k in ("hosts", "account_ids", "tenants")}
+    text = (value or "").strip()
+    return text.lower() if "email" in field else " ".join(text.split()).lower()
+
+
+def _dup_keys(r):
+    """Hashable identifiers a request can be recognised by."""
+    d = r.get("details") or {}
+    keys = set()
+    if r.get("company"):
+        keys.add(("company", forms.normalize_company(r["company"])))
+    for f in ("contact_email", "super_admin_email"):
+        if r.get(f):
+            keys.add(("email", r[f].strip().lower()))
+    for a in d.get("account_ids") or []:
+        keys.add(("account", str(a)))
+    for t in d.get("tenants") or []:
+        keys.add(("tenant", t.upper()))
+    if r.get("sf_tenant"):
+        keys.add(("tenant", r["sf_tenant"].upper()))
+        keys.add(("account", r["sf_tenant"].rsplit("_", 1)[-1]))
+    if r.get("chosen_account_id"):
+        keys.add(("account", str(r["chosen_account_id"])))
+    return keys
+
+
+def _dismissed(st):
+    try:
+        return set(json.loads(st.get_meta(_DISMISSED_KEY) or "[]"))
+    except ValueError:
+        return set()
+
+
+def pending_duplicates(st):
+    """Manual rows that look like a form response: same company, email, account ID or tenant.
+
+    Each pair lists the fields that differ (form value vs manual value); identical=True when none do."""
+    rows = st.list()
+    manual = [r for r in rows if r.get("origin") == "manual"]
+    if not manual:
+        return []
+    forms_rows = [r for r in rows if r.get("origin") != "manual"]
+    dismissed = _dismissed(st)
+    out = []
+    for m in manual:
+        mk = _dup_keys(m)
+        for f in forms_rows:
+            shared = mk & _dup_keys(f)
+            if not shared or f"{m['id']}:{f['id']}" in dismissed:
+                continue
+            diffs = [{"field": fld, "form": f.get(fld), "manual": m.get(fld)} for fld in DUP_FIELDS
+                     if _norm(fld, f.get(fld)) != _norm(fld, m.get(fld)) and (f.get(fld) or m.get(fld))]
+            out.append({"manual_id": m["id"], "form_id": f["id"], "company": f.get("company") or m.get("company"),
+                        "matched_on": sorted(f"{k}: {v}" for k, v in shared), "differences": diffs, "identical": not diffs})
+    return out
+
+
+def dismiss_duplicate(st, manual_id, form_id, who=None):
+    keys = _dismissed(st); keys.add(f"{manual_id}:{form_id}")
+    st.set_meta(_DISMISSED_KEY, json.dumps(sorted(keys)))
+    st.add_history(manual_id, "duplicate", f"Marked as not a duplicate of #{form_id} by {who or actor()}")
+
+
+def merge_manual_into_form(st, manual_id, form_id, keep="form", who=None):
+    """Fold a manual row into the form response that describes the same customer.
+
+    keep="form": the workbook's details stand; keep="manual": the hand-entered details overwrite the form's
+    and are marked as user edits so later syncs leave them alone. Either way the manual row's workflow
+    (notes, confirmed tenant, console target, provisioning edits, extra tenants, console check, history)
+    moves to the form row, and the manual row is hidden as merged."""
+    m, f = st.get(manual_id), st.get(form_id)
+    if not m or not f:
+        raise KeyError("Unknown request")
+    if m.get("origin") != "manual" or f.get("origin") == "manual":
+        raise ValueError("Merge goes from a manual row into a form response")
+    if keep not in ("form", "manual"):
+        raise ValueError("keep must be form or manual")
+    who = who or actor()
+    from .store import USER_FIELDS
+    edited = set(m.get("edited_fields") or [])
+    carry = {}
+    for fld in USER_FIELDS:
+        if fld in edited or (m.get(fld) not in (None, "", [], 0) and f.get(fld) in (None, "", [])):
+            carry[fld] = m.get(fld)
+    if m.get("notes") and f.get("notes") and m["notes"] != f["notes"]:
+        carry["notes"] = f["notes"] + "\n" + m["notes"]
+    if carry:
+        st.update(form_id, carry, source="user")
+    plain = {k: m.get(k) for k in ("tenant_confirmed_at", "tenant_confirmed_by", "sf_tenant_id") if m.get(k) and not f.get(k)}
+    plain.update({k: m.get(k) for k in m if k.startswith("s1_") and m.get(k) not in (None, "", []) and f.get(k) in (None, "", [])})
+    if plain:
+        st.update(form_id, plain)
+    if keep == "manual":
+        st.update(form_id, {k: m.get(k) for k in DUP_FIELDS + ["details_raw", "products_raw", "wants_prompt", "no_s1_claimed"]}, source="user")
+    st.repoint(manual_id, form_id)
+    st.update(manual_id, {"merged_into": form_id, "status": "merged", "status_reason": f"merged into #{form_id}"})
+    _restatus(st, form_id)
+    st.add_history(form_id, "duplicate", f"Merged manual request #{manual_id} into this form response, kept {keep} details ({who})")
+    return st.get(form_id)
 
 
 def last_sync_result(st):
