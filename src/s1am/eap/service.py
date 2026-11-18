@@ -4,12 +4,19 @@ sync from the Forms workbook, Salesforce enrichment, console checks, Customer Li
 Settings — an environment variable S1AM_EAP_<KEY> wins over the [eap] section of
 ~/.config/s1am/config, which wins over the default:
 
-  form_path      path to the Forms workbook. Default: the copy synced to OneDrive, else the
-                 newest "…Early Access…xlsx" in ~/Downloads
+  form_path      path to the Forms workbook. Default: the Forms export with the highest
+                 response count in downloads_dir ("N-able Endpoint SecuritySentinelOne Early
+                 Access(1-53).xlsx" beats "(1-43)"), else the copy synced to OneDrive
+  downloads_dir  where Forms exports land, default ~/Downloads
   db_path        SQLite file, default ~/.config/s1am/eap.db
   default_count  seat count for Prompt bundles, default -1 (unlimited)
   actioned_by    recorded on writes; default is the signed-in Salesforce user
   dry_run        "true" (default) — the enable path only shows the PUT body
+  email_cc       always-copied addresses on the customer email, comma separated (default Joe Kern)
+  email_cc_roles Salesforce Account Team roles copied by default, comma separated
+                 (default: Technical Account Owner, Customer Success, Growth Strategist, the AEs, Channel Manager)
+  sender_name    signature name on the customer email; default the signed-in Salesforce user's display name
+  sender_email   signature email (no default; the Salesforce username is a login alias, not a mailbox)
 """
 import datetime
 import json
@@ -19,6 +26,7 @@ from pathlib import Path
 
 from .. import account_fields
 from ..api.config import Config
+from . import email as email_mod
 from . import enrich as enrich_mod
 from . import forms, s1check
 from .store import DEFAULT_DB, Store
@@ -26,13 +34,21 @@ from .store import DEFAULT_DB, Store
 DEFAULTS = {
     "form_path": "",
     "db_path": str(DEFAULT_DB),
+    "downloads_dir": "~/Downloads",
     "default_count": "-1",
     "actioned_by": "",
     "dry_run": "true",
+    "email_cc": ", ".join(email_mod.FIXED_CC),
+    "email_cc_roles": ", ".join(email_mod.DEFAULT_CC_ROLES),
+    "sender_name": "",
+    "sender_email": "",
 }
 SYNCED_COPY = (Path.home() / "Library" / "CloudStorage" / "OneDrive-N-Able,Inc"
                / "N-able Endpoint Security_SentinelOne _Early Access.xlsx")
-DOWNLOADS_GLOB = "*Early Access*.xlsx"
+# Forms names its export "<form title>(1-<last response number>).xlsx"; the browser may add
+# " (2)" when the same export is downloaded twice. Excel's "~$" lock files are skipped.
+DOWNLOAD_PREFIX = "N-able Endpoint SecuritySentinelOne Early Access"
+DOWNLOAD_RE = re.compile(r"^" + re.escape(DOWNLOAD_PREFIX) + r"\s*(?:\((\d+)-(\d+)\))?(?:\s*\(\d+\))?\.xlsx$", re.I)
 
 
 def _now():
@@ -48,15 +64,48 @@ def setting(key):
     return value.strip() if isinstance(value, str) else value
 
 
+def download_number(path):
+    """The last response number in a Forms export name ("…(1-53).xlsx" → 53), 0 when unnumbered,
+    None when the file is not a Forms export of this form."""
+    name = Path(path).name
+    if name.startswith("~$"):
+        return None
+    m = DOWNLOAD_RE.match(name)
+    if not m:
+        return None
+    return int(m.group(2)) if m.group(2) else 0
+
+
+def downloads_dir():
+    return Path(os.path.expanduser(setting("downloads_dir") or "~/Downloads"))
+
+
+def download_candidates():
+    """Forms exports in downloads_dir, newest first: highest response number, then latest mtime."""
+    folder = downloads_dir()
+    if not folder.is_dir():
+        return []
+    found = []
+    for p in folder.iterdir():
+        n = download_number(p)
+        if n is not None and p.is_file():
+            found.append((n, p.stat().st_mtime, p))
+    found.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    return [p for _, _, p in found]
+
+
 def form_path():
-    """The workbook to read, or None if nothing is configured and nothing was found."""
+    """The workbook to read, or None if nothing is configured and nothing was found.
+
+    Order: [eap] form_path, else the Forms export with the highest response number in
+    downloads_dir, else the copy synced to OneDrive."""
     configured = setting("form_path")
     if configured:
         return Path(os.path.expanduser(configured))
-    if SYNCED_COPY.exists():
-        return SYNCED_COPY
-    found = sorted((Path.home() / "Downloads").glob(DOWNLOADS_GLOB), key=lambda p: p.stat().st_mtime)
-    return found[-1] if found else None
+    found = download_candidates()
+    if found:
+        return found[0]
+    return SYNCED_COPY if SYNCED_COPY.exists() else None
 
 
 def open_store():
@@ -631,6 +680,45 @@ def check_tenant(st, tid, client_for):
     return st.get_tenant(tid)
 
 
+def resolve_candidate_names(st, rid, client_for, force=False):
+    """Fill each Salesforce candidate tenant (sf_tenants) with the SentinelOne account name and
+    state read from its console (read-only GET). Candidates already looked up are skipped
+    unless force. Stored on the candidate as s1_account_name / s1_state, or s1_lookup with the
+    reason it could not be read. Returns the updated row."""
+    row = st.get(rid)
+    if row is None:
+        raise KeyError(f"No request {rid}")
+    cands = list(row.get("sf_tenants") or [])
+    codes = profiles()
+    clients, changed = {}, False
+    for c in cands:
+        if not force and (c.get("s1_account_name") or c.get("s1_lookup")):
+            continue
+        changed = True
+        c.pop("s1_account_name", None); c.pop("s1_state", None); c.pop("s1_lookup", None)
+        code, aid = s1check.tenant_code(c.get("name")), s1check.tenant_account_id(c.get("name"))
+        if not code or not aid:
+            c["s1_lookup"] = "not a 1000_ tenant"
+            continue
+        if code not in codes:
+            c["s1_lookup"] = f"no profile for console {code}"
+            continue
+        try:
+            if code not in clients:
+                clients[code] = client_for(code)
+            account = s1check._get_account(clients[code], aid)
+        except Exception as exc:
+            c["s1_lookup"] = str(exc).split(". Response content")[0][:200]
+            continue
+        if not account:
+            c["s1_lookup"] = f"account {aid} not found on {code}"
+            continue
+        c["s1_account_name"], c["s1_state"] = account.get("name"), account.get("state")
+    if changed:
+        st.update(rid, {"sf_tenants": cands})
+    return st.get(rid)
+
+
 def remove_tenant(st, tid):
     t = st.get_tenant(tid)
     if t is None:
@@ -679,3 +767,114 @@ def seed_customer_list(st, path, sheet="Sheet1"):
         st.add_history(rid, "seed", f"Imported from EAP - Customer List: {', '.join(sorted(fields))}")
         result["seeded"].append(rid)
     return result
+
+
+# ── customer email once Prompt is enabled ───────────────────────────────────
+
+def _csv_setting(key):
+    return [v.strip() for v in (setting(key) or "").split(",") if v.strip()]
+
+
+def _sf_me(st):
+    """{"display_name", "username"} of the signed-in Salesforce user, cached in meta after the first call."""
+    cached = st.get_meta("sf_me")
+    if cached:
+        try:
+            return json.loads(cached)
+        except ValueError:
+            pass
+    try:
+        from ..salesforce import client as sf
+        if sf.is_connected():
+            me = sf.whoami() or {}
+            if me.get("display_name") or me.get("username"):
+                st.set_meta("sf_me", json.dumps({"display_name": me.get("display_name"), "username": me.get("username")}))
+                return me
+    except Exception:
+        pass
+    return {}
+
+
+def sender_name(st):
+    """Signature name: [eap] sender_name, else the Salesforce display name."""
+    return setting("sender_name") or _sf_me(st).get("display_name") or ""
+
+
+def sender_email(st):
+    """Signature email: [eap] sender_email only. The Salesforce username is a login alias
+    (…@msp.n-able.com), not a mailbox, so it is deliberately not used as a fallback."""
+    return setting("sender_email")
+
+
+def refresh_team(st, rid):
+    """Pull the Salesforce Account Team for the request's account into sf_team. Returns the team."""
+    from ..salesforce import client as sf
+    from ..salesforce import eap_queries as q
+    row = st.get(rid)
+    if not row or not row.get("sf_account_id") or not sf.is_connected():
+        return (row or {}).get("sf_team") or []
+    team = email_mod.team_from_salesforce(q.account_team([row["sf_account_id"]]))
+    st.update(rid, {"sf_team": team, "sf_team_at": _now()})
+    return team
+
+
+def email_draft(st, rid, refresh=True):
+    """Everything the UI needs to show the draft: recipients (with defaults ticked), subject,
+    body, the template source and warnings. Reads Salesforce when signed in; never sends."""
+    row = st.get(rid)
+    if row is None:
+        raise KeyError(f"No request {rid}")
+    team_error = None
+    if refresh:
+        try:
+            refresh_team(st, rid)
+        except Exception as exc:  # stale team is better than no draft
+            team_error = str(exc).split(". Response content")[0][:300]
+        row = st.get(rid)
+    team = row.get("sf_team") or []
+    target = s1check.resolve_target(row, host_codes())
+    if target.get("error"):
+        target = {}
+    base = profiles().get(target.get("console") or "") if target else None
+    if base:
+        target["host"] = base.split("://", 1)[-1].rstrip("/")
+    tpl = email_mod.load_template()
+    subject_t, body_t = email_mod.split_template(tpl["text"])
+    ctx = email_mod.context(row, target, sender=sender_name(st), sender_email=sender_email(st),
+                            today=datetime.date.today().isoformat())
+    rec = email_mod.recipients(row, team, fixed_cc=_csv_setting("email_cc"), cc_roles=_csv_setting("email_cc_roles"))
+    warnings = list(rec["missing"])
+    if team_error:
+        warnings.append(f"Salesforce account team could not be refreshed: {team_error}")
+    if (row.get("enabled_yn") or "").strip().upper() not in ("Y", "YES") and not row.get("s1_prompt_enabled"):
+        warnings.append("Prompt is not marked as enabled for this request yet")
+    if "{sender_email}" in body_t and not ctx["sender_email"]:
+        warnings.append("Signature email is empty — set sender_email in the [eap] section of ~/.config/s1am/config")
+    if "{sender_name}" in body_t and not ctx["sender_name"]:
+        warnings.append("Signature name is empty — sign in to Salesforce or set sender_name in the [eap] section")
+    return {
+        "id": rid, "company": row.get("company") or row.get("sf_account_name") or "", "to": rec["to"], "cc": rec["cc"],
+        "subject": email_mod.render(subject_t, ctx), "body_html": (body_html := email_mod.render(body_t, ctx, escape=True)),
+        "body": email_mod.html_to_text(body_html),
+        "template": {"path": tpl["path"], "custom": tpl["custom"], "unknown": email_mod.unknown_placeholders(tpl["text"])},
+        "team_as_of": row.get("sf_team_at"), "warnings": warnings,
+        "email_drafted_at": row.get("email_drafted_at"), "email_drafted_by": row.get("email_drafted_by"),
+    }
+
+
+def record_email(st, rid, to, cc, subject, via, who=None):
+    """Audit that a draft was opened (nothing is sent by the app). Returns the updated row."""
+    if st.get(rid) is None:
+        raise KeyError(f"No request {rid}")
+    bad = [a for a in [*to, *cc] if not email_mod.valid_email(a)]
+    if bad:
+        raise ValueError("Not an email address: " + ", ".join(bad))
+    if not to:
+        raise ValueError("The email needs at least one To address")
+    who = who or sender_name(st) or actor()
+    now = _now()
+    st.update(rid, {"email_drafted_at": now, "email_drafted_by": who})
+    st.add_history(rid, "email", f"Customer email draft opened in {via} by {who} (not sent by s1am) — to {', '.join(to)}"
+                   + (f"; cc {', '.join(cc)}" if cc else "") + f" — “{subject}”",
+                   data={"to": to, "cc": cc, "subject": subject, "via": via})
+    return st.get(rid)

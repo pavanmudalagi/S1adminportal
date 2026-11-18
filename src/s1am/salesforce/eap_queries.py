@@ -103,3 +103,10 @@ def agent_counts(tenant_ids):
         counts[kind] += qty
         counts["total"] += qty
     return out
+
+
+def account_team(account_ids):
+    """Account Team related list: who looks after each account (TAO, Partner Success, AEs, PSEs…)."""
+    return sf.query_in("SELECT AccountId, TeamMemberRole, User.Name, User.Email, User.IsActive "
+                       "FROM AccountTeamMember WHERE AccountId IN ({values}) ORDER BY TeamMemberRole",
+                       account_ids, use_cache=False)

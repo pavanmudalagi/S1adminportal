@@ -1406,10 +1406,65 @@ def eap_request_create():
                 svc.enrich_all(st, ids=[row["id"]])
                 row = st.get(row["id"])
             else:
-                enrich_error = "Salesforce not signed in — use Enrich Salesforce later"
+                enrich_error = "Salesforce not signed in — use Match in Salesforce later"
         except Exception as exc:
             enrich_error = str(exc).split(". Response content")[0][:300]
     return jsonify({"row": row, "enrich_error": enrich_error}), 201
+
+
+@app.route("/api/eap/request/<int:rid>/tenant-names", methods=["POST"])
+def eap_tenant_names(rid):
+    """Read the SentinelOne account name/state of every Salesforce candidate tenant from its console
+    (GET only). ?force=1 re-reads candidates that were already looked up."""
+    svc, st = _eap()
+    try:
+        row = svc.resolve_candidate_names(st, rid, _build_client_for_console, force=request.args.get("force") == "1")
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+    return jsonify({"row": row})
+
+
+@app.route("/api/eap/request/<int:rid>/email")
+def eap_email_draft(rid):
+    """Draft of the customer email for this request: To/CC (defaults ticked), subject, body. Nothing is sent."""
+    svc, st = _eap()
+    try:
+        return jsonify(svc.email_draft(st, rid, refresh=request.args.get("refresh", "1") != "0"))
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+
+
+@app.route("/api/eap/request/<int:rid>/email", methods=["POST"])
+def eap_email_record(rid):
+    """The user opened the draft in a mail client: record who, when, to whom (audit) — the app never sends."""
+    svc, st = _eap()
+    body = request.get_json() or {}
+    try:
+        row = svc.record_email(st, rid, [a.strip() for a in body.get("to") or [] if a.strip()],
+                               [a.strip() for a in body.get("cc") or [] if a.strip()],
+                               (body.get("subject") or "").strip(), body.get("via") or "mail client")
+    except KeyError as exc:
+        return jsonify({"error": str(exc).strip("'")}), 404
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    return jsonify({"row": row, "history": st.history(rid)})
+
+
+@app.route("/api/eap/email-template", methods=["GET", "PUT"])
+def eap_email_template():
+    """The email template (Subject line, blank line, body with {placeholders}). PUT saves a custom copy
+    to ~/.config/s1am/eap_email_template.txt; an empty PUT restores the built-in one."""
+    from s1am.eap import email as email_mod
+    if request.method == "PUT":
+        try:
+            tpl = email_mod.save_template((request.get_json() or {}).get("text") or "")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+    else:
+        tpl = email_mod.load_template()
+    tpl["placeholders"] = email_mod.PLACEHOLDERS
+    tpl["unknown"] = email_mod.unknown_placeholders(tpl["text"])
+    return jsonify(tpl)
 
 
 @app.route("/api/eap/duplicates")

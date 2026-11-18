@@ -1,4 +1,5 @@
 """Flask endpoint tests for the EAP tracker, against a temporary eap.db — no network."""
+import os
 import pytest
 
 
@@ -83,6 +84,28 @@ class _FakeConsole:
                 raise RuntimeError("HTTP 404")
             return {"data": a}
         return {"data": [a for i, a in self.accounts.items() if params and i == str(params.get("ids"))]}
+
+
+def test_candidate_tenants_get_console_account_names(api, monkeypatch):
+    client, st = api
+    import s1am.components.app as a
+    from s1am.eap import service
+    monkeypatch.setattr(service, "profiles", lambda: {"EUCE1": "https://e1"})   # EUCE2 has no profile
+    consoles = {"EUCE1": _FakeConsole([{"id": 11, "name": "Cheops BE", "state": "active", "licenses": {}}])}
+    monkeypatch.setattr(a, "_build_client_for_console", lambda code: consoles[code])
+    st.update(3, {"sf_tenants": st.get(3)["sf_tenants"] + [{"id": "t3", "name": "1000_EUCE1_404", "status": "Contract"}]})
+
+    cands = client.post("/api/eap/request/3/tenant-names").json["row"]["sf_tenants"]
+    by = {c["name"]: c for c in cands}
+    assert (by["1000_EUCE1_11"]["s1_account_name"], by["1000_EUCE1_11"]["s1_state"]) == ("Cheops BE", "active")
+    assert by["1000_EUCE2_22"]["s1_lookup"] == "no profile for console EUCE2"
+    assert by["1000_EUCE1_404"]["s1_lookup"] == "account 404 not found on EUCE1"
+    assert client.post("/api/eap/request/99/tenant-names").status_code == 404
+
+    # Already-resolved candidates are not re-read unless forced.
+    consoles["EUCE1"].accounts["11"]["name"] = "Renamed"
+    assert {c["name"]: c.get("s1_account_name") for c in client.post("/api/eap/request/3/tenant-names").json["row"]["sf_tenants"]}["1000_EUCE1_11"] == "Cheops BE"
+    assert {c["name"]: c.get("s1_account_name") for c in client.post("/api/eap/request/3/tenant-names?force=1").json["row"]["sf_tenants"]}["1000_EUCE1_11"] == "Renamed"
 
 
 def test_additional_tenants_lifecycle(api, monkeypatch):
@@ -286,3 +309,175 @@ def test_not_a_duplicate_is_remembered(api, tmp_path, monkeypatch):
     client.post("/api/eap/duplicates/resolve", json={"manual_id": m["id"], "form_id": 3, "action": "ignore"})
     assert client.get("/api/eap/duplicates").json["duplicates"] == []
     assert st.get(m["id"])["merged_into"] is None and len(client.get("/api/eap/requests").json["rows"]) == 2
+
+
+# ---------------------------------------------------------------- workbook discovery
+
+class TestFormPathDiscovery:
+    def _touch(self, folder, name, mtime):
+        p = folder / name
+        p.write_bytes(b"x")
+        os.utime(p, (mtime, mtime))
+        return p
+
+    def test_download_number_parses_forms_export_names(self):
+        from s1am.eap import service as svc
+        base = "N-able Endpoint SecuritySentinelOne Early Access"
+        assert svc.download_number(f"{base}(1-53).xlsx") == 53
+        assert svc.download_number(f"{base} (1-7).xlsx") == 7
+        assert svc.download_number(f"{base}(1-53) (1).xlsx") == 53   # browser re-download suffix
+        assert svc.download_number(f"{base}.xlsx") == 0
+        assert svc.download_number(f"~${base}(1-53).xlsx") is None     # Excel lock file
+        assert svc.download_number("EAP - Customer List.xlsx") is None
+        assert svc.download_number(f"{base}(1-53).csv") is None
+
+    def test_highest_response_number_wins_over_newer_mtime(self, tmp_path, monkeypatch):
+        from s1am.eap import service as svc
+        monkeypatch.setenv("S1AM_EAP_DOWNLOADS_DIR", str(tmp_path))
+        monkeypatch.delenv("S1AM_EAP_FORM_PATH", raising=False)
+        base = "N-able Endpoint SecuritySentinelOne Early Access"
+        self._touch(tmp_path, f"{base}(1-41).xlsx", 1_700_000_000)
+        best = self._touch(tmp_path, f"{base}(1-53).xlsx", 1_700_000_100)
+        self._touch(tmp_path, f"{base}(1-43).xlsx", 1_700_000_900)      # newer file, lower count
+        self._touch(tmp_path, f"~${base}(1-53).xlsx", 1_700_001_000)     # lock file ignored
+        self._touch(tmp_path, "Other Early Access(1-99).xlsx", 1_700_001_000)
+        assert [p.name for p in svc.download_candidates()] == [
+            f"{base}(1-53).xlsx", f"{base}(1-43).xlsx", f"{base}(1-41).xlsx"]
+        assert svc.form_path() == best
+
+    def test_same_number_falls_back_to_mtime(self, tmp_path, monkeypatch):
+        from s1am.eap import service as svc
+        monkeypatch.setenv("S1AM_EAP_DOWNLOADS_DIR", str(tmp_path))
+        monkeypatch.delenv("S1AM_EAP_FORM_PATH", raising=False)
+        base = "N-able Endpoint SecuritySentinelOne Early Access"
+        self._touch(tmp_path, f"{base}(1-53).xlsx", 1_700_000_000)
+        again = self._touch(tmp_path, f"{base}(1-53) (1).xlsx", 1_700_000_500)
+        assert svc.form_path() == again
+
+    def test_explicit_form_path_beats_downloads(self, tmp_path, monkeypatch):
+        from s1am.eap import service as svc
+        monkeypatch.setenv("S1AM_EAP_DOWNLOADS_DIR", str(tmp_path))
+        self._touch(tmp_path, "N-able Endpoint SecuritySentinelOne Early Access(1-53).xlsx", 1_700_000_000)
+        monkeypatch.setenv("S1AM_EAP_FORM_PATH", str(tmp_path / "pinned.xlsx"))
+        assert svc.form_path() == tmp_path / "pinned.xlsx"
+
+    def test_empty_downloads_falls_back_to_synced_copy(self, tmp_path, monkeypatch):
+        from s1am.eap import service as svc
+        monkeypatch.setenv("S1AM_EAP_DOWNLOADS_DIR", str(tmp_path / "missing"))
+        monkeypatch.delenv("S1AM_EAP_FORM_PATH", raising=False)
+        synced = tmp_path / "synced.xlsx"
+        monkeypatch.setattr(svc, "SYNCED_COPY", synced)
+        assert svc.form_path() is None
+        synced.write_bytes(b"x")
+        assert svc.form_path() == synced
+
+
+# ---------------------------------------------------------------- customer email draft
+
+class TestCustomerEmail:
+    TEAM = [
+        {"AccountId": "001A", "TeamMemberRole": "Technical Account Owner", "User.Name": "Brett Bell", "User.Email": "bb@n-able.com", "User.IsActive": True},
+        {"AccountId": "001A", "TeamMemberRole": "Customer Success", "User.Name": "Pat Conley", "User.Email": "pc@n-able.com", "User.IsActive": True},
+        {"AccountId": "001A", "TeamMemberRole": "Growth Strategist", "User.Name": "Rick C", "User.Email": "rc@n-able.com", "User.IsActive": True},
+        {"AccountId": "001A", "TeamMemberRole": "Backup PSE", "User.Name": "Andre B", "User.Email": "ab@n-able.com", "User.IsActive": True},
+        {"AccountId": "001A", "TeamMemberRole": "Tools AE", "User.Name": "Gone", "User.Email": "gone@n-able.com", "User.IsActive": False},
+        {"AccountId": "001A", "TeamMemberRole": "Security AE", "User.Name": "No Mail", "User.Email": None, "User.IsActive": True},
+    ]
+
+    def test_team_keeps_active_members_with_email(self):
+        from s1am.eap import email as em
+        team = em.team_from_salesforce(self.TEAM)
+        assert [t["role"] for t in team] == ["Technical Account Owner", "Customer Success", "Growth Strategist", "Backup PSE"]
+
+    def test_recipients_defaults(self):
+        from s1am.eap import email as em
+        row = {"contact_name": "Leslie Rudolph", "contact_email": "l@ballast.com", "super_admin_name": "D J",
+               "super_admin_email": "dj@ballast.com", "sf_account_id": "001A"}
+        rec = em.recipients(row, em.team_from_salesforce(self.TEAM))
+        assert [t["email"] for t in rec["to"]] == ["l@ballast.com"]
+        by_role = {c["role"]: c for c in rec["cc"]}
+        assert by_role["Super admin"]["checked"] and by_role["Always copied"]["email"] == "Joe.Kern@n-able.com"
+        assert by_role["Partner Success"]["checked"]           # label for "Customer Success"
+        assert by_role["Technical Account Owner"]["checked"] and by_role["Growth Strategist"]["checked"]
+        assert by_role["Backup PSE"]["checked"] is False      # offered, not ticked
+        assert [c["role"] for c in rec["cc"]][-1] == "Backup PSE"  # unticked roles sort last
+        assert rec["missing"] == []
+
+    def test_recipients_dedupe_and_warnings(self):
+        from s1am.eap import email as em
+        row = {"contact_email": "joe.kern@n-able.com", "super_admin_email": "JOE.KERN@n-able.com"}
+        rec = em.recipients(row, [])
+        assert rec["cc"] == []                                 # contact == Joe == super admin
+        assert rec["missing"] == ["No Salesforce account matched yet"]
+        assert em.recipients({"sf_account_id": "001A"}, [])["missing"] == [
+            "The request has no contact email", "No Salesforce account team found"]
+
+    def test_html_to_text_and_escaping(self):
+        from s1am.eap import email as em
+        markup = ("<div><p>Hello {contact_name},</p><p><b>Guide:</b> <a href=\"https://x.test/g\">https://x.test/g</a> (login)</p>"
+                  "<ul><li>One</li><li>Two <a href=\"https://x.test/z\">zip</a>.</li></ul><ol><li>First<ul><li>Nested</li></ul></li></ol><p>Bye</p></div>")
+        rendered = em.render(markup, {"contact_name": "Smith & <Sons>"}, escape=True)
+        assert "Smith &amp; &lt;Sons&gt;" in rendered
+        text = em.html_to_text(rendered)
+        assert text == ("Hello Smith & <Sons>,\n\nGuide: https://x.test/g (login)\n\n- One\n- Two zip (https://x.test/z).\n\n"
+                        "1. First\n   - Nested\n\nBye\n")
+
+    def test_render_and_context(self):
+        from s1am.eap import email as em
+        row = {"company": "Ballast", "contact_name": "Leslie Rudolph", "sf_tenant": "1000_USEA2_9",
+               "prompt_tenant_name": "ballast", "first_users": [{"name": "L R", "email": "l@b.com"}], "products": ["Prompt Security"]}
+        ctx = em.context(row, {"console": "USEA2", "account_id": "9", "host": "usea1-swprd2.sentinelone.net"}, sender="Pavan")
+        assert ctx["contact_first_name"] == "Leslie" and ctx["tenant_clause"] == " (tenant 1000_USEA2_9)"
+        assert ctx["console_url"] == "https://usea1-swprd2.sentinelone.net" and ctx["first_users"] == "L R <l@b.com>"
+        assert em.render("Hi {contact_first_name}, {nope} {console}", ctx) == "Hi Leslie,  USEA2"
+        assert em.unknown_placeholders("{company} {nope}") == ["nope"]
+        with pytest.raises(ValueError):
+            em.split_template("no subject line")
+        assert em.split_template("Subject: S\n\nBody {x}") == ("S", "Body {x}")
+
+    def test_links(self):
+        from s1am.eap import email as em
+        link = em.outlook_link(["a@b.com"], ["c@d.com", "e@f.com"], "Hi & bye", "line 1\nline 2")
+        assert link.startswith("https://outlook.office.com/mail/deeplink/compose?to=a%40b.com&cc=c%40d.com%2Ce%40f.com&subject=Hi%20%26%20bye&body=line%201%0Aline%202")
+        assert em.mailto_link(["a@b.com"], [], "S", "B") == "mailto:a@b.com?subject=S&body=B"
+
+    def test_draft_route_uses_cached_team_and_records_the_send(self, api, monkeypatch):
+        client, st = api
+        from s1am.eap import service as svc, email as em
+        st.update(3, {"contact_name": "Chris Cheops", "sf_team": em.team_from_salesforce(self.TEAM), "sf_team_at": "2026-11-18 10:00:00",
+                      "sf_tenant": "1000_EUCE1_11", "enabled_yn": "Y"})
+        monkeypatch.setattr(svc, "refresh_team", lambda st_, rid: st_.get(rid)["sf_team"])  # no Salesforce in tests
+        monkeypatch.setattr(svc, "sender_name", lambda st_: "Pavan")
+        monkeypatch.setattr(svc, "sender_email", lambda st_: "pavan@example.com")
+        d = client.get("/api/eap/request/3/email").json
+        assert d["to"][0]["email"] == "c@cheops.com"
+        assert d["subject"] == "SentinelOne Prompt Security Access Activated"
+        assert d["body"].startswith("Hello Chris Cheops,\n") and "{" not in d["body"]
+        assert d["body"].rstrip().endswith("Thank you,")   # the mail client appends the sender's own signature
+        assert d["body_html"].startswith("<div") and "<b>Prompt Security</b>" in d["body_html"]
+        assert 'href="https://me.n-able.com/s/edr-sa-documentation"' in d["body_html"]
+        assert "Prompt+Security+EDR+install.zip" in d["body_html"] and "remoteops-scripts" in d["body_html"]
+        assert d["warnings"] == [] and d["template"]["custom"] is False
+        assert [c["email"] for c in d["cc"] if c["checked"]] == ["Joe.Kern@n-able.com", "bb@n-able.com", "pc@n-able.com", "rc@n-able.com"]
+
+        bad = client.post("/api/eap/request/3/email", json={"to": ["nope"], "cc": [], "subject": "x"})
+        assert bad.status_code == 400 and "Not an email address" in bad.json["error"]
+        ok = client.post("/api/eap/request/3/email", json={"to": ["c@cheops.com"], "cc": ["Joe.Kern@n-able.com"], "subject": "S", "via": "Outlook on the web"})
+        assert ok.status_code == 200 and ok.json["row"]["email_drafted_at"]
+        hist = ok.json["history"][0]
+        assert hist["kind"] == "email" and "Outlook on the web" in hist["message"] and hist["data"]["cc"] == ["Joe.Kern@n-able.com"]
+        assert client.get("/api/eap/request/99/email").status_code == 404
+
+    def test_template_route_saves_custom_copy(self, api, tmp_path, monkeypatch):
+        client, _ = api
+        from s1am.eap import email as em
+        monkeypatch.setattr(em, "CUSTOM_TEMPLATE", tmp_path / "tpl.txt")
+        t = client.get("/api/eap/email-template").json
+        assert t["custom"] is False and "company" in t["placeholders"] and t["text"].startswith("Subject:")
+        assert client.put("/api/eap/email-template", json={"text": "no subject"}).status_code == 400
+        t = client.put("/api/eap/email-template", json={"text": "Subject: Hello {company}\n\n<p>Body <b>{bogus}</b></p>"}).json
+        assert t["custom"] is True and t["unknown"] == ["bogus"] and (tmp_path / "tpl.txt").exists()
+        d = client.get("/api/eap/request/3/email?refresh=0").json
+        assert d["subject"] == "Hello Cheops" and d["body_html"] == "<p>Body <b></b></p>" and d["body"] == "Body\n"
+        t = client.put("/api/eap/email-template", json={"text": ""}).json
+        assert t["custom"] is False and not (tmp_path / "tpl.txt").exists()

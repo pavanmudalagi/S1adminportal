@@ -548,6 +548,15 @@
     .ch-edit input.lbl { width: 180px; } .ch-edit input.note { width: 200px; }
     .ch-desc { max-width: 420px; white-space: normal; font-size: 12px; color: var(--text-muted); }
     /* EAP duplicate review */
+.eapmail-cc{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px 10px}
+.eapmail-cc label{display:flex;gap:8px;align-items:center;font-size:13px;margin:0;cursor:pointer}
+.eapmail-cc label input{margin:0}
+.eapmail-cc .role{color:var(--text-muted);font-size:12px;margin-left:auto;white-space:nowrap}
+.eapmail-body{background:#fff;color:#000;border:1px solid var(--border);border-radius:6px;padding:12px 16px;min-height:220px;max-height:46vh;overflow:auto;font-family:Aptos,"Segoe UI",Calibri,Arial,sans-serif;font-size:14px;line-height:1.45}
+.eapmail-body:focus{outline:2px solid var(--accent, #6d5dfc);outline-offset:1px}
+.eapmail-body p{margin:0 0 12px}.eapmail-body ul,.eapmail-body ol{margin:0 0 12px 22px;padding:0}.eapmail-body li{margin:2px 0}.eapmail-body a{color:#0563c1;text-decoration:underline}
+.eapmail-step2{border:1px solid var(--border);border-left:4px solid var(--accent, #6d5dfc);border-radius:6px;padding:12px 16px;margin-top:4px;font-size:13px}
+.eapmail-step2 kbd{border:1px solid var(--border);border-radius:4px;padding:0 5px;font-family:inherit;font-size:12px}
     .dup-pair { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; margin-bottom: 12px; background: var(--surface); }
     .dup-pair h5 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
     .dup-pair table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 8px; }
@@ -787,10 +796,10 @@
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             <button class="btn" id="eap-add-btn" title="Add a request that did not come through the form (email, call, partner ask)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add request</button>
-            <button class="btn" id="eap-sync-btn" title="Re-read the Forms workbook"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Sync Excel</button>
-            <button class="btn" id="eap-enrich-btn" title="Match every request in Salesforce (batched queries)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Enrich Salesforce</button>
-            <button class="btn btn-primary" id="eap-check-btn" title="GET each account on its console (read-only)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Check Consoles</button>
-            <a class="btn" id="eap-export-btn" href="/api/eap/export" download title="Excel with a Summary sheet, the Customer List layout and the full table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Download Excel</a>
+            <button class="btn" id="eap-sync-btn" title="Read the latest Forms export (highest (1-N) in Downloads) and add new or changed responses; never overwrites your edits"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Import form responses</button>
+            <button class="btn" id="eap-enrich-btn" title="Look each request up in Salesforce and pull its account, 1000_ tenant, country, Customer ID and agent counts into the tracker"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Match in Salesforce</button>
+            <button class="btn btn-primary" id="eap-check-btn" title="Read each matched account from its SentinelOne console: Prompt bundle present, tenant name, first users (read-only)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Check S1 consoles</button>
+            <a class="btn" id="eap-export-btn" href="/api/eap/export" download title="Excel with a Summary sheet, the Customer List layout and the full table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export to Excel</a>
           </div>
         </div>
         <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
@@ -832,7 +841,8 @@
         <div style="display:flex;gap:8px;flex-shrink:0;">
           <button class="btn btn-primary btn-sm" id="eap-d-edit" title="Open this account in the Account Editor with Prompt pre-filled">✎ Edit account</button>
           <button class="btn btn-sm" id="eap-d-check">Check console</button>
-          <button class="btn btn-sm" id="eap-d-enrich">Re-enrich</button>
+          <button class="btn btn-sm" id="eap-d-mail" title="Draft the customer email (To the contact, CC Joe and the Salesforce account team) and open it in Outlook">✉ Draft email</button>
+          <button class="btn btn-sm" id="eap-d-enrich">Match in Salesforce</button>
           <button class="btn btn-sm" id="eap-d-close">✕</button>
         </div>
       </div>
@@ -1110,6 +1120,55 @@
       <button class="btn" id="eapadd-cancel">Cancel</button>
       <div class="spinner" id="eapadd-spinner" style="display:none;"></div>
       <button class="btn btn-primary" id="eapadd-save">Add request</button>
+    </div>
+  </div>
+</div>
+<div id="eapmail-backdrop" class="ae-backdrop hidden">
+  <div class="ae-modal" role="dialog" aria-modal="true" aria-labelledby="eapmail-title" style="width:860px">
+    <div class="ae-hdr">
+      <div class="ae-hdr-left">
+        <div class="ae-hdr-title" id="eapmail-title">Customer email</div>
+        <div class="ae-hdr-sub" id="eapmail-sub">Nothing is sent from here. A draft opens in your mail client; the email only goes out when you press Send there.</div>
+      </div>
+      <button class="ae-close" id="eapmail-close" aria-label="Close">×</button>
+    </div>
+    <div class="ae-body" style="padding:16px 24px">
+      <div id="eapmail-warn"></div>
+      <div class="form-grid" style="grid-template-columns:1fr 1fr">
+        <div class="form-group full-width"><label for="eapmail-to">To</label><input type="text" id="eapmail-to" placeholder="customer@example.com"></div>
+        <div class="form-group full-width"><label>CC <span class="eap-muted" id="eapmail-cc-src"></span></label><div id="eapmail-cc" class="eapmail-cc"></div>
+          <input type="text" id="eapmail-cc-extra" placeholder="More addresses, comma separated" style="margin-top:6px"></div>
+        <div class="form-group full-width"><label for="eapmail-subject">Subject</label><input type="text" id="eapmail-subject"></div>
+        <div class="form-group full-width"><label>Body <span class="eap-muted">(formatted as it will paste into Outlook; edit freely, the template is not changed)</span></label><div id="eapmail-body" class="eapmail-body" contenteditable="true" spellcheck="true"></div></div>
+      </div>
+      <div id="eapmail-step2" class="eapmail-step2 hidden">
+        <b>The draft is open in <span id="eapmail-step2-where">Outlook</span> with the To, CC and subject filled in.</b>
+        <ol style="margin:8px 0 0 18px;padding:0">
+          <li>Click into the message body and press <kbd>⌘V</kbd> (<kbd>Ctrl+V</kbd> on Windows). The formatted body is on your clipboard.</li>
+          <li>Check the text and the recipients once more.</li>
+          <li>Press <b>Send</b> there. Nothing has been sent yet.</li>
+        </ol>
+        <div style="display:flex;gap:8px;margin-top:10px"><button class="btn btn-sm" id="eapmail-copy-again">Copy body again</button></div>
+      </div>
+      <details id="eapmail-tpl" style="margin-top:4px">
+        <summary class="eap-muted" style="cursor:pointer">Email template (HTML) <span id="eapmail-tpl-src"></span></summary>
+        <div style="margin-top:8px">
+          <textarea id="eapmail-tpl-text" rows="12" style="width:100%;font-family:ui-monospace,Menlo,monospace;font-size:12px"></textarea>
+          <div class="eap-muted" style="font-size:12px;margin-top:6px">First line <code>Subject: …</code>, blank line, then the HTML body (<code>&lt;p&gt;</code>, <code>&lt;b&gt;</code>, <code>&lt;a href&gt;</code>, <code>&lt;ul&gt;/&lt;ol&gt;</code>). Placeholders: <span id="eapmail-tpl-ph"></span></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+            <button class="btn btn-sm" id="eapmail-tpl-save">Save template</button>
+            <button class="btn btn-sm" id="eapmail-tpl-reset" title="Delete the custom template and go back to the built-in one">Use built-in</button>
+            <span class="eap-muted" id="eapmail-tpl-msg" style="font-size:12px"></span>
+          </div>
+        </div>
+      </details>
+    </div>
+    <div class="ae-footer">
+      <div class="ae-save-err" id="eapmail-err"></div>
+      <button class="btn" id="eapmail-cancel">Cancel</button>
+      <button class="btn" id="eapmail-copy" title="Copy the formatted body to the clipboard (paste it into any mail client)">Copy body</button>
+      <button class="btn" id="eapmail-mailto" title="Open an unsent draft in the default mail app (mailto:)">Open draft in mail app</button>
+      <button class="btn btn-primary" id="eapmail-outlook" title="Open an unsent draft in Outlook on the web; you review and press Send there">Open draft in Outlook</button>
     </div>
   </div>
 </div>
@@ -3618,6 +3677,16 @@ function eapInit() {
     document.addEventListener("mouseup", up);
   });
   document.getElementById("eap-d-check").onclick  = () => eapOpenId && eapCheck([eapOpenId]);
+  document.getElementById("eap-d-mail").onclick   = () => eapOpenId && eapMailOpen(eapOpenId);
+  document.getElementById("eapmail-close").onclick = document.getElementById("eapmail-cancel").onclick = eapMailClose;
+  document.getElementById("eapmail-backdrop").onclick = e => { if (e.target.id === "eapmail-backdrop") eapMailClose(); };
+  document.getElementById("eapmail-outlook").onclick = () => eapMailOpenVia("outlook");
+  document.getElementById("eapmail-mailto").onclick  = () => eapMailOpenVia("mailto");
+  document.getElementById("eapmail-copy").onclick    = eapMailCopy;
+  document.getElementById("eapmail-copy-again").onclick = eapMailCopy;
+  document.getElementById("eapmail-tpl").ontoggle    = () => { if (document.getElementById("eapmail-tpl").open) eapMailTemplateLoad(); };
+  document.getElementById("eapmail-tpl-save").onclick  = () => eapMailTemplateSave(false);
+  document.getElementById("eapmail-tpl-reset").onclick = () => eapMailTemplateSave(true);
   document.getElementById("eap-d-enrich").onclick = () => eapOpenId && eapEnrich([eapOpenId]);
 }
 
@@ -3804,7 +3873,7 @@ function eapRender() {
     </tr>`;
   }).join("");
   document.getElementById("eap-status").textContent = eapRows.length
-    ? `${rows.length} of ${eapRows.length} requests` : "No requests yet — click Sync Excel.";
+    ? `${rows.length} of ${eapRows.length} requests` : "No requests yet — click Import form responses.";
   tbody.querySelectorAll("tr").forEach(tr => tr.addEventListener("click", () => eapOpen(parseInt(tr.dataset.id, 10))));
 }
 
@@ -3960,6 +4029,130 @@ function _eapKV(pairs) {
   return `<div class="eap-kv">` + pairs.filter(([, v]) => v !== undefined).map(([k, v]) =>
     `<div class="k">${_eapEsc(k)}</div><div class="v">${(v === null || v === "") ? '<span class="eap-muted">—</span>' : v}</div>`).join("") + `</div>`;
 }
+// ── customer email draft ──
+// The server renders To/CC/subject/body from the template and the Salesforce account team; the
+// user edits here and opens the draft in Outlook (web) or the default mail app. Nothing is sent
+// by the app; opening a draft is recorded in the request's history.
+let eapMail = null;
+async function eapMailOpen(rid) {
+  _eapErr("");
+  const bd = document.getElementById("eapmail-backdrop");
+  document.getElementById("eapmail-err").textContent = "";
+  document.getElementById("eapmail-warn").innerHTML = '<span class="eap-muted">Reading the Salesforce account team…</span>';
+  document.getElementById("eapmail-cc").innerHTML = "";
+  ["eapmail-to", "eapmail-cc-extra", "eapmail-subject"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("eapmail-body").innerHTML = "";
+  document.getElementById("eapmail-tpl").open = false;
+  _eapMailStep(1);
+  bd.classList.remove("hidden");
+  try {
+    const res = await fetch(`/api/eap/request/${rid}/email`);
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    eapMail = d;
+    document.getElementById("eapmail-title").textContent = `Customer email — #${rid} ${d.company || ""}`;
+    document.getElementById("eapmail-to").value = d.to.map(t => t.email).join(", ");
+    document.getElementById("eapmail-cc").innerHTML = d.cc.length ? d.cc.map((c, i) =>
+      `<label><input type="checkbox" data-i="${i}" ${c.checked ? "checked" : ""}> ${_eapEsc(c.name || c.email)}${c.name ? ` <span class="eap-muted">&lt;${_eapEsc(c.email)}&gt;</span>` : ""}<span class="role">${_eapEsc(c.role)}</span></label>`).join("")
+      : '<span class="eap-muted">No account team on file — add addresses below.</span>';
+    document.getElementById("eapmail-cc-src").textContent = d.team_as_of ? `· account team as of ${d.team_as_of}` : "";
+    document.getElementById("eapmail-subject").value = d.subject;
+    document.getElementById("eapmail-body").innerHTML = d.body_html;
+    document.getElementById("eapmail-tpl-src").textContent = d.template.custom ? "(custom)" : "(built-in)";
+    const warn = [...(d.warnings || []), ...(d.template.unknown.length ? [`Unknown placeholders in the template: ${d.template.unknown.join(", ")}`] : [])];
+    document.getElementById("eapmail-warn").innerHTML = warn.map(w => `<div class="eap-notice" style="margin-bottom:8px"><span>${_eapEsc(w)}</span></div>`).join("")
+      + (d.email_drafted_at ? `<div class="eap-muted" style="font-size:12px;margin-bottom:8px">A draft was already opened ${_eapEsc(d.email_drafted_at)} by ${_eapEsc(d.email_drafted_by || "")}.</div>` : "");
+  } catch (e) {
+    document.getElementById("eapmail-warn").innerHTML = "";
+    document.getElementById("eapmail-err").textContent = e.message;
+  }
+}
+function eapMailClose() { document.getElementById("eapmail-backdrop").classList.add("hidden"); eapMail = null; }
+// Step 1 = edit the draft; step 2 = the mail client is open, paste the formatted body there.
+function _eapMailStep(n, where) {
+  document.getElementById("eapmail-step2").classList.toggle("hidden", n !== 2);
+  document.getElementById("eapmail-tpl").classList.toggle("hidden", n === 2);
+  document.querySelector("#eapmail-backdrop .form-grid").classList.toggle("hidden", n === 2);
+  document.getElementById("eapmail-warn").classList.toggle("hidden", n === 2);
+  ["eapmail-outlook", "eapmail-mailto", "eapmail-copy"].forEach(id => document.getElementById(id).classList.toggle("hidden", n === 2));
+  document.getElementById("eapmail-cancel").textContent = n === 2 ? "Done" : "Cancel";
+  if (where) document.getElementById("eapmail-step2-where").textContent = where;
+}
+// Rich body for the clipboard: the edited HTML plus a plain-text alternative for clients that cannot paste HTML.
+function _eapMailBodyHtml() {
+  return `<div style="font-family: Aptos, 'Segoe UI', Calibri, Arial, sans-serif; font-size: 11pt; color: #000000;">${document.getElementById("eapmail-body").innerHTML}</div>`;
+}
+function _eapMailCopyBody() {
+  const el = document.getElementById("eapmail-body");
+  const htmlBlob = new Blob([_eapMailBodyHtml()], {type: "text/html"});
+  const textBlob = new Blob([el.innerText], {type: "text/plain"});
+  if (navigator.clipboard && window.ClipboardItem) {
+    return navigator.clipboard.write([new ClipboardItem({"text/html": htmlBlob, "text/plain": textBlob})]);
+  }
+  return navigator.clipboard ? navigator.clipboard.writeText(el.innerText) : Promise.reject(new Error("Clipboard unavailable"));
+}
+const _eapMailSplit = v => v.split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
+function eapMailCollect() {
+  const to = _eapMailSplit(document.getElementById("eapmail-to").value);
+  const cc = [];
+  document.querySelectorAll("#eapmail-cc input[type=checkbox]:checked").forEach(cb => cc.push(eapMail.cc[+cb.dataset.i].email));
+  _eapMailSplit(document.getElementById("eapmail-cc-extra").value).forEach(a => { if (!cc.some(x => x.toLowerCase() === a.toLowerCase())) cc.push(a); });
+  return {to, cc, subject: document.getElementById("eapmail-subject").value.trim()};
+}
+const _eapMailQ = v => encodeURIComponent(v || "");
+function eapMailLink(via, m) {
+  // No body in the link: neither mailto: nor the Outlook deep link takes HTML, so the body is pasted from the clipboard.
+  const parts = [m.cc.length ? `cc=${_eapMailQ(m.cc.join(","))}` : "", `subject=${_eapMailQ(m.subject)}`].filter(Boolean);
+  return via === "outlook"
+    ? `https://outlook.office.com/mail/deeplink/compose?to=${_eapMailQ(m.to.join(","))}&${parts.join("&")}`
+    : `mailto:${m.to.join(",")}?${parts.join("&")}`;
+}
+async function eapMailOpenVia(via) {
+  if (!eapMail) return;
+  const m = eapMailCollect(), err = document.getElementById("eapmail-err");
+  err.textContent = "";
+  if (!m.to.length) { err.textContent = "Add a To address first."; return; }
+  const win = via === "outlook" ? window.open("", "_blank") : null;  // open synchronously so the popup is not blocked
+  const copied = _eapMailCopyBody().then(() => true, () => false);         // also synchronously: clipboard needs the click
+  try {
+    const res = await fetch(`/api/eap/request/${eapMail.id}/email`, {method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({to: m.to, cc: m.cc, subject: m.subject, via: via === "outlook" ? "Outlook on the web" : "mail app"})});
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    const link = eapMailLink(via, m);
+    if (win) win.location = link; else window.location.href = link;
+    _eapReplaceRow(data.row); eapRender();
+    if (eapOpenId === data.row.id) eapOpen(data.row.id);
+    _eapMailStep(2, via === "outlook" ? "Outlook" : "your mail app");
+    if (!(await copied)) err.textContent = "The body could not be copied automatically — click “Copy body again”.";
+  } catch (e) { if (win) win.close(); err.textContent = e.message; }
+}
+async function eapMailCopy() {
+  const err = document.getElementById("eapmail-err");
+  try { await _eapMailCopyBody(); err.textContent = "Formatted body copied — paste it into the message."; }
+  catch (e) { err.textContent = "Clipboard unavailable — select the body text and copy it."; }
+}
+async function eapMailTemplateLoad() {
+  const res = await fetch("/api/eap/email-template");
+  const t = await res.json();
+  document.getElementById("eapmail-tpl-text").value = t.text;
+  document.getElementById("eapmail-tpl-src").textContent = t.custom ? `(custom · ${t.path})` : "(built-in)";
+  document.getElementById("eapmail-tpl-ph").innerHTML = Object.entries(t.placeholders).map(([k, v]) => `<code title="${_eapEsc(v)}">{${k}}</code>`).join(" ");
+  document.getElementById("eapmail-tpl-msg").textContent = "";
+}
+async function eapMailTemplateSave(reset) {
+  const msg = document.getElementById("eapmail-tpl-msg");
+  msg.textContent = "";
+  if (reset && !confirm("Delete the custom template and use the built-in one?")) return;
+  const res = await fetch("/api/eap/email-template", {method: "PUT", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({text: reset ? "" : document.getElementById("eapmail-tpl-text").value})});
+  const t = await res.json().catch(() => ({}));
+  if (!res.ok) { msg.textContent = t.error || `HTTP ${res.status}`; return; }
+  msg.textContent = reset ? "Built-in template restored." : "Saved. Re-open the draft to use it.";
+  await eapMailTemplateLoad();
+  if (eapMail) { const rid = eapMail.id; eapMailOpen(rid); }
+}
+
 async function eapOpen(id) {
   eapOpenId = id;
   const res = await fetch(`/api/eap/request/${id}`);
@@ -3976,8 +4169,12 @@ async function eapOpen(id) {
     return `<button class="btn btn-sm eap-pick" data-name="${_eapEsc(c.name)}" title="Make this the primary tenant and re-check its console account">Use</button>
             <button class="btn btn-sm eap-also" data-name="${_eapEsc(c.name)}" title="Provision this tenant as well (in addition to the primary)">+ Also add</button>`;
   };
-  const candRows = list => list.map(c => `<tr><td style="white-space:nowrap">${candActions(c)}</td><td class="${c.name === r.sf_tenant ? "sel" : ""}" style="white-space:nowrap">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${_eapEsc(c.status)}</td><td>${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td></tr>`).join("");
-  const candTable = list => `<div style="overflow-x:auto"><table class="rtable eap-cands" style="width:100%"><thead><tr><th></th><th>Tenant</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th></tr></thead><tbody>${candRows(list)}</tbody></table></div>`;
+  // SentinelOne account name per candidate: read from the console on first open (see eapCandNames below).
+  const candS1 = c => c.s1_account_name ? `${_eapEsc(c.s1_account_name)}${c.s1_state ? ` <span class="eap-muted">${_eapEsc(c.s1_state)}</span>` : ""}`
+    : c.s1_lookup ? `<span class="eap-muted" title="${_eapEsc(c.s1_lookup)}">${_eapEsc(c.s1_lookup.length > 28 ? c.s1_lookup.slice(0, 27) + "…" : c.s1_lookup)}</span>`
+    : '<span class="eap-muted">reading…</span>';
+  const candRows = list => list.map(c => `<tr><td style="white-space:nowrap">${candActions(c)}</td><td class="${c.name === r.sf_tenant ? "sel" : ""}" style="white-space:nowrap">${_eapEsc(c.name)}${c.name === r.sf_tenant ? " ✓" : ""}</td><td>${candS1(c)}</td><td>${_eapEsc(c.status)}</td><td>${_eapEsc(c.product || "")}</td><td>${c.complete_agents ?? ""}</td><td>${c.control_agents ?? ""}</td><td>${c.total_agents ?? ""}</td><td>${_eapEsc(c.term_end || "")}</td></tr>`).join("");
+  const candTable = list => `<div style="overflow-x:auto"><table class="rtable eap-cands" style="width:100%"><thead><tr><th></th><th>Tenant</th><th>S1 account</th><th>Status</th><th>Product</th><th>Complete</th><th>Control</th><th>Total</th><th>Term end</th></tr></thead><tbody>${candRows(list)}</tbody></table></div>`;
   const all = r.sf_tenants || [];
   const selected = all.find(c => c.name === r.sf_tenant);
   let cands;
@@ -4074,10 +4271,12 @@ async function eapOpen(id) {
       ["First users", `<textarea id="eap-e-users" placeholder="Name <email>, one per line">${_eapEsc((r.first_users || []).map(u => `${u.name || ""} <${u.email || ""}>`).join("\n"))}</textarea>`],
       ["Enabled", `Y/N <input type="text" id="eap-e-enabled" value="${_eapEsc(r.enabled_yn || "")}" style="width:50px"> &nbsp; Date <input type="text" id="eap-e-date" value="${_eapEsc(r.date_enabled || "")}" style="width:110px"> &nbsp; By <input type="text" id="eap-e-by" value="${_eapEsc(r.enabled_by || "")}" style="width:150px">`],
       ["First contacted", `<input type="text" id="eap-e-contacted" value="${_eapEsc(r.first_contacted || "")}" style="width:150px">`],
+      ["Customer email", r.email_drafted_at ? `draft opened ${_eapEsc(r.email_drafted_at)} by ${_eapEsc(r.email_drafted_by || "")} <span class="eap-muted">(sent from your mailbox, not tracked here)</span> <button class="btn btn-sm" id="eap-e-mail" style="margin-left:6px">Draft again</button>` : `<button class="btn btn-sm" id="eap-e-mail">✉ Draft email</button> <span class="eap-sub">To the contact, CC Joe and the Salesforce account team; opens as a draft in Outlook, nothing is sent until you press Send there</span>`],
       ["Notes", `<textarea id="eap-e-notes">${_eapEsc(r.notes || "")}</textarea>`],
     ])}<div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button class="btn btn-primary btn-sm" id="eap-e-save">Save</button><span class="eap-muted" id="eap-e-msg">${(r.edited_fields || []).length ? "Hand-edited (kept on sync): " + _eapEsc(r.edited_fields.join(", ")) : ""}</span></div></div>
     <div class="eap-sec"><h4>History</h4><div class="eap-hist">${hist}</div></div>`;
   document.getElementById("eap-e-save").onclick = () => eapSave(r);
+  document.getElementById("eap-e-mail").onclick = () => eapMailOpen(r.id);
   document.getElementById("eap-e-target").onclick = () => eapSetTarget(r.id);
   document.querySelectorAll("#eap-d-body .eap-pick").forEach(b => b.onclick = () => eapPickTenant(r.id, b.dataset.name));
   document.querySelectorAll("#eap-d-body .eap-also").forEach(b => b.onclick = () => eapAddTenant(r.id, b.dataset.name));
@@ -4101,6 +4300,22 @@ async function eapOpen(id) {
     : `Open ${_eapLabel(target.console)} account ${target.accountId} in the Account Editor with Prompt pre-filled`;
   editBtn.onclick = () => eapOpenEditor(r);
   document.getElementById("eap-drawer").classList.remove("hidden");
+  eapCandNames(r);
+}
+
+// Fetch the console account name for Salesforce candidates that have not been looked up yet, then
+// redraw the drawer if it still shows this request. One request per drawer open, never a loop.
+const _eapNamesPending = new Set();
+async function eapCandNames(r) {
+  const missing = (r.sf_tenants || []).some(c => !c.s1_account_name && !c.s1_lookup);
+  if (!missing || _eapNamesPending.has(r.id)) return;
+  _eapNamesPending.add(r.id);
+  try {
+    const row = await _eapCall(`/api/eap/request/${r.id}/tenant-names`, "POST");
+    _eapReplaceRow(row);
+    if (eapOpenId === r.id) eapOpen(r.id);
+  } catch (e) { /* names are a convenience; the drawer stays usable without them */ }
+  finally { _eapNamesPending.delete(r.id); }
 }
 
 // ── hand-off to the Account Editor ──

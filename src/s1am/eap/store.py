@@ -27,7 +27,7 @@ COLUMNS = [
     ("sf_tenants", "TEXT"), ("sf_tenant", "TEXT"), ("sf_tenant_id", "TEXT"),
     ("match_rule", "INTEGER"), ("match_confidence", "TEXT"), ("match_flag", "TEXT"), ("match_note", "TEXT"),
     ("complete_agents", "INTEGER"), ("control_agents", "INTEGER"), ("total_agents", "INTEGER"),
-    ("sf_updated_at", "TEXT"),
+    ("sf_updated_at", "TEXT"), ("sf_team", "TEXT"), ("sf_team_at", "TEXT"),
     # from the SentinelOne console
     ("s1_console", "TEXT"), ("s1_account_id", "TEXT"), ("s1_account_name", "TEXT"), ("s1_state", "TEXT"),
     ("s1_skus", "TEXT"), ("s1_prompt_enabled", "INTEGER"), ("s1_prompt_bundles", "TEXT"),
@@ -41,12 +41,13 @@ COLUMNS = [
     ("chosen_console", "TEXT"), ("chosen_account_id", "TEXT"), ("bundle_counts", "TEXT"),
     ("tenant_confirmed", "INTEGER"), ("tenant_confirmed_at", "TEXT"), ("tenant_confirmed_by", "TEXT"),
     ("edited_fields", "TEXT"), ("created_at", "TEXT"), ("updated_at", "TEXT"),
+    ("email_drafted_at", "TEXT"), ("email_drafted_by", "TEXT"),  # customer email opened from the tracker
     ("origin", "TEXT"),  # "form" (default, from the workbook) or "manual" (added in the UI / CLI)
     ("merged_into", "INTEGER"),  # manual row folded into this form row (hidden from listings)
 ]
 MANUAL_ID_BASE = 100000  # manual requests live far above the Forms response ids, so a sync can never collide
 JSON_COLUMNS = {"products", "details", "sf_tenants", "s1_skus", "s1_prompt_bundles", "s1_prompt_users",
-                "first_users", "bundle_counts", "edited_fields"}
+                "first_users", "bundle_counts", "edited_fields", "sf_team"}
 
 # A request can need Prompt on more than one tenant (customer with several contract tenants).
 # The first/primary tenant lives on the request row; further ones are rows here, each with

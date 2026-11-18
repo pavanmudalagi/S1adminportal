@@ -104,16 +104,36 @@ The **Prompt EAP** section of the web UI lists every Prompt Security early-acces
 from the Microsoft Forms workbook, enriched from Salesforce and cross-checked on the
 SentinelOne consoles (read-only):
 
-1. **Sync Excel** — reads the workbook (`Id` is the key; re-syncing is idempotent and never
+1. **Import form responses** — reads the Forms export (`Id` is the key; re-syncing is idempotent and never
    overwrites fields you edited in the app).
-2. **Enrich Salesforce** — one batched query per rule: Joe's tenant link → `1000_` tenant on
+2. **Match in Salesforce** — finds each request's Salesforce account and tenant, one batched query per rule: Joe's tenant link → `1000_` tenant on
    the form → S1 account ID → contact email → email domain → company name. Picks the
    `Contract` tenant, pulls country, Customer ID and Complete/Control agent counts.
-3. **Check Consoles** — `GET /accounts/{id}` on the matching console: is a Prompt bundle
+3. **Check S1 consoles** — `GET /accounts/{id}` on the matching console: is a Prompt bundle
    present, and if so the tenant name and first users.
 
 Click a row for the full detail (candidates, raw form text, console data, history) and the
-editable provisioning fields (tenant name, first users, notes, enabled Y/N …).
+editable provisioning fields (tenant name, first users, notes, enabled Y/N …). The Salesforce
+candidate tenants table also shows each tenant's SentinelOne account name and state, read from
+its console (GET only) the first time the drawer opens and kept on the candidate.
+
+**Draft email** (drawer header, or the *Customer email* row in the provisioning details) prepares the
+note to the customer once Prompt is enabled. To = the form contact; CC = Joe Kern (`email_cc`),
+the super admin when different, and the Salesforce **Account Team** members whose role is in
+`email_cc_roles` (default: Technical Account Owner, Customer Success = "Partner Success", Growth
+Strategist, the AEs, Channel Manager). Every other active team member (PSEs…) is listed unticked.
+The subject and body come from an HTML template (`Subject:` line, blank line, HTML body with bold text,
+links and lists, plus `{placeholders}` such as `{company}`, `{contact_name}`, `{sf_tenant}`, `{console_url}`,
+`{prompt_tenant_name}`, `{first_users}`, `{sender_name}`, `{sender_email}`; values are HTML-escaped). The
+built-in one ends at "Thank you," because the mail client appends your own signature. The built-in file is
+`src/s1am/eap/email_template.html`; a custom copy can be edited in the modal (saved to
+`~/.config/s1am/eap_email_template.html`). The modal shows the formatted body, editable in place.
+
+Neither the Outlook compose link nor `mailto:` can carry a formatted body, so **Open draft in Outlook**
+(Outlook on the web) and **Open draft in mail app** (`mailto:`) open an unsent draft with To, CC and subject
+filled in and put the formatted body on the clipboard; the modal then asks you to paste it (⌘V) into the
+draft, check it and press Send there. s1am never sends. Opening a draft is written to the request's history
+(who, when, To, CC, subject).
 
 ```bash
 s1am eap-sync [--path FILE]          # import / refresh from the workbook
@@ -126,11 +146,16 @@ Settings — `S1AM_EAP_<KEY>` env vars win over an `[eap]` section in `~/.config
 
 | Key | Default |
 |---|---|
-| `form_path` | the copy synced to `~/Library/CloudStorage/OneDrive-N-Able,Inc/`, else the newest `*Early Access*.xlsx` in `~/Downloads` |
+| `form_path` | the Forms export with the highest response number in `downloads_dir` (`N-able Endpoint SecuritySentinelOne Early Access(1-53).xlsx` beats `(1-43)`; Excel `~$` lock files and browser ` (1)` copies are handled), else the copy synced to `~/Library/CloudStorage/OneDrive-N-Able,Inc/` |
+| `downloads_dir` | `~/Downloads` |
 | `db_path` | `~/.config/s1am/eap.db` |
 | `default_count` | `-1` (unlimited) for Prompt bundles |
 | `actioned_by` | the signed-in Salesforce user |
 | `dry_run` | `true` |
+| `email_cc` | `Joe.Kern@n-able.com` — always copied on the customer email |
+| `email_cc_roles` | Account Team roles copied by default (see above) |
+| `sender_name` | signature on the customer email; default the signed-in Salesforce user's display name |
+| `sender_email` | signature email on the customer email; no default (set it once, e.g. `sender_email = you@n-able.com`) |
 
 Graph mode (pulling the workbook straight from the sharing link) is implemented in
 `s1am.eap.graph` but needs an Entra app registration that Conditional Access allows; the
