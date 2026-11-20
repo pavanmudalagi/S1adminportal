@@ -59,6 +59,25 @@ The browser UI follows the SentinelOne "Unity" console design language: dark the
 console scope selector, and a narrow sidebar of categories. Picking a category shows its commands as a tab strip; the landing
 page is a searchable directory of every command, with pages greyed out when their token is not configured.
 Press **⌘K / Ctrl+K** to find a page by name. Every page has a deep link (`#list-accounts`, `#eap-tracker`, …).
+Wherever a console is named (console pickers, the EAP, Marketplace, Usage and Churn tables and drawers, the account
+editor badge) the name links to that console's URL from its profile, shown in full on hover; the ↗ button next to the
+console switcher opens the active console. `/api/profiles` carries the base URL for this, never a token.
+
+## Accounts page
+
+**Accounts → Accounts** is the console's *Settings › Scopes › Accounts* page for the active console: every account is
+read once (`GET /api/accounts/table`, read-only, cached two minutes, **Refresh** re-reads) and filtered, sorted and
+paged in the browser. The filter bar has a field + *contains* search (name, ID, Salesforce ID, external ID; 300 ms
+debounce) and multi-select chips for SKU, Module, State and Type (mssp / customer); **Add/remove filters** adds
+Account type (Paid / Trial) and Billing Mode. Filters combine with AND; values inside one chip are alternatives; the
+options come from the data with counts. Columns match the console (Account Name with ID, SKUs with quantities, Total
+Surfaces or *Unlimited*, Modules, Singularity Platform Settings in a fixed order, Usage Type, Billing Mode, Active
+Agents, Created At, Expiration Date or *N/A*) and can be sorted, resized, hidden from the column chooser or the
+header's ⋮ menu; rows per page is 20/50/100 with centred pagination. Row checkboxes enable **Actions** (export
+selected, copy IDs, open in the editor); **Export** writes the filtered rows as CSV; clicking a name opens a detail
+drawer with **Edit in Account Editor**; **New Account** opens the creator. Filters, sort, page and page size live in
+the URL (`#accounts?type=mssp&module=Vulnerability+Management&pp=50&page=2`); column, chip and width choices are
+remembered per browser.
 
 ## Notes
 
@@ -210,14 +229,34 @@ GB/TB display. To add a report (for example `ltdr_queries`, `workstation_endpoin
 whether it is fetched.
 
 **Data flow.** `Sync month` (or `s1am usage-sync [--month YYYY-MM] [--consoles A,B] [--force]` from cron) fans out across
-consoles, runs one aggregated query per product (`group value=sum(value) by date, account, site, state`) and stores daily
+consoles, runs one aggregated query per product (`group value=sum(value) by date, account, site, state`, or `max(value)`
+for daily seat snapshots) and stores daily
 rows in `~/.config/s1am/usage.db`. Archived days are never re-fetched; live days are. A daily background sync of the
 previous and current month runs while the web server is up (`[usage] daily_sync = false` disables it, `daily_sync_hour`
 sets the hour). Scope the consoles with `S1AM_USAGE_CONSOLES=Staging` or `[usage] consoles`.
 
 **Rollups.** Agent and user counts default to the peak daily value (average and month-end selectable per column), CNS to
 the average, Data Ingest to the sum of bytes. Rows with any `live` day carry a *provisional* badge; the "Finalize for
-billing" export is only enabled when every row is final.
+billing" export is only enabled when every row is final. On the drill-down charts the live tail (today, and yesterday
+until S1 publishes it) is drawn dashed.
+
+**Prompt (AI Security) meters.** Prompt usage flows through the same metering datasource and is reported against the
+S1 Account or Site that owns the Prompt tenant (`account_scope_id` / `site_scope_id`; the tenant id is not in the data,
+and a standalone Prompt tenant not linked to an S1 scope reports nothing). Five reports are configured:
+
+| Product | Report | Daily value | Per day | Per month |
+|---|---|---|---|---|
+| Prompt – Employees | `ai_security_employees_usage` | distinct active employees with the extension | `max` | peak |
+| Prompt – AI Code Assistants | `ai_security_developers_usage` | distinct developers with the agent | `max` | peak |
+| Prompt – Homegrown Apps | `ai_security_homegrown_app_calls` | API calls | `sum` | sum |
+| Prompt – Agentic AI | `ai_security_agentic_ai_usage` | agentic events | `sum` | sum |
+| Prompt – AI Red Teaming | `ai_security_red_teaming_usage` | executed attacks | `sum` | sum |
+
+Seat counts are daily active counts and are never added across days (the `daily: "max"` product option makes the query
+`group value=max(value) by date, …`); usage counts are summed. Day X is published on day X+1 about 15 minutes after
+12:00 UTC, so the background sync now defaults to 14:00 local (`[usage] daily_sync_hour`). Seats are counted only for
+employees and developers who have the extension or agent installed. The token needs **Metering Reports – View**; SDL
+API keys do not work for metering.
 
 API facts observed on Staging: always send `endTime` (with only `startTime` the window is wrong); `endTime: "now"` is
 rejected, use dates; results are capped at 1000 rows unless the query sets `| limit`; `xdr_ingested_bytes` and
@@ -241,8 +280,18 @@ needs no backfill.
 
 **Competitor indicator.** SentinelOne cannot see what replaces an uninstalled agent, so the only observable
 destination is the target console of a move. Its host is classified as *internal* (one of our console profiles or a
-`*-nabl*.sentinelone.net` host), *other SentinelOne console*, or *unknown*; the Destinations tab lets you rename a
-host and mark it *competitor*, and edited labels survive re-syncs. Uninstalls show churn with no destination.
+`*-nabl*.sentinelone.net` host), *other SentinelOne console*, or *unknown*. Uninstalls show churn with no destination.
+
+**Competitors are groups of consoles.** Like N-able, a vendor usually runs several SentinelOne consoles
+(`usea1-ninjaone2`, `euce1-ninjaone`, `apse1-ninjaone`; `usea1-pax8`, `usea1-pax8-03`, `apne1-pax8`; `cw01`,
+`cw04mdr`, `cw04edr`), so hosts are grouped by their tenant slug with the region prefix, trailing numbers and role
+suffixes (`-mssp`, `-mdr`, `-nfr`, …) removed. Numbered consoles (`euce1-109`, `usea1-001-mssp`) are SentinelOne's
+own shared consoles and form one "SentinelOne direct" group; `swprd*` and `nabl*` fold into N-able. Known vendors
+and extra slugs live under `vendors` in `indicators.json`. The **Competitors** tab lists one row per group with
+its consoles underneath: editing the group renames every console in it, "Edit console" gives one host its own
+label or moves it to another group (a new key creates a group), and "Follow group" drops that override. Labels
+edited before grouping existed become the group's label. The trend chart has a **By competitor** stack, account
+rows show one chip per competitor, and the Excel export gains a Competitors sheet. Edits survive re-syncs.
 
 Counting rules: a device counts once per period and once per indicator (the device key is the agent ID); the
 Devices tab and the device export keep only the most recent record per device, as the ticket asks. Accounts carry the
@@ -256,7 +305,7 @@ or `S1AM_CHURN_CONSOLES` narrows the console list.
 
 Exports: CSV of devices (latest record each, with accountId / groupId / siteId / agentId / uuid / console URL /
 account name / description / user), accounts, or the trend per period; or one Excel workbook with Trend, Accounts,
-Destinations and Devices sheets. Deep links: `#churn?months=24&granularity=quarter&destination=competitor&account=CODE:ID`.
+Competitors, Destinations and Devices sheets. Deep links: `#churn?months=24&granularity=quarter&destination=competitor&account=CODE:ID`.
 
 ## Build A Standalone App (shareable)
 

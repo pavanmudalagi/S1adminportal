@@ -1,5 +1,5 @@
 {
-  "_comment": "Billable products pulled from the SDL metering datasource. Add a report here — no code change needed. rollup: peak | average | month_end | sum. breakdown: a report column to offer as a secondary dimension (or null).",
+  "_comment": "Billable products pulled from the SDL metering datasource. Add a report here — no code change needed. rollup: peak | average | month_end | sum (month). daily: sum | max — how several rows of one scope on one day combine (seat counts are daily snapshots → max; default sum). breakdown: a report column to offer as a secondary dimension (or null). group: label used to cluster the chips in the UI.",
   "bytes_base": 1000,
   "products": [
     {"key": "cns", "report": "cns_workloads", "label": "Cloud Native Security", "short": "CNS", "unit": "workloads",
@@ -22,6 +22,22 @@
      "note": "Max deployed, not-decommissioned agents per day."},
     {"key": "ispm", "report": "singularity_identity_users", "label": "Identity – ISPM / ISIDP", "short": "ISPM", "unit": "users",
      "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": null,
-     "note": "Snapshot of active on-prem AD users."}
+     "note": "Snapshot of active on-prem AD users."},
+
+    {"key": "prompt_employees", "report": "ai_security_employees_usage", "label": "Prompt – Employees", "short": "Prompt Emp", "unit": "seats",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "daily": "max", "breakdown": null, "group": "Prompt",
+     "note": "Distinct active employees with the browser extension per day (daily seat count) — never summed across days; peak day of the period."},
+    {"key": "prompt_developers", "report": "ai_security_developers_usage", "label": "Prompt – AI Code Assistants", "short": "Prompt Dev", "unit": "seats",
+     "rollup": "peak", "alt_rollups": ["average", "month_end"], "daily": "max", "breakdown": null, "group": "Prompt",
+     "note": "Distinct developers with the agent per day (daily seat count) — never summed across days; peak day of the period."},
+    {"key": "prompt_homegrown", "report": "ai_security_homegrown_app_calls", "label": "Prompt – Homegrown Apps", "short": "Prompt Apps", "unit": "calls",
+     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "note": "API calls made by homegrown apps; usage count summed over the billing period."},
+    {"key": "prompt_agentic", "report": "ai_security_agentic_ai_usage", "label": "Prompt – Agentic AI", "short": "Prompt Agentic", "unit": "events",
+     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "note": "Agentic events; usage count summed over the billing period."},
+    {"key": "prompt_redteam", "report": "ai_security_red_teaming_usage", "label": "Prompt – AI Red Teaming", "short": "Prompt RT", "unit": "attacks",
+     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "note": "Executed attacks; usage count summed over the billing period."}
   ]
 }

@@ -144,6 +144,76 @@ def test_edited_destination_labels_survive_a_resync(store, cfg):
     assert store.set_destination("never-seen.example", label="x") is None
 
 
+def test_vendor_key_groups_a_competitors_consoles():
+    vk = svc.vendor_key
+    assert {vk(h) for h in ("usea1-ninjaone2.sentinelone.net", "euce1-ninjaone.sentinelone.net", "apse1-ninjaone.sentinelone.net")} == {"ninjaone"}
+    assert {vk(h) for h in ("usea1-pax8.sentinelone.net", "usea1-pax8-03.sentinelone.net", "usea1-pax8-exsp.sentinelone.net", "apne1-pax8.sentinelone.net")} == {"pax8"}
+    assert {vk(h) for h in ("usea1-cw01.sentinelone.net", "euce1-cw02.sentinelone.net", "usea1-cw04mdr.sentinelone.net", "usea1-cw04edr.sentinelone.net")} == {"cw"}
+    assert vk("carvir-msp02.sentinelone.net") == vk("carvir-msp.sentinelone.net") == "carvir"
+    assert vk("euce1-solis-sled.sentinelone.net") == vk("usea1-solis.sentinelone.net") == "solis"
+    assert vk("usea1-at-bay-mdr.sentinelone.net") == "at-bay" and vk("euce1-spike-it.sentinelone.net") == "spike-it"
+    assert vk("usea1-swprd1.sentinelone.net") == "swprd" and vk("cace1-nabl10.sentinelone.net") == "nabl"
+    assert vk("euce1-109.sentinelone.net") == "109" and vk("usea1-001-mssp.sentinelone.net") == "001"
+    assert vk("usgovwe1-osom.s1gov.net") == "osom" and vk("abacus.sentinelone.net") == "abacus"
+    assert vk("console.rival-edr.example.com") == "example.com" and vk("") == ""
+    cfg = svc.load_indicators()
+    assert svc.vendor_for("usea1-swprd1.sentinelone.net", "sentinelone", cfg) == "n-able"
+    assert svc.vendor_for("whatever.sentinelone.net", "internal", cfg) == "n-able"
+    assert svc.vendor_for("euce1-109.sentinelone.net", "sentinelone", cfg) == "sentinelone-numbered"
+    assert svc.vendor_for("usea1-ninjaone2.sentinelone.net", "sentinelone", cfg) == "ninjaone"
+    assert svc.vendor_defaults("ninjaone", "sentinelone", cfg) == ("NinjaOne", "competitor")
+    assert svc.vendor_defaults("highpointnetworks", "sentinelone", cfg) == ("Highpointnetworks", "sentinelone")
+
+
+def test_groups_drive_labels_and_hosts_can_override_or_move(store, cfg):
+    _sync(store, cfg)
+    groups = store.groups()
+    assert groups["n-able"]["kind"] == "internal" and groups["sentinelone-numbered"]["label"] == "SentinelOne direct (numbered console)"
+    assert groups["example.com"]["kind"] == "other" and groups["example.com"]["label"] == "example.com"
+    eff = store.effective_destinations()
+    assert eff["euce1-100.sentinelone.net"]["vendor"] == "sentinelone-numbered" and not eff["euce1-100.sentinelone.net"]["override"]
+    # renaming the group renames every host that follows it
+    g = store.set_group("example.com", label="Rival EDR", kind="competitor", note="confirmed by AM")
+    assert g["label"] == "Rival EDR" and g["edited"] == 1
+    assert store.effective_destinations()["console.rival-edr.example.com"]["label"] == "Rival EDR"
+    assert store.effective_destinations()["console.rival-edr.example.com"]["kind"] == "competitor"
+    assert store.set_group("nope", label="x") is None
+    with pytest.raises(ValueError):
+        store.set_group("example.com", kind="bogus")
+    # a host edited by hand overrides its group until reset
+    d = store.set_destination("euce1-100.sentinelone.net", label="Acme MSSP", kind="competitor")
+    assert d["label"] == "Acme MSSP" and d["override"] and d["vendor_label"] == "SentinelOne direct (numbered console)"
+    assert store.reset_destination("euce1-100.sentinelone.net")["label"] == "SentinelOne direct (numbered console)"
+    # moving a host to a new vendor key creates that group and the host follows it
+    d = store.set_destination("euce1-100.sentinelone.net", vendor="acme", cfg=cfg)
+    assert d["vendor"] == "acme" and d["label"] == "Acme" and not d["override"] and store.groups()["acme"]["kind"] == "sentinelone"
+    with pytest.raises(ValueError):
+        store.set_destination("euce1-100.sentinelone.net", vendor="  ")
+    s = svc.summary(store, "2026-08", "2026-11", cfg=cfg)
+    assert {c["key"]: c["label"] for c in s["competitors"]} == {"acme": "Acme", "n-able": "N-able (internal move)", "example.com": "Rival EDR"}
+    assert s["totals"]["top_competitor"]["label"] in ("Acme", "Rival EDR")
+
+
+def test_existing_databases_are_grouped_in_place(tmp_path, cfg):
+    # a churn.db written before grouping existed: hosts without a vendor, no groups table rows, one host edited by hand
+    import sqlite3
+    db = tmp_path / "old.db"
+    con = sqlite3.connect(db)
+    con.executescript(svc.SCHEMA.replace("CREATE TABLE IF NOT EXISTS destination_groups", "-- "))
+    con.executemany("INSERT INTO destinations VALUES (?,?,?,?,?,?,?)", [
+        ("usea1-ninjaone2.sentinelone.net", "NinjaOne", "competitor", "", "t", "t2", 1),
+        ("euce1-ninjaone.sentinelone.net", "Other SentinelOne console", "sentinelone", "", "t", "t", 0),
+        ("usea1-swprd1.sentinelone.net", "N-able console (internal move)", "internal", "", "t", "t", 0),
+        ("euce1-109.sentinelone.net", "Other SentinelOne console", "sentinelone", "", "t", "t", 0)])
+    con.commit(); con.close()
+    store = svc.Store(db)
+    store.ensure_groups(cfg)
+    eff = store.effective_destinations()
+    assert eff["euce1-ninjaone.sentinelone.net"]["label"] == "NinjaOne" and eff["euce1-ninjaone.sentinelone.net"]["kind"] == "competitor"
+    assert eff["usea1-ninjaone2.sentinelone.net"]["override"] and eff["usea1-swprd1.sentinelone.net"]["vendor"] == "n-able"
+    assert eff["euce1-109.sentinelone.net"]["vendor"] == "sentinelone-numbered"
+
+
 # ── rollups ────────────────────────────────────────────────────────────────
 
 def test_periods():
@@ -170,8 +240,13 @@ def test_summary_counts_devices_once_per_period_and_splits_destinations(store, c
     acme = next(a for a in s["accounts"] if a["account_id"] == "100")
     assert acme["salesforce_id"] == "0015000000ACME1AAA" and acme["devices"] == 3 and acme["series"] == [2, 0, 0, 1]
     assert acme["destinations"][0]["host"] == "console.rival-edr.example.com" and acme["destinations"][0]["kind"] == "other"
+    assert acme["destinations"][0]["vendor"] == "example.com" and acme["destinations"][0]["hosts"][0]["devices"] == 1
     assert [d["host"] for d in s["destinations"]][0] == "euce1-100.sentinelone.net"
+    assert s["destinations"][0]["vendor"] == "sentinelone-numbered" and s["destinations"][0]["vendor_label"] == "SentinelOne direct (numbered console)"
     assert s["totals"]["top_destination"]["devices"] == 1
+    assert s["totals"]["top_competitor"]["key"] == "sentinelone-numbered" and s["totals"]["top_competitor"]["consoles"] == 1
+    assert {c["key"] for c in s["competitors"]} == {"sentinelone-numbered", "n-able", "example.com"}
+    assert s["trend"][1]["by_vendor"] == {"sentinelone-numbered": 1}
 
 
 def test_summary_filters_and_granularity(store, cfg):
@@ -193,7 +268,8 @@ def test_account_detail_and_device_rows_keep_the_latest_record_per_device(store,
     d = svc.account_detail(store, "Staging", "200", "2026-08", "2026-11", cfg=cfg)
     assert d["account"] == "Beta Networks" and d["devices"] == 2 and d["events"] == 4
     srv = next(r for r in d["device_rows"] if r["device_key"] == "6001")
-    assert srv["indicator"] == "move_completed" and srv["destination_label"] == "Other SentinelOne console"
+    assert srv["indicator"] == "move_completed" and srv["destination_label"] == "SentinelOne direct (numbered console)"
+    assert srv["destination_vendor"] == "SentinelOne direct (numbered console)"
     assert d["sites"][0]["site"] in ("Main", "Branch") and sum(s["devices"] for s in d["sites"]) == 2
     rows = svc.device_rows(store, "2026-08", "2026-11", cfg=cfg)
     assert len(rows) == 6 and rows[0]["created_at"] >= rows[-1]["created_at"]
@@ -226,7 +302,8 @@ def test_exports(store, cfg):
     assert trend_csv.splitlines()[0] == "Period,Devices,Events,Accounts,move_commanded,move_completed,uninstalled"
     import openpyxl, io
     wb = openpyxl.load_workbook(io.BytesIO(svc.to_xlsx(s, devices)))
-    assert wb.sheetnames == ["Trend", "Accounts", "Destinations", "Devices"]
+    assert wb.sheetnames == ["Trend", "Accounts", "Competitors", "Destinations", "Devices"]
+    assert wb["Competitors"].max_row == 1 + 3 and wb["Destinations"]["B2"].value in ("SentinelOne direct (numbered console)", "N-able (internal move)", "example.com")
     assert wb["Trend"].max_row == 2 + 4 and wb["Devices"].max_row == 1 + 6
 
 
@@ -262,7 +339,7 @@ def test_routes_sync_summary_detail_export(api):
     csv_text = api.get("/api/churn/export?start=2026-08&end=2026-11&view=devices").data.decode()
     assert csv_text.count("\n") == 2 + 6 and "ACME-PC-3" in csv_text
     acc_csv = api.get("/api/churn/export?start=2026-08&end=2026-11&view=accounts").data.decode()
-    assert "Beta Networks" in acc_csv and "Other SentinelOne console (1)" in acc_csv
+    assert "Beta Networks" in acc_csv and "SentinelOne direct (numbered console) (1)" in acc_csv
     x = api.get("/api/churn/export?start=2026-08&end=2026-11&format=xlsx")
     assert x.status_code == 200 and x.data[:2] == b"PK"
     assert api.get("/api/churn/export?view=nope").status_code == 400
@@ -281,3 +358,23 @@ def test_routes_destination_edit(api):
     assert s["totals"]["devices"] == 1 and s["destinations"][0]["label"] == "Rival EDR" and s["destinations"][0]["edited"]
     multi = api.get("/api/churn/summary?start=2026-08&end=2026-11&destination=competitor,internal").json
     assert multi["totals"]["devices"] == 2 and {d["kind"] for d in multi["destinations"]} == {"competitor", "internal"}
+
+
+def test_routes_competitor_group_edit_and_host_move(api):
+    api.post("/api/churn/sync", json={"wait": True})
+    r = api.patch("/api/churn/competitors/sentinelone-numbered", json={"label": "SentinelOne direct", "kind": "competitor"})
+    assert r.status_code == 200 and r.json["label"] == "SentinelOne direct" and r.json["edited"] == 1
+    assert api.patch("/api/churn/competitors/sentinelone-numbered", json={"kind": "x"}).status_code == 400
+    assert api.patch("/api/churn/competitors/nope", json={"label": "x"}).status_code == 404
+    s = api.get("/api/churn/summary?start=2026-08&end=2026-11").json
+    assert next(d for d in s["destinations"] if d["host"] == "euce1-100.sentinelone.net")["label"] == "SentinelOne direct"
+    assert next(c for c in s["competitors"] if c["key"] == "sentinelone-numbered")["kind"] == "competitor"
+    assert any(g["key"] == "sentinelone-numbered" for g in s["groups"])
+    # move the host into a brand-new competitor, then reset nothing (it already follows the group)
+    r = api.patch("/api/churn/destinations/euce1-100.sentinelone.net", json={"vendor": "acme-msp"})
+    assert r.status_code == 200 and r.json["vendor"] == "acme-msp" and r.json["label"] == "Acme Msp"
+    r = api.patch("/api/churn/destinations/euce1-100.sentinelone.net", json={"label": "Acme console 1"})
+    assert r.json["override"] is True
+    r = api.patch("/api/churn/destinations/euce1-100.sentinelone.net", json={"reset": True})
+    assert r.json["override"] is False and r.json["label"] == "Acme Msp"
+    assert api.patch("/api/churn/destinations/euce1-100.sentinelone.net", json={"vendor": " "}).status_code == 400

@@ -18,5 +18,20 @@
     {"pattern": "*-nabl*.sentinelone.net", "label": "N-able console (internal move)", "kind": "internal"},
     {"pattern": "*.sentinelone.net",       "label": "Other SentinelOne console",        "kind": "sentinelone"},
     {"pattern": "*",                       "label": "Unknown destination",              "kind": "other"}
+  ],
+  "_vendors": "Destination hosts are grouped by tenant slug (usea1-ninjaone2 and euce1-ninjaone are both 'ninjaone'). A vendor here names a known group: its first label and kind, and extra slugs ('match') that belong to it. Labels edited in the UI win over this list.",
+  "vendors": [
+    {"key": "n-able",   "label": "N-able (internal move)", "kind": "internal",    "match": ["swprd", "nabl"]},
+    {"key": "ninjaone", "label": "NinjaOne",               "kind": "competitor"},
+    {"key": "pax8",     "label": "Pax8",                   "kind": "sentinelone"},
+    {"key": "cw",       "label": "ConnectWise",            "kind": "sentinelone"},
+    {"key": "grdz",     "label": "Guardz",                 "kind": "sentinelone"},
+    {"key": "skoutxdr", "label": "Barracuda Networks",     "kind": "sentinelone"},
+    {"key": "exclusive","label": "Exclusive Networks",     "kind": "sentinelone"},
+    {"key": "esentire", "label": "eSentire",               "kind": "sentinelone"},
+    {"key": "cyflare",  "label": "Cyflare Security",       "kind": "sentinelone"},
+    {"key": "spike-it", "label": "Spike-it",               "kind": "sentinelone"},
+    {"key": "areteadvisors", "label": "Arete",             "kind": "competitor"},
+    {"key": "sentinelone-numbered", "label": "SentinelOne direct (numbered console)", "kind": "sentinelone"}
   ]
 }

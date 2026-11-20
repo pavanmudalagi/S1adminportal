@@ -13,6 +13,11 @@ Verified on the Staging console (2026-11-13):
   joined from ``| datasource "metering" from "tenants"`` (tenant_scope_id → tenant_scope_name) and from
   the endpoint reports.
 * ``state`` is ``archived`` (final) or ``live`` (still changing). Data lags about two days.
+* Prompt (``ai_security_*``) reports ride the same datasource (2026-11-20). Usage is reported against the S1
+  Account or Site that owns the Prompt tenant (``account_scope_id`` / ``site_scope_id``; the tenant id is not in the
+  data). Seat reports (employees, developers) are daily active counts → aggregated with ``max`` per day and ``peak``
+  per month; usage counts (homegrown app calls, agentic events, red-team attacks) are summed. Day X lands on day
+  X+1 about 15 minutes after 12:00 UTC, so the daily sync defaults to 14:00 local.
 
 Everything is read-only.
 """
@@ -20,6 +25,7 @@ import calendar
 import csv
 import io
 import json
+import logging
 import re
 import sqlite3
 import threading
@@ -40,6 +46,8 @@ MAX_RETRIES = 4
 MAX_WORKERS = 6
 TIMEOUT = 90
 ROLLUPS = ("peak", "average", "month_end", "sum")
+DAILY_AGGS = ("sum", "max")      # how several rows of one scope on one day combine
+DEFAULT_SYNC_HOUR = 14           # local; S1 publishes day X about 12:15 UTC on day X+1 (Prompt meters), loaders ≥ 13:00 UTC
 ROW_LIMIT = 100000           # the API silently caps at 1000 rows unless the query sets a limit
 
 
@@ -55,8 +63,11 @@ def load_products(path=None):
     for p in products:
         p.setdefault("key", p["report"]); p.setdefault("label", p["report"]); p.setdefault("short", p["label"])
         p.setdefault("unit", ""); p.setdefault("rollup", "peak"); p.setdefault("alt_rollups", []); p.setdefault("breakdown", None)
+        p.setdefault("daily", "sum"); p.setdefault("group", None)
         if p["rollup"] not in ROLLUPS:
             raise ValueError(f"{p['key']}: unknown rollup {p['rollup']!r}")
+        if p["daily"] not in DAILY_AGGS:
+            raise ValueError(f"{p['key']}: unknown daily aggregation {p['daily']!r}")
     return {"bytes_base": int(cfg.get("bytes_base", 1000)), "products": products}
 
 
@@ -118,8 +129,11 @@ def build_query(report, start=None, end=None, group_by=(), filters=None, agg="va
     return " ".join(parts)
 
 
-def usage_query(report, start, end, level="site", account_id=None, breakdown=None):
-    """Account- or site-level daily sums, always split by ``state`` so provisional days are visible."""
+def usage_query(report, start, end, level="site", account_id=None, breakdown=None, daily="sum"):
+    """Account- or site-level daily values, always split by ``state`` so provisional days are visible. ``daily`` is how
+    several rows of one scope on one day combine: ``sum`` (usage counts, bytes) or ``max`` (daily seat snapshots)."""
+    if daily not in DAILY_AGGS:
+        raise QueryError(f"unknown daily aggregation {daily!r}")
     # Identity reports leave account_scope_id empty and put the scope in tenant_scope_id/level, so those ride along.
     dims = ["date", "account_scope_id", "tenant_scope_id", "tenant_scope_level", "organization_level_1_scope_id", "organization_level_1_scope_level"]
     if level == "site":
@@ -134,7 +148,7 @@ def usage_query(report, start, end, level="site", account_id=None, breakdown=Non
         dims.append(q_ident(breakdown))
     dims.append("state")
     filters = {"account_scope_id": account_id} if account_id else None
-    return build_query(report, start, end, group_by=dims, filters=filters, limit=ROW_LIMIT)
+    return build_query(report, start, end, group_by=dims, filters=filters, agg=f"value={daily}(value)", limit=ROW_LIMIT)
 
 
 REPORTS_QUERY = build_query("reports", columns=["report_name", "product_category", "product_name", "unit", "description"])
@@ -240,7 +254,7 @@ class Store:
         self.path = Path(path or DEFAULT_DB)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self.conn = sqlite3.connect(str(self.path), check_same_thread=False)
+        self.conn = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30)  # wait for a concurrent writer instead of failing
         self.conn.row_factory = sqlite3.Row
         with self._lock:
             self.conn.executescript(SCHEMA)
@@ -385,9 +399,9 @@ def collect_tenant_names(client, available, start, end):
     return []
 
 
-def get_usage(client, report, start, end, level="site", account_id=None, breakdown=None):
-    """Daily sums for one report. Returns normalised rows: date, account_id, site_id, breakdown, value, state (+ org names)."""
-    rows = client.query(usage_query(report, start, end, level, account_id, breakdown), start, _plus_day(end))
+def get_usage(client, report, start, end, level="site", account_id=None, breakdown=None, daily="sum"):
+    """Daily values for one report. Returns normalised rows: date, account_id, site_id, breakdown, value, state (+ org names)."""
+    rows = client.query(usage_query(report, start, end, level, account_id, breakdown, daily), start, _plus_day(end))
     out = []
     for r in rows:
         if level in ("org1", "org2"):
@@ -514,7 +528,7 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
             if not days:
                 status["fetched"][rep] = 0
                 continue
-            rows = get_usage(client, rep, days[0], days[-1], level="site", breakdown=p.get("breakdown"))
+            rows = get_usage(client, rep, days[0], days[-1], level="site", breakdown=p.get("breakdown"), daily=p.get("daily", "sum"))
             # Keep archived days we already hold if they fall inside the window but were not returned (gap days).
             n = store.replace_days(console, rep, days, rows)
             # Site rows carry names only through the tenants table; the endpoint reports also give account names.
@@ -790,7 +804,7 @@ def to_xlsx(rows, products, level, month, rules, bytes_base=1000):
 class DailySync(threading.Thread):
     """Background daily sync of the current and previous month so month-end rollups don't rely on S1 retention."""
 
-    def __init__(self, run, hour=4, check_every=600):
+    def __init__(self, run, hour=DEFAULT_SYNC_HOUR, check_every=600):
         super().__init__(daemon=True, name="usage-daily-sync")
         self.run_fn, self.hour, self.check_every = run, hour, check_every
         self.last_day = None
@@ -801,6 +815,8 @@ class DailySync(threading.Thread):
             if now.hour >= self.hour and self.last_day != now.date():
                 try:
                     self.run_fn()
+                except Exception:   # a failed run (locked database, console down) must not kill the scheduler for good
+                    logging.getLogger(__name__).exception("%s: daily sync failed; will try again tomorrow", self.name)
                 finally:
                     self.last_day = now.date()
             time.sleep(self.check_every)

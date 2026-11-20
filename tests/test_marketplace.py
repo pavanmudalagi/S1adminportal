@@ -249,3 +249,9 @@ def test_export_matches_filters(api):
     lt30 = rows("view=instances&retention=lt:30")
     assert len(lt30) >= 2 and all("14 Days" in line for line in lt30[1:])
     assert len(rows("view=instances&retention=eq:90")) == 1 + 4                # Support Training (3 site-level) + N-ABLE account-level (90 Days)
+    # The console filter takes one, several (comma-separated) or no consoles, like the page's multi-select.
+    all_inst = rows("view=instances"); consoles = {r[0] for r in all_inst[1:]}
+    one = next(iter(consoles))
+    assert len(rows(f"view=instances&console={one}")) == 1 + sum(1 for r in all_inst[1:] if r[0] == one)
+    assert len(rows("view=instances&console=" + ",".join(consoles))) == len(all_inst)
+    assert len(rows("view=instances&console=NOPE")) == 1

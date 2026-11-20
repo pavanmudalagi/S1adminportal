@@ -37,6 +37,11 @@ def test_usage_query_shapes():
         m.usage_query("server_endpoints", "2026-10-01", "2026-10-31", "site", breakdown="bad col")
     with pytest.raises(m.QueryError):
         m.usage_query("server endpoints", "2026-10-01", "2026-10-31")
+    # Prompt seat reports are daily snapshots: rows of one scope on one day take the max, never a sum.
+    q = m.usage_query("ai_security_employees_usage", "2026-10-01", "2026-10-31", "site", daily="max")
+    assert "| group value=max(value) by date, account_scope_id" in q and "site_scope_id, state" in q
+    with pytest.raises(m.QueryError):
+        m.usage_query("ai_security_employees_usage", "2026-10-01", "2026-10-31", daily="median")
     # The whole query must survive JSON encoding with escaped double quotes only.
     body = json.dumps({"query": m.usage_query("server_endpoints", "2026-10-01", "2026-10-31", "site", account_id='a"b')})
     assert '\\"a\\\\\\"b\\"' in body
@@ -95,6 +100,16 @@ def test_products_config_loads_and_validates(tmp_path):
     cfg = m.load_products()
     assert {p["report"] for p in cfg["products"]} >= {"cns_workloads", "server_endpoints", "xdr_ingested_bytes", "singularity_identity_users"}
     assert m.product_by_key(cfg["products"], "xdr_ingested_bytes")["rollup"] == "sum" and cfg["bytes_base"] in (1000, 1024)
+    # Prompt meters: seats are max per day / peak per month, usage counts are summed; every product has a daily rule.
+    prompt = {p["report"]: p for p in cfg["products"] if p["report"].startswith("ai_security_")}
+    assert set(prompt) == {"ai_security_employees_usage", "ai_security_developers_usage", "ai_security_homegrown_app_calls",
+                           "ai_security_agentic_ai_usage", "ai_security_red_teaming_usage"}
+    assert all((p["daily"], p["rollup"]) == ("max", "peak") for r, p in prompt.items() if r.endswith("_usage") and "seat" in p["unit"])
+    assert all((p["daily"], p["rollup"]) == ("sum", "sum") for r, p in prompt.items() if p["unit"] in ("calls", "events", "attacks"))
+    assert all(p["daily"] in m.DAILY_AGGS for p in cfg["products"])
+    bad = tmp_path / "d.json"; bad.write_text(json.dumps({"products": [{"report": "x", "daily": "median"}]}))
+    with pytest.raises(ValueError):
+        m.load_products(bad)
     bad = tmp_path / "p.json"; bad.write_text(json.dumps({"products": [{"report": "x", "rollup": "median"}]}))
     with pytest.raises(ValueError):
         m.load_products(bad)
@@ -148,13 +163,15 @@ def world(tmp_path):
 
 def test_sync_fetches_only_available_reports_and_refetches_live_days(world):
     store, products = world
-    pq = FakePQ(["server_endpoints", "xdr_ingested_bytes"], _rows())
+    pq = FakePQ(["server_endpoints", "xdr_ingested_bytes", "ai_security_employees_usage"], _rows())
     st = m.sync_console(pq, store, "Staging", "2026-10", products, today="2026-10-10")
-    assert st["ok"] and set(st["fetched"]) == {"server_endpoints", "xdr_ingested_bytes"}
-    assert "cns_workloads" in st["skipped"] and "singularity_identity_users" in st["skipped"]
+    assert st["ok"] and set(st["fetched"]) == {"server_endpoints", "xdr_ingested_bytes", "ai_security_employees_usage"}
+    assert "cns_workloads" in st["skipped"] and "singularity_identity_users" in st["skipped"] and "ai_security_developers_usage" in st["skipped"]
     assert st["fetched"]["server_endpoints"] == 20 and len(store.daily("2026-10-01", "2026-10-31")) == 30
-    usage_queries = [q for q, _, _ in pq.queries if "sum(value)" in q]
-    assert len(usage_queries) == 2 and all('date <= "2026-10-10"' in q for q in usage_queries)
+    usage_queries = [q for q, _, _ in pq.queries if "(value) by date" in q]
+    assert len(usage_queries) == 3 and all('date <= "2026-10-10"' in q for q in usage_queries)
+    assert [q for q in usage_queries if 'from "ai_security_employees_usage"' in q][0].count("value=max(value)") == 1
+    assert all("value=sum(value)" in q for q in usage_queries if "ai_security" not in q)
     assert store.cached_reports("Staging") and store.names("Staging")[("Staging", "A1")]["salesforce_id"] == "001X"
     assert store.names("Staging")[("Staging", "S2")]["name"] == "Acme Lab"       # from the tenants table
 
@@ -265,6 +282,8 @@ def test_sync_route_then_summary_health_and_drilldowns(api):
     assert health == {"Staging": "ok", "USEA1": "permission"} and s["last_sync_month"] == "2026-10"
     assert [p["key"] for p in s["products"]][:2] == ["cns", "cws_servers"]
     s2 = client.get("/api/usage/summary?month=2026-10&products=cws_servers&rules=cws_servers=month_end").json
+    # a filtered summary still lists every product so the toggle row can re-enable the ones filtered out
+    assert [p["key"] for p in s2["products"]] == ["cws_servers"] and len(s2["all_products"]) == len(s["products"]) > 1
     assert list(s2["accounts"][0]["products"]) == ["cws_servers"] and s2["accounts"][0]["products"]["cws_servers"]["value"] == 25 and s2["rules"]["cws_servers"] == "month_end"
     assert client.get("/api/usage/summary?month=2026-1").status_code == 400
     acc = client.get("/api/usage/accounts/Staging/A1?month=2026-10").json

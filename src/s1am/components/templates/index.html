@@ -401,7 +401,7 @@
     .ms-pop { display: none; position: fixed; z-index: 160; width: max-content; min-width: 180px; max-width: 340px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; flex-direction: column; }
     .ms.open .ms-pop { display: flex; }
     .ms-pop .ms-q, .eap-toolbar .ms-pop input[type=text] { flex: 0 0 auto; height: 28px; min-width: 0; width: auto; font-size: 13px; margin: 2px 2px 4px; }
-    .ms-list { max-height: 280px; overflow: auto; display: flex; flex-direction: column; }
+    .ms-list { max-height: 280px; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
     .ms-opt { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; border-radius: var(--radius); font-size: 13px; color: var(--text); cursor: pointer; white-space: nowrap; }
     .ms-opt:hover { background: var(--surface-2); }
     .ms-opt input[type=checkbox] { width: 15px; height: 15px; margin: 0; flex-shrink: 0; }
@@ -485,6 +485,54 @@
     .mp-chip.lvl { color: var(--text-muted); }
     .skel { display: inline-block; height: 12px; width: 60%; border-radius: 4px; background: var(--surface-2); animation: skel 1.2s ease-in-out infinite; }
     @keyframes skel { 0%, 100% { opacity: .55; } 50% { opacity: 1; } }
+    /* ── Accounts table (Settings › Scopes › Accounts look-alike) ── */
+    .acct-filters { display: flex; gap: 6px; align-items: flex-start; }
+    .acct-filters-in { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 30px; }
+    .acct-filters.collapsed .acct-filters-in > :not(.acct-summary) { display: none !important; }
+    .acct-summary { display: none; font-size: 12px; color: var(--text-dim); line-height: 30px; } .acct-filters.collapsed .acct-summary { display: inline; }
+    #acct-collapse { flex: 0 0 auto; margin-left: auto; }
+    .acct-namef { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--input-bg); }
+    .acct-namef select { height: 30px; border: 0; border-right: 1px solid var(--border); border-radius: 0; font-size: 12.5px; width: auto; background-color: var(--border-soft); }
+    .acct-namef .acct-op { display: inline-flex; align-items: center; padding: 0 8px; font-size: 12px; color: var(--text-muted); border-right: 1px solid var(--border); }
+    .acct-namef input { height: 30px; border: 0; border-radius: 0; width: 200px; font-size: 12.5px; }
+    .acct-filters .ms-btn { height: 30px; font-size: 12.5px; }
+    .acct-clear { color: var(--primary); font-size: 12px; cursor: pointer; } .acct-clear:hover { text-decoration: underline; }
+    .acct-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .acct-count { font-size: 12.5px; color: var(--text-dim); margin-left: 4px; }
+    .acct-checklist { padding: 6px; min-width: 220px; max-height: 60vh; overflow: auto; }
+    .acct-checklist label { display: flex; align-items: center; gap: 8px; padding: 4px 6px; font-size: 12.5px; cursor: pointer; border-radius: var(--radius); } .acct-checklist label:hover { background: var(--surface-2); }
+    .acct-checklist .acct-ck-title { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); padding: 4px 6px 2px; }
+    .acct-wrap { overflow: auto; max-height: calc(100vh - 330px); min-height: 240px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .acct-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; width: 100%; min-width: 1040px; font-size: 12.5px; }
+    .acct-table th { position: sticky; top: 0; z-index: 2; height: 30px; padding: 0 8px; background: var(--surface-2); color: var(--text-dim); font-size: 11.5px; font-weight: 600; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--border); overflow: hidden; text-overflow: ellipsis; }
+    .acct-table th .acct-th-label[data-sort] { cursor: pointer; user-select: none; } .acct-table th .acct-th-label[data-sort]:hover { color: var(--text); }
+    .acct-table th .arrow { font-size: 9px; margin-left: 4px; color: var(--primary); }
+    .acct-th-menu { position: absolute; right: 6px; top: 6px; width: 18px; height: 18px; line-height: 16px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; border-radius: 3px; font-size: 13px; display: none; }
+    .acct-table th:hover .acct-th-menu { display: inline-block; } .acct-th-menu:hover { background: var(--surface-3); color: var(--text); }
+    .acct-table th { position: sticky; } .acct-table th > .acct-resize { position: absolute; right: 0; top: 0; bottom: 0; width: 6px; cursor: col-resize; }
+    .acct-table th > .acct-resize:hover, .acct-table th.resizing > .acct-resize { background: var(--primary); opacity: .5; }
+    .acct-table td { height: 24px; padding: 0 8px; border-bottom: 1px solid var(--border-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .acct-table th.num, .acct-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .acct-table th.acct-cb, .acct-table td.acct-cb { width: 32px; padding: 0 8px; text-align: center; } .acct-table td.acct-cb input, .acct-table th.acct-cb input { width: 14px; height: 14px; vertical-align: middle; cursor: pointer; }
+    .acct-table tr:hover td { background: var(--surface-2); } .acct-table tr.sel td { background: var(--primary-a); }
+    .acct-name { color: var(--primary); text-decoration: underline; cursor: pointer; } .acct-name:hover { color: var(--primary-h); }
+    .acct-empty { text-align: center; color: var(--text-muted); padding: 40px 0 !important; height: auto !important; white-space: normal !important; }
+    .acct-skel { display: inline-block; height: 10px; width: 70%; border-radius: 3px; background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%); background-size: 200% 100%; animation: acct-shimmer 1.2s infinite; }
+    @keyframes acct-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+    .acct-pager { display: flex; justify-content: center; align-items: center; gap: 2px; padding: 4px 0; }
+    .acct-pg { min-width: 28px; height: 26px; padding: 0 6px; border: 0; background: transparent; color: var(--text-dim); font-size: 12.5px; cursor: pointer; border-radius: var(--radius); font-family: inherit; }
+    .acct-pg:hover:not(:disabled) { background: var(--surface-2); color: var(--text); } .acct-pg:disabled { opacity: .35; cursor: default; }
+    .acct-pg.cur { color: var(--primary); font-weight: 700; text-decoration: underline; } .acct-dots { color: var(--text-muted); padding: 0 4px; }
+    .acct-colmenu { position: fixed; z-index: 170; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; display: flex; flex-direction: column; min-width: 150px; }
+    .acct-colmenu button { border: 0; background: transparent; color: var(--text); text-align: left; padding: 6px 10px; font-size: 12.5px; cursor: pointer; border-radius: var(--radius); font-family: inherit; } .acct-colmenu button:hover { background: var(--surface-2); }
+    .acct-kv { display: grid; grid-template-columns: 180px 1fr; gap: 4px 12px; font-size: 13px; } .acct-kv dt { color: var(--text-muted); } .acct-kv dd { margin: 0; }
+    @media (max-width: 1100px) { .acct-namef input { width: 150px; } }
+    .console-link { color: inherit; text-decoration: none; border-bottom: 1px dotted var(--text-muted); }
+    .console-link:hover { color: var(--primary); border-bottom-color: var(--primary); }
+    /* instant tooltip with the full console URL (native title tooltips are slow and lose to a parent's title) */
+    .console-tip { position: fixed; z-index: 10000; display: none; pointer-events: none; max-width: 70vw; overflow-wrap: anywhere;
+      background: var(--surface-2); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 4px 8px; font-size: 11px; font-family: var(--mono, monospace); box-shadow: 0 4px 14px rgba(0,0,0,.35); }
     .mp-link { color: var(--primary); cursor: pointer; }
     .mp-link:hover { text-decoration: underline; }
 
@@ -498,6 +546,11 @@
     .us-prod { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: var(--radius); border: 1px solid var(--border); font-size: 12px; font-weight: 500; color: var(--text-dim); cursor: pointer; user-select: none; }
     .us-prod.on { background: var(--primary-a); border-color: var(--primary); color: var(--text); }
     .us-table { font-size: 13px; width: 100%; }
+    /* The five text columns keep a fixed width; the number columns share whatever is left, so hiding a product
+       widens the remaining number columns instead of stretching the Account column. */
+    .us-table thead th:nth-child(1) { width: 72px; } .us-table thead th:nth-child(2) { width: 320px; }
+    .us-table thead th:nth-child(3) { width: 180px; } .us-table thead th:nth-child(4) { width: 140px; } .us-table thead th:nth-child(5) { width: 72px; }
+    .us-table tbody td:nth-child(2) { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .us-table th[data-key] { cursor: pointer; user-select: none; } .us-table th .arrow { font-size: 10px; margin-left: 4px; color: var(--primary); }
     .us-table th select { height: 22px; padding: 0 20px 0 6px; font-size: 11px; width: auto; margin-left: 6px; background-position: right 5px center; vertical-align: middle; text-transform: none; font-weight: 400; }
     .us-table td.num, .us-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -515,6 +568,7 @@
     .us-chart .area { fill: var(--primary); opacity: .3; }
     .us-chart .axis { stroke: var(--border); stroke-width: 1; }
     .us-chart .live { fill: var(--warn); }
+    .us-chart .live-line { stroke: var(--warn); stroke-dasharray: 5 4; }
     .us-chart text { font-size: 11px; fill: var(--text-muted); }
     .us-grid2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
     .us-bd { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -545,7 +599,12 @@
     .ch-dest { display: inline-flex; align-items: center; gap: 4px; margin: 1px 6px 1px 0; font-size: 12px; white-space: nowrap; }
     .ch-edit { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
     .ch-edit input, .ch-edit select { height: 26px; font-size: 12px; width: auto; }
-    .ch-edit input.lbl { width: 180px; } .ch-edit input.note { width: 200px; }
+    .ch-edit input.lbl { width: 180px; } .ch-edit input.note { width: 200px; } .ch-edit input.vendor { width: 150px; font-family: var(--mono, monospace); }
+    .ch-grp td { background: var(--surface-2); font-weight: 500; border-top: 2px solid var(--border); }
+    .ch-grp .ch-caret { display: inline-block; width: 14px; color: var(--text-muted); transition: transform .12s; }
+    .ch-grp.open .ch-caret { transform: rotate(90deg); }
+    .ch-host td:first-child { padding-left: 28px; }
+    .ch-host td { color: var(--text-dim); }
     .ch-desc { max-width: 420px; white-space: normal; font-size: 12px; color: var(--text-muted); }
     /* EAP duplicate review */
 .eapmail-cc{display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto;border:1px solid var(--border);border-radius:6px;padding:6px 10px}
@@ -755,6 +814,7 @@
     <select id="profile-select" title="Switch console / profile">
       <option value="">Select console</option>
     </select>
+    <a class="btn icon-btn btn-sm" id="profile-open" target="_blank" rel="noopener" style="display:none"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>
     <button class="btn icon-btn btn-sm" id="add-console-btn" title="Add console"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button>
     <button class="btn icon-btn btn-sm" id="rename-btn" title="Rename consoles"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/></svg></button>
   </div>
@@ -970,6 +1030,46 @@
     </div>
 
     <!-- Platform churn (LWT-2192) -->
+    <div id="acct-page" style="display:none; flex-direction:column; gap:12px;">
+      <div class="card">
+        <div class="card-header">
+          <div><div class="card-title">Accounts</div><div class="card-desc" id="acct-src">Accounts of the active console, as in Settings › Scopes › Accounts. Filters combine; within one filter the values are alternatives.</div></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;"><span id="acct-err" style="color:var(--error);font-size:12px"></span><button class="btn btn-sm" id="acct-refresh" title="Re-read the accounts from the console (read-only)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Refresh</button></div>
+        </div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
+          <div class="acct-filters" id="acct-filters"><div class="acct-filters-in">
+            <div class="acct-namef"><select id="acct-field" title="Field to search"><option value="name">Account name</option><option value="id">Account ID</option><option value="salesforceId">Salesforce ID</option><option value="externalId">External ID</option></select><span class="acct-op">contains</span><input type="text" id="acct-q" placeholder="Select" autocomplete="off"></div>
+            <select id="acct-f-sku"><option value="">SKU</option></select>
+            <select id="acct-f-module"><option value="">Module</option></select>
+            <select id="acct-f-state"><option value="">State</option></select>
+            <select id="acct-f-type"><option value="">Type</option></select>
+            <select id="acct-f-acctType"><option value="">Account type</option></select>
+            <select id="acct-f-billing"><option value="">Billing Mode</option></select>
+            <div class="us-dd" id="acct-addf"><button class="btn btn-sm" id="acct-addf-btn">Add/remove filters ▾</button><div class="us-dd-menu acct-checklist" id="acct-addf-menu" style="left:0;right:auto"></div></div>
+            <a class="acct-clear" id="acct-clear" style="display:none">Clear filters</a>
+            <span class="acct-summary" id="acct-summary"></span>
+          </div><button class="btn icon-btn btn-sm" id="acct-collapse" title="Collapse filters">︿</button></div>
+          <div class="acct-actions">
+            <div class="us-dd" id="acct-actions"><button class="btn btn-sm" id="acct-actions-btn" disabled>Actions ▾</button><div class="us-dd-menu" id="acct-actions-menu" style="left:0;right:auto"></div></div>
+            <button class="btn btn-sm btn-outline" id="acct-new">New Account</button>
+            <span class="acct-count" id="acct-count"></span>
+            <span style="flex:1"></span>
+            <label class="eap-muted" style="font-size:12px;display:inline-flex;align-items:center;gap:6px">Rows per page <select id="acct-pp" style="height:28px;width:auto;font-size:12px"><option>20</option><option>50</option><option>100</option></select></label>
+            <button class="btn btn-sm" id="acct-export" title="Export the filtered rows as CSV">Export</button>
+            <div class="us-dd" id="acct-cols"><button class="btn icon-btn btn-sm" id="acct-cols-btn" title="Choose columns"><svg class="ico" viewBox="0 0 24 24"><path d="M3 4h18v16H3zM9 4v16M15 4v16"/></svg></button><div class="us-dd-menu acct-checklist" id="acct-cols-menu"></div></div>
+          </div>
+          <div class="acct-wrap" id="acct-wrap"><table class="acct-table" id="acct-table"><thead id="acct-head"></thead><tbody id="acct-rows"></tbody></table></div>
+          <div class="acct-pager" id="acct-pager"></div>
+        </div>
+      </div>
+      <div class="eap-drawer hidden" id="acct-drawer">
+        <div class="eap-drawer-head">
+          <div><div class="card-title" id="acct-d-title">Account</div><div class="card-desc" id="acct-d-sub"></div></div>
+          <div style="display:flex;gap:8px;flex-shrink:0;"><button class="btn btn-sm btn-primary" id="acct-d-edit">✎ Edit in Account Editor</button><button class="btn btn-sm" id="acct-d-close">✕</button></div>
+        </div>
+        <div class="eap-drawer-body" id="acct-d-body"></div>
+      </div>
+    </div>
     <div id="churn-page" style="display:none; flex-direction:column; gap:12px;">
       <div class="card">
         <div class="card-header">
@@ -1016,6 +1116,7 @@
           <div class="result-tabs" id="ch-stack">
             <button class="result-tab active" data-stack="indicator">By indicator</button>
             <button class="result-tab" data-stack="destination">By destination</button>
+            <button class="result-tab" data-stack="competitor">By competitor</button>
           </div>
         </div>
         <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
@@ -1027,7 +1128,7 @@
         <div class="card-header">
           <div class="result-tabs" id="ch-view">
             <button class="result-tab active" data-view="accounts">Accounts</button>
-            <button class="result-tab" data-view="destinations">Destinations</button>
+            <button class="result-tab" data-view="destinations">Competitors</button>
             <button class="result-tab" data-view="devices">Devices</button>
           </div>
           <span class="eap-muted" id="ch-status"></span>
@@ -1287,8 +1388,50 @@ async function refreshStatus() {
 // ── Profile Selector ────────────────────────────────────────────────────────
 let _allProfiles = [];   // [{ id, name }, ...]
 
+// Console names link to the console itself, with the full URL on hover (filled from /api/profiles).
+let CONSOLE_URLS = {};
+const consoleUrl = code => code ? (CONSOLE_URLS[code] || CONSOLE_URLS[String(code).toUpperCase()] || CONSOLE_URLS[String(code).toLowerCase()] || "") : "";
+function consoleLink(code, label) {
+  const text = escHtml(label ?? code ?? "");
+  const url = consoleUrl(code);
+  if (!url) return text;
+  return `<a class="console-link" href="${escHtml(url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">${text}</a>`;
+}
+// One floating tooltip for every console link, the console switcher, the ↗ button and the console health chips.
+(() => {
+  let tip = null;
+  const SEL = "a.console-link, #profile-open, #profile-select, .us-chip[data-console]";
+  const textFor = el => el.id === "profile-select" ? consoleUrl(el.value) : el.dataset.console ? consoleUrl(el.dataset.console) : el.href;
+  const place = e => {
+    if (!tip || tip.style.display === "none") return;
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    tip.style.left = Math.max(4, Math.min(e.clientX + 12, window.innerWidth - w - 8)) + "px";
+    tip.style.top = (e.clientY + 18 + h > window.innerHeight ? e.clientY - h - 10 : e.clientY + 18) + "px";
+  };
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest && e.target.closest(SEL);
+    if (!el) return;
+    const text = textFor(el);
+    if (!text) return;
+    if (!tip) { tip = document.createElement("div"); tip.className = "console-tip"; document.body.appendChild(tip); }
+    tip.textContent = text; tip.style.display = "block"; place(e);
+  });
+  document.addEventListener("mousemove", place);
+  document.addEventListener("mouseout", e => {
+    const el = e.target.closest && e.target.closest(SEL);
+    if (el && tip && !(e.relatedTarget && el.contains(e.relatedTarget))) tip.style.display = "none";
+  });
+})();
+function _setProfileOpen(activeProfile) {
+  const a = document.getElementById("profile-open"), url = consoleUrl(activeProfile);
+  a.style.display = url ? "" : "none";
+  if (url) a.href = url;
+  a.removeAttribute("title");
+  document.getElementById("profile-select").title = url ? `Active console: ${url}` : "Switch console / profile";
+}
 function populateProfiles(profiles, activeProfile) {
   _allProfiles = profiles || [];
+  CONSOLE_URLS = Object.fromEntries(_allProfiles.map(p => [p.id, p.url || ""]));
   const sel = document.getElementById("profile-select");
   while (sel.options.length > 1) sel.remove(1);
 
@@ -1296,9 +1439,11 @@ function populateProfiles(profiles, activeProfile) {
     const opt = document.createElement("option");
     opt.value = p.id;
     opt.textContent = p.name;
+    opt.title = p.url || "";
     if (p.id === activeProfile) opt.selected = true;
     sel.appendChild(opt);
   }
+  _setProfileOpen(activeProfile);
 
   // Always show the console area; only hide rename when there's nothing to rename
   document.getElementById("rename-btn").style.display = _allProfiles.length > 0 ? "" : "none";
@@ -1313,6 +1458,8 @@ document.getElementById("profile-select").addEventListener("change", async (e) =
   }).then(r => r.json());
 
   updateStatus(result);
+  _setProfileOpen(profile);
+  if (activeCmd && activeCmd.type === "accounts-table") { acctState.console = ""; acctLoad(); }   // the Accounts page follows the active console
 
   if (!result.mgmt_configured && !result.pq_configured) {
     openCredModal();
@@ -1658,6 +1805,18 @@ function selectCommand(id) {
   const chPage = document.getElementById("churn-page");
   chPage.style.display = "none";
   document.getElementById("ch-drawer").classList.add("hidden");
+  const acctPage = document.getElementById("acct-page");
+  acctPage.style.display = "none";
+  document.getElementById("acct-drawer").classList.add("hidden");
+  if (cmd.type === "accounts-table") {
+    activeCmd = cmd;
+    ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
+    document.getElementById("eap-drawer").classList.add("hidden");
+    acctPage.style.display = "flex";
+    acctInit();
+    acctLoad();
+    return;
+  }
   if (cmd.type === "churn") {
     activeCmd = cmd;
     ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
@@ -1871,7 +2030,7 @@ async function _populateConsolePicker(fieldId) {
     list.innerHTML = profiles.map(p =>
       `<label class="console-sel-item">
         <input type="checkbox" class="cs-cb-${fieldId}" value="${escHtml(p.id)}">
-        ${escHtml(p.name)}
+        ${consoleLink(p.id, p.name)}
       </label>`
     ).join("");
 
@@ -2946,7 +3105,7 @@ async function openAccountCreator() {
                     billingMode: "subscription", unlimited: false, expiration: ""};
     aeState.orig = {...aeState.form};
     aeState.origLicenses = JSON.stringify(_aeLicenseArrays());
-    document.getElementById("ae-console-badge").textContent = data.console_label || data.console;
+    document.getElementById("ae-console-badge").innerHTML = consoleLink(data.console, data.console_label || data.console);
     document.getElementById("ae-account-id").textContent = "New account";
     document.getElementById("ae-subtitle").style.display = "";
     _aeRenderForm();
@@ -3019,7 +3178,7 @@ async function aeLoadAccount(target) {
     aeState.orig = {...aeState.form};
     aeState.origLicenses = JSON.stringify(_aeLicenseArrays());
     // Header: fixed title, console shown separately as a badge, account ID beside it.
-    document.getElementById("ae-console-badge").textContent = data.console_label || data.console;
+    document.getElementById("ae-console-badge").innerHTML = consoleLink(data.console, data.console_label || data.console);
     document.getElementById("ae-account-id").textContent = "Account ID " + acct.id;
     document.getElementById("ae-subtitle").style.display = "";
     _aeRenderForm();
@@ -3585,7 +3744,11 @@ function _msPlace(st) {
 }
 document.addEventListener("click", msCloseAll);
 window.addEventListener("resize", msCloseAll);
-document.addEventListener("scroll", msCloseAll, true);
+// Scrolling inside the popover's own list must not close it; scrolling the page behind it moves the fixed popover along.
+document.addEventListener("scroll", e => {
+  if (e.target instanceof Element && e.target.closest(".ms-pop")) return;
+  document.querySelectorAll(".ms.open").forEach(w => { const st = _ms[w.id]; if (st) _msPlace(st); else w.classList.remove("open"); });
+}, true);
 document.addEventListener("keydown", e => { if (e.key === "Escape") msCloseAll(); });
 const _msVisible = st => { const q = st.q.trim().toLowerCase(); return st.options.filter(o => !q || o.label.toLowerCase().includes(q) || String(o.value).toLowerCase().includes(q)); };
 function _msList(st) {
@@ -3637,6 +3800,7 @@ const _eapSfLink = (id, text) => {
     : _eapEsc(text || "");
 };
 const _eapLabel = code => code ? ((eapMeta.labels && eapMeta.labels[code]) ? `${eapMeta.labels[code]} (${code})` : code) : "";
+const _eapLink = code => consoleLink(code, _eapLabel(code));
 const _eapTenantCode = t => { const m = /^1000_([A-Za-z0-9]+)_/.exec(t || ""); return m ? m[1].toUpperCase() : ""; };
 // "confirmed" = the user locked this tenant; "auto" = the enrichment's proposal; "manual" = console+ID override
 const _eapTenantState = r => (r.chosen_console && r.chosen_account_id) ? "manual"
@@ -3843,10 +4007,10 @@ function eapRender() {
   tbody.innerHTML = rows.map(r => {
     const conf = _eapMatchCell(r);
     const consoleCell = r.s1_account_name
-      ? `${_eapEsc(_eapLabel(r.s1_console))}<span class="eap-sub">${_eapEsc(r.s1_account_name)} · ${_eapEsc(r.s1_account_id)}</span>`
+      ? `${_eapLink(r.s1_console)}<span class="eap-sub">${_eapEsc(r.s1_account_name)} · ${_eapEsc(r.s1_account_id)}</span>`
       : (r.s1_error
-          ? `<span class="eap-muted" title="${_eapEsc(r.s1_error)}">${_eapEsc(_eapLabel(r.s1_console) || "?")}</span><span class="eap-sub">${_eapEsc(r.s1_error)}</span>`
-          : `<span class="eap-muted">${_eapEsc(_eapLabel(_eapTenantCode(r.sf_tenant)))}</span>`);
+          ? `<span class="eap-muted" title="${_eapEsc(r.s1_error)}">${r.s1_console ? _eapLink(r.s1_console) : "?"}</span><span class="eap-sub">${_eapEsc(r.s1_error)}</span>`
+          : `<span class="eap-muted">${_eapLink(_eapTenantCode(r.sf_tenant))}</span>`);
     const agents = r.total_agents != null
       ? `${r.total_agents}<span class="eap-sub">Complete ${r.complete_agents ?? 0} · Control ${r.control_agents ?? 0}</span>` : "";
     const joe = [r.joe_status ? _eapEsc(r.joe_status) : "",
@@ -4223,11 +4387,11 @@ async function eapOpen(id) {
       ["Selected tenant", _eapEsc(r.sf_tenant)],
     ])}<div style="margin-top:8px">${cands}</div></div>
     <div class="eap-sec"><h4>Tenants to provision</h4>${_eapKV([
-      ["Primary", r.sf_tenant ? `${_eapEsc(r.sf_tenant)} ${_eapTenantBadge(r)}` : (r.chosen_console ? `manual target ${_eapEsc(_eapLabel(r.chosen_console))} · ${_eapEsc(r.chosen_account_id)} ${_eapTenantBadge(r)}` : '<span class="eap-muted">none yet — pick one in the Salesforce table or set a manual target below</span>')],
+      ["Primary", r.sf_tenant ? `${_eapEsc(r.sf_tenant)} ${_eapTenantBadge(r)}` : (r.chosen_console ? `manual target ${_eapLink(r.chosen_console)} · ${_eapEsc(r.chosen_account_id)} ${_eapTenantBadge(r)}` : '<span class="eap-muted">none yet — pick one in the Salesforce table or set a manual target below</span>')],
     ])}
     ${extras.map(t => `<div class="eap-extra" data-tid="${t.id}">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
-          <div><b>${_eapEsc(t.tenant_name)}</b> <span class="eap-muted">${_eapEsc(_eapLabel(t.console))} · account ${_eapEsc(t.account_id)}${t.s1_account_name ? " · " + _eapEsc(t.s1_account_name) : ""}</span>
+          <div><b>${_eapEsc(t.tenant_name)}</b> <span class="eap-muted">${_eapLink(t.console)} · account ${_eapEsc(t.account_id)}${t.s1_account_name ? " · " + _eapEsc(t.s1_account_name) : ""}</span>
                <span class="eap-sub">added ${_eapEsc(t.confirmed_at || "")} by ${_eapEsc(t.confirmed_by || "")}</span></div>
           <div>${_eapStatusBadge(t)}</div>
         </div>
@@ -4252,7 +4416,7 @@ async function eapOpen(id) {
       <button class="btn btn-sm" id="eap-x-add">+ Add tenant</button>
     </div></div>
     <div class="eap-sec"><h4>SentinelOne console${asOf("checked", r.s1_checked_at)}</h4>${_eapKV([
-      ["Target", r.s1_target_source ? `${_eapEsc(_eapLabel(r.s1_console))} <span class="eap-muted">via ${_eapEsc(r.s1_target_source)}</span>` : null],
+      ["Target", r.s1_target_source ? `${_eapLink(r.s1_console)} <span class="eap-muted">via ${_eapEsc(r.s1_target_source)}</span>` : null],
       ["Account", r.s1_account_name ? `${_eapEsc(r.s1_account_name)} <span class="eap-muted">${_eapEsc(r.s1_account_id)} · ${_eapEsc(r.s1_state)}</span>` : null],
       ["SKUs", (r.s1_skus || []).map(_eapEsc).join(", ") || null],
       ["Prompt", _eapPromptCell(r)],
@@ -4432,7 +4596,7 @@ async function eapSave(r) {
 // Marketplace connectors tracker
 // ═══════════════════════════════════════════════════════════════════════════
 let mpData = null, mpInited = false, mpBusy = false;
-const mpState = {view: "accounts", console: "", connector: "", status: "", retention: "", q: "", sort: {key: "", dir: 1}, open: new Set(), openInst: new Set(), account: ""};
+const mpState = {view: "accounts", console: [], connector: "", status: "", retention: "", q: "", sort: {key: "", dir: 1}, open: new Set(), openInst: new Set(), account: ""};
 // Effective retention = site value when exposed, else the account's (mirrors the server's export filter).
 const _mpRet = i => (i.site_retention && i.site_retention.status === "ok") ? i.site_retention : i.account_retention;
 function _mpRetMatch(rec, spec) {
@@ -4456,6 +4620,7 @@ function _mpRetCell(rec, opts) {
 }
 const _mpEsc = _eapEsc;
 const _mpLabel = code => code ? ((mpData && mpData.labels && mpData.labels[code]) ? `${mpData.labels[code]} (${code})` : code) : "";
+const _mpLink = code => consoleLink(code, _mpLabel(code));
 const _mpDate = s => s ? String(s).replace("T", " ").slice(0, 16) : "";
 const _mpAlert = i => !!(i.has_alert || i.status === "activationfailed");
 
@@ -4465,26 +4630,30 @@ function mpInit() {
   mpReadHash();
   document.getElementById("mp-refresh").onclick = () => mpLoad(true);
   document.querySelectorAll("#mp-view .result-tab").forEach(b => b.onclick = () => { mpState.view = b.dataset.view; mpState.sort = {key: "", dir: 1}; mpRender(); });
-  [["mp-f-console", "console"], ["mp-f-connector", "connector"], ["mp-f-status", "status"], ["mp-f-retention", "retention"]].forEach(([id, key]) =>
+  msInit("mp-f-console", {noun: "Consoles", onChange: v => { mpState.console = v; mpRender(); }});
+  [["mp-f-connector", "connector"], ["mp-f-status", "status"], ["mp-f-retention", "retention"]].forEach(([id, key]) =>
     document.getElementById(id).onchange = e => { mpState[key] = e.target.value; mpRender(); });
   document.getElementById("mp-f-q").oninput = e => { mpState.q = e.target.value; mpRender(); };
 }
 function mpReadHash() {
   if (!_deepQs) return;
   const qs = new URLSearchParams(_deepQs); _deepQs = "";
-  for (const k of ["view", "console", "connector", "status", "retention", "q", "account"]) if (qs.has(k)) mpState[k] = qs.get(k);
-  if (mpState.account) mpState.open.add(`${mpState.console}:${mpState.account}`);
+  for (const k of ["view", "connector", "status", "retention", "q", "account"]) if (qs.has(k)) mpState[k] = qs.get(k);
+  if (qs.has("console")) mpState.console = qs.get("console").split(",").filter(Boolean);
+  if (mpState.account) mpState.open.add(`${mpState.console[0] || ""}:${mpState.account}`);
   if (!["accounts", "connectors", "instances"].includes(mpState.view)) mpState.view = "accounts";
 }
 function mpSyncHash() {
   const qs = new URLSearchParams();
-  for (const k of ["view", "console", "connector", "status", "retention", "q"]) if (mpState[k] && !(k === "view" && mpState[k] === "accounts")) qs.set(k, mpState[k]);
+  for (const k of ["view", "connector", "status", "retention", "q"]) if (mpState[k] && !(k === "view" && mpState[k] === "accounts")) qs.set(k, mpState[k]);
+  if (mpState.console.length) qs.set("console", mpState.console.join(","));
   const openAcc = [...mpState.open][0];
-  if (mpState.view === "accounts" && openAcc) { const [c, a] = openAcc.split(":"); if (!mpState.console) qs.set("console", c); qs.set("account", a); }
+  if (mpState.view === "accounts" && openAcc) { const [c, a] = openAcc.split(":"); if (!mpState.console.length) qs.set("console", c); qs.set("account", a); }
   const s = qs.toString();
   try { history.replaceState(null, "", "#marketplace" + (s ? "?" + s : "")); } catch (e) {}
   const exp = new URLSearchParams(); exp.set("view", mpState.view);
-  for (const k of ["console", "connector", "status", "retention", "q"]) if (mpState[k]) exp.set(k, mpState[k]);
+  for (const k of ["connector", "status", "retention", "q"]) if (mpState[k]) exp.set(k, mpState[k]);
+  if (mpState.console.length) exp.set("console", mpState.console.join(","));
   document.getElementById("mp-export").href = "/api/marketplace/export.csv?" + exp.toString();
 }
 
@@ -4518,14 +4687,14 @@ function mpSkeleton() {
 }
 function mpFillFilters() {
   const inst = mpData.instances;
-  _eapFill("mp-f-console", mpData.consoles.map(c => c.console), _mpLabel);
+  const consoles = mpData.consoles.map(c => c.console);
+  msSetOptions("mp-f-console", consoles.map(c => ({value: c, label: _mpLabel(c)})));
+  msSetValue("mp-f-console", mpState.console, true);
   _eapFill("mp-f-connector", inst.map(i => i.app_name));
-  document.getElementById("mp-f-console").value = mpState.console;
   document.getElementById("mp-f-connector").value = mpState.connector;
   document.getElementById("mp-f-status").value = mpState.status;
   document.getElementById("mp-f-retention").value = mpState.retention;
   document.getElementById("mp-f-q").value = mpState.q;
-  if (document.getElementById("mp-f-console").value !== mpState.console) mpState.console = "";
   if (document.getElementById("mp-f-connector").value !== mpState.connector) mpState.connector = "";
 }
 
@@ -4533,7 +4702,7 @@ function mpFillFilters() {
 function mpFiltered() {
   const q = mpState.q.trim().toLowerCase();
   return mpData.instances.filter(i => {
-    if (mpState.console && i.console !== mpState.console) return false;
+    if (mpState.console.length && !mpState.console.includes(i.console)) return false;
     if (mpState.connector && i.app_name !== mpState.connector) return false;
     if (mpState.status === "enabled" && i.desired_status !== "active") return false;
     if (mpState.status === "disabled" && i.desired_status === "active") return false;
@@ -4614,12 +4783,12 @@ function mpRender() {
   ].map(([v, k, cls]) => `<div class="mp-tile ${cls || ""}"><span class="v">${v}</span><span class="k">${k}</span></div>`).join("");
   document.getElementById("mp-synced").textContent = `Last synced ${mpData.fetched_at}${mpData.from_cache ? ` · cached ${mpData.age}s` : ""}`;
   document.getElementById("mp-console-errors").innerHTML = failed.map(c =>
-    `<div class="mp-banner">${icon("shield")}<span>${_mpEsc(_mpLabel(c.console))}</span><span class="msg">— ${_mpEsc(c.error || "failed")}${c.error_kind === "permission" ? " (grant “Singularity Marketplace · View” to the API user)" : ""}</span></div>`).join("")
-    + mpData.consoles.filter(c => c.ok && c.retention_error).map(c => `<div class="eap-notice"><span>${_mpEsc(_mpLabel(c.console))}: connectors loaded, but retention could not be read from GET /accounts and /sites — ${_mpEsc(c.retention_error)}</span></div>`).join("");
+    `<div class="mp-banner">${icon("shield")}<span>${_mpLink(c.console)}</span><span class="msg">— ${_mpEsc(c.error || "failed")}${c.error_kind === "permission" ? " (grant “Singularity Marketplace · View” to the API user)" : ""}</span></div>`).join("")
+    + mpData.consoles.filter(c => c.ok && c.retention_error).map(c => `<div class="eap-notice"><span>${_mpLink(c.console)}: connectors loaded, but retention could not be read from GET /accounts and /sites — ${_mpEsc(c.retention_error)}</span></div>`).join("");
 
   const inst = mpFiltered();
   const tbody = document.getElementById("mp-rows");
-  const showErrRows = failed.filter(c => !mpState.console || c.console === mpState.console);
+  const showErrRows = failed.filter(c => !mpState.console.length || mpState.console.includes(c.console));
   let html = "", shown = 0;
   if (mpState.view === "accounts") {
     mpHead([["", ""], ["Console", "console"], ["Account", "account"], ["Account ID", "account_id"], ["Connectors", "instances"], ["Enabled", "enabled"],
@@ -4629,7 +4798,7 @@ function mpRender() {
     html = rows.map(r => {
       const open = mpState.open.has(r.key);
       return `<tr class="mp-acc${open ? " open" : ""}" data-key="${_mpEsc(r.key)}">
-        <td>${open ? "▾" : "▸"}</td><td>${_mpEsc(_mpLabel(r.console))}</td>
+        <td>${open ? "▾" : "▸"}</td><td>${_mpLink(r.console)}</td>
         <td>${_mpEsc(r.account)}${r.account_id === "global" ? '<span class="eap-sub">console-wide instance</span>' : ""}</td>
         <td class="eap-muted">${r.account_id === "global" ? "—" : _mpEsc(r.account_id)}</td>
         <td>${r.instances}</td><td>${r.enabled}</td><td>${r.alerts ? `<span class="badge-err">${r.alerts}</span>` : '<span class="eap-muted">0</span>'}</td>
@@ -4660,7 +4829,7 @@ function mpRender() {
     html = rows.map(i => mpInstanceRow(i, false)).join("");
   }
   if (showErrRows.length) {
-    html += showErrRows.map(c => `<tr class="mp-error"><td colspan="11">${icon("shield", "ico-sm")} ${_mpEsc(_mpLabel(c.console))} — ${_mpEsc(c.error || "failed")}</td></tr>`).join("");
+    html += showErrRows.map(c => `<tr class="mp-error"><td colspan="11">${icon("shield", "ico-sm")} ${_mpLink(c.console)} — ${_mpEsc(c.error || "failed")}</td></tr>`).join("");
   }
   tbody.innerHTML = html;
   const total = mpData.instances.length;
@@ -4683,8 +4852,8 @@ function mpRender() {
   tbody.querySelectorAll("[data-goto-account]").forEach(a => a.onclick = e => {
     e.stopPropagation();
     const [c, id] = a.dataset.gotoAccount.split(":");
-    mpState.view = "accounts"; mpState.console = c; mpState.connector = ""; mpState.open = new Set([`${c}:${id}`]);
-    document.getElementById("mp-f-console").value = c; document.getElementById("mp-f-connector").value = "";
+    mpState.view = "accounts"; mpState.console = [c]; mpState.connector = ""; mpState.open = new Set([`${c}:${id}`]);
+    msSetValue("mp-f-console", [c], true); document.getElementById("mp-f-connector").value = "";
     mpRender();
   });
   tbody.querySelectorAll("[data-load]").forEach(b => b.onclick = e => { e.stopPropagation(); mpLoadDetail(b.dataset.load, b.dataset.console, b.dataset.inst, b); });
@@ -4697,7 +4866,7 @@ function mpInstanceRow(i, nested) {
     ? `<td>${_mpEsc(i.app_name)}${i.category ? `<span class="eap-sub">${_mpEsc(i.category)}</span>` : ""}</td><td>${_mpEsc(i.instance_name)}</td>
        <td>${_mpStatusCell(i)}</td><td class="eap-wrap">${_mpAlertCell(i)}</td><td>${_mpEsc(i.creator || "")}</td>
        <td>${_mpDate(i.created_at)}</td><td>${_mpDate(i.last_entity_created_at)}</td><td class="eap-muted">${i.scope_level === "site" ? "site" : i.scope_level === "global" ? "global" : "account level"}</td>`
-    : `<td>${_mpEsc(_mpLabel(i.console))}</td><td>${_mpEsc(i.account)}</td><td>${i.site ? _mpEsc(i.site) : `<span class="eap-muted">${i.scope_level === "global" ? "global" : "account level"}</span>`}</td>
+    : `<td>${_mpLink(i.console)}</td><td>${_mpEsc(i.account)}</td><td>${i.site ? _mpEsc(i.site) : `<span class="eap-muted">${i.scope_level === "global" ? "global" : "account level"}</span>`}</td>
        <td>${_mpEsc(i.app_name)}${i.category ? `<span class="eap-sub">${_mpEsc(i.category)}</span>` : ""}</td><td>${_mpEsc(i.instance_name)}</td>
        <td>${_mpStatusCell(i)}</td><td class="eap-wrap">${_mpAlertCell(i)}</td><td>${_mpRetCell(_mpRet(i), {global: i.scope_level === "global", noIngest: true})}</td><td>${_mpEsc(i.creator || "")}</td><td>${_mpDate(i.created_at)}</td><td>${_mpDate(i.last_entity_created_at)}</td>`;
   return `<tr class="mp-inst${open ? " open" : ""}" data-inst="${_mpEsc(k)}" title="Click for details, log and config">${cells}</tr>` + (open ? mpInstanceDetail(i, nested ? 8 : 11) : "");
@@ -4772,9 +4941,10 @@ async function mpLoadDetail(kind, console, instId, btn) {
 // Usage & billing
 // ═══════════════════════════════════════════════════════════════════════════
 let usData = null, usInited = false, usBusy = false, usPoll = null;
-const usState = {month: "", console: "", products: null, rules: {}, q: "", sort: {key: "", dir: 1}, account: "", site: "", zero: false};
+const usState = {month: "", console: [], products: null, rules: {}, q: "", sort: {key: "", dir: 1}, account: "", site: "", zero: false};
 const _usEsc = _eapEsc;
 const _usLabel = code => code ? ((usData && usData.labels && usData.labels[code]) ? `${usData.labels[code]} (${code})` : code) : "";
+const _usLink = code => consoleLink(code, _usLabel(code));
 const US_RULE = {peak: "peak day", average: "average", month_end: "month end", sum: "sum"};
 const US_HEALTH = {ok: "data", permission: "token lacks Metering Reports – View", not_enabled: "metering not enabled", no_reports: "no reports yet", never: "not synced", error: "error", config: "no token"};
 
@@ -4785,7 +4955,7 @@ function usInit() {
   usReadHash();
   document.getElementById("us-month").value = usState.month;
   document.getElementById("us-month").onchange = e => { if (e.target.value) { usState.month = e.target.value; usLoad(); } };
-  document.getElementById("us-console").onchange = e => { usState.console = e.target.value; usLoad(); };
+  msInit("us-console", {noun: "Consoles", onChange: v => { usState.console = v; usLoad(); }});
   document.getElementById("us-q").oninput = e => { usState.q = e.target.value; usRender(); };
   document.getElementById("us-zero").onchange = e => { usState.zero = e.target.checked; usLoad(); };
   document.getElementById("us-sync").onclick = usSync;
@@ -4806,14 +4976,14 @@ function usReadHash() {
   if (!_deepQs) return;
   const qs = new URLSearchParams(_deepQs); _deepQs = "";
   if (qs.get("month")) usState.month = qs.get("month");
-  if (qs.has("console")) usState.console = qs.get("console");
+  if (qs.has("console")) usState.console = qs.get("console").split(",").filter(Boolean);
   if (qs.get("products")) usState.products = qs.get("products").split(",");
   if (qs.get("rules")) qs.get("rules").split(",").forEach(kv => { const [k, v] = kv.split("="); if (k && v) usState.rules[k] = v; });
   usState.account = qs.get("account") || ""; usState.site = qs.get("site") || "";
 }
 function usQuery() {
   const qs = new URLSearchParams(); qs.set("month", usState.month);
-  if (usState.console) qs.set("consoles", usState.console);
+  if (usState.console.length) qs.set("consoles", usState.console.join(","));
   if (usState.products && usState.products.length) qs.set("products", usState.products.join(","));
   const rules = Object.entries(usState.rules).map(([k, v]) => `${k}=${v}`).join(",");
   if (rules) qs.set("rules", rules);
@@ -4821,7 +4991,7 @@ function usQuery() {
   return qs;
 }
 function usSyncHash() {
-  const qs = usQuery(); qs.delete("consoles"); if (usState.console) qs.set("console", usState.console);
+  const qs = usQuery(); qs.delete("consoles"); if (usState.console.length) qs.set("console", usState.console.join(","));
   if (usState.account) qs.set("account", usState.account); if (usState.site) qs.set("site", usState.site);
   try { history.replaceState(null, "", "#usage?" + qs.toString()); } catch (e) {}
   const allFinal = usData && usData.accounts.length && usData.accounts.every(a => a.state === "final");
@@ -4849,10 +5019,10 @@ async function usLoad() {
   finally { usBusy = false; }
 }
 function usFillControls() {
-  _eapFill("us-console", usData.consoles, _usLabel);
-  document.getElementById("us-console").value = usState.console;
+  msSetOptions("us-console", usData.consoles.map(c => ({value: c, label: _usLabel(c)})));
+  msSetValue("us-console", usState.console, true);
   const wrap = document.getElementById("us-products");
-  const all = usData.products;
+  const all = usData.all_products || usData.products;   // every product stays clickable, even when it is filtered out
   if (!usState.products) usState.products = all.map(p => p.key);
   wrap.innerHTML = all.map(p => `<span class="us-prod ${usState.products.includes(p.key) ? "on" : ""}" data-key="${p.key}" title="${_usEsc(p.label)} — ${_usEsc(p.note || "")}">${_usEsc(p.short)}</span>`).join("");
   wrap.querySelectorAll(".us-prod").forEach(el => el.onclick = () => {
@@ -4869,8 +5039,8 @@ function usFillControls() {
 function usHealth() {
   return (usData.health || []).map(h => {
     const txt = US_HEALTH[h.state] || h.state;
-    const tip = `${_usLabel(h.console)}: ${h.message || txt}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.missing && h.missing.length ? ` · missing: ${h.missing.join(", ")}` : ""}`;
-    return `<span class="us-chip ${h.state} ${usState.console === h.console ? "sel" : ""}" title="${_usEsc(tip)}" data-console="${_usEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_usEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? `${h.reports.length}/${usData.products.length}` : txt}</span></span>`;
+    const tip = `${_usLabel(h.console)}: ${h.message || txt}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.missing && h.missing.length ? ` · missing: ${h.missing.join(", ")}` : ""}${consoleUrl(h.console) ? `\n${consoleUrl(h.console)}` : ""}`;
+    return `<span class="us-chip ${h.state} ${usState.console.includes(h.console) ? "sel" : ""}" title="${_usEsc(tip)}" data-console="${_usEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_usEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? `${h.reports.length}/${(usData.all_products || usData.products).length}` : txt}</span></span>`;
   }).join("");
 }
 function usProductsShown() { return usData.products.filter(p => usState.products.includes(p.key)); }
@@ -4892,7 +5062,7 @@ function usRender() {
   if (!usData) return;
   usSyncHash();
   document.getElementById("us-health").innerHTML = usHealth();
-  document.querySelectorAll("#us-health .us-chip").forEach(el => el.onclick = () => { usState.console = usState.console === el.dataset.console ? "" : el.dataset.console; document.getElementById("us-console").value = usState.console; usLoad(); });
+  document.querySelectorAll("#us-health .us-chip").forEach(el => el.onclick = () => { const c = el.dataset.console; usState.console = usState.console.includes(c) ? usState.console.filter(x => x !== c) : [...usState.console, c]; msSetValue("us-console", usState.console, true); usLoad(); });
   const prods = usProductsShown();
   const th = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && usState.sort.key === key ? `<span class="arrow">${usState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
   document.getElementById("us-head").innerHTML = "<tr>" + th("Console", "console") + th("Account", "account") + th("Account ID", "account_id") + th("Salesforce ID", "salesforce_id") + th("State", "state") +
@@ -4902,7 +5072,7 @@ function usRender() {
   document.querySelectorAll("#us-head select[data-rule]").forEach(sel => sel.onchange = () => { usState.rules[sel.dataset.rule] = sel.value; usLoad(); });
   const rows = usSort(usFiltered());
   document.getElementById("us-rows").innerHTML = rows.map(a => `<tr data-acc="${_usEsc(a.console)}:${_usEsc(a.account_id)}" class="${usState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
-      <td>${_usEsc(_usLabel(a.console))}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>
+      <td>${_usLink(a.console)}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>
       <td>${a.state === "final" ? '<span class="us-badge-final">final</span>' : '<span class="us-badge-prov" title="Some days are still live and can change">provisional</span>'}</td>
       ${prods.map(p => { const c = a.products[p.key]; return `<td class="num" title="${c ? `${c.days} days, ${c.live_days} live · ${US_RULE[c.rule]}` : "no data"}">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}
     </tr>`).join("");
@@ -4922,7 +5092,7 @@ async function usSync() {
   const btn = document.getElementById("us-sync"); btn.disabled = true;
   document.getElementById("us-err").textContent = "";
   try {
-    const res = await fetch("/api/usage/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({month: usState.month, consoles: usState.console ? [usState.console] : null})});
+    const res = await fetch("/api/usage/sync", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({month: usState.month, consoles: usState.console.length ? usState.console : null})});
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     document.getElementById("us-synced").textContent = `Syncing ${usState.month}…`;
@@ -4951,10 +5121,13 @@ function usChart(series, unit) {
   const n = series.length, x = i => L + (n === 1 ? (W - L - R) / 2 : i * (W - L - R) / (n - 1)), y = v => T + (H - T - B) * (1 - v / max);
   const pts = series.map((s, i) => `${x(i).toFixed(1)},${y(s.value).toFixed(1)}`);
   const area = `M${x(0).toFixed(1)},${(H - B).toFixed(1)} L${pts.join(" L")} L${x(n - 1).toFixed(1)},${(H - B).toFixed(1)} Z`;
-  const live = series.map((s, i) => s.state === "live" ? `<circle class="live" cx="${x(i).toFixed(1)}" cy="${y(s.value).toFixed(1)}" r="3"><title>${s.date}: ${s.value} (live)</title></circle>` : "").join("");
+  // Days that are still live (today, and yesterday until S1 publishes it) are not final: draw that tail dashed.
+  let k = series.findIndex(s => s.state === "live"); if (k < 0) k = n;
+  const solid = pts.slice(0, k), dashed = k < n ? pts.slice(Math.max(k - 1, 0)) : [];
+  const live = series.map((s, i) => s.state === "live" ? `<circle class="live" cx="${x(i).toFixed(1)}" cy="${y(s.value).toFixed(1)}" r="3"><title>${s.date}: ${s.value} (live — not final until the next day)</title></circle>` : "").join("");
   const fmt = v => unit === "bytes" ? _usBytes(v) : v.toLocaleString(undefined, {maximumFractionDigits: 2});
   return `<svg class="us-chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-    <path class="area" d="${area}"/><polyline class="line" points="${pts.join(" ")}"/>
+    <path class="area" d="${area}"/>${solid.length > 1 ? `<polyline class="line" points="${solid.join(" ")}"/>` : ""}${dashed.length > 1 ? `<polyline class="line live-line" points="${dashed.join(" ")}"/>` : ""}
     <line class="axis" x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}"/>${live}
     <text x="${L}" y="${H - 6}">${series[0].date.slice(5)}</text><text x="${W - R}" y="${H - 6}" text-anchor="end">${series[n - 1].date.slice(5)}</text>
     <text x="${W - R}" y="${T + 10}" text-anchor="end">max ${fmt(max)}</text>
@@ -4979,14 +5152,14 @@ function usCloseDrawer() { document.getElementById("us-drawer").classList.add("h
 async function usOpenAccount(console, accountId, silent) {
   usState.account = `${console}:${accountId}`; usState.site = "";
   if (!silent) usRender();
-  usOpenDrawer("Account", `${_usEsc(_usLabel(console))} · ${_usEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
+  usOpenDrawer("Account", `${_usLink(console)} · ${_usEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
   try {
     const res = await fetch(`/api/usage/accounts/${encodeURIComponent(console)}/${encodeURIComponent(accountId)}?${usQuery().toString()}`);
     const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
     const prods = usData.products.filter(p => d.sites.some(s => s.products[p.key]));
     const sites = `<table class="rtable us-table" style="font-size:12px"><thead><tr><th>Site</th><th>Site ID</th>${prods.map(p => `<th class="num">${_usEsc(p.short)}<span class="us-rule">${US_RULE[usData.rules[p.key]]}</span></th>`).join("")}</tr></thead><tbody>${
       d.sites.map(s => `<tr data-site="${_usEsc(s.site_id)}"><td>${_usEsc(s.site)}</td><td class="eap-muted">${_usEsc(s.site_id || "—")}</td>${prods.map(p => { const c = s.products[p.key]; return `<td class="num">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table>`;
-    usOpenDrawer(d.account || accountId, `${_usEsc(_usLabel(console))} · account ${_usEsc(accountId)}${d.salesforce_id ? ` · Salesforce ${_usEsc(d.salesforce_id)}` : ""} · ${_usEsc(d.month)}`,
+    usOpenDrawer(d.account || accountId, `${_usLink(console)} · account ${_usEsc(accountId)}${d.salesforce_id ? ` · Salesforce ${_usEsc(d.salesforce_id)}` : ""} · ${_usEsc(d.month)}`,
       `<div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>
        <div class="eap-sec"><h4>Sites · ${d.sites.length}</h4><div style="overflow-x:auto">${sites}</div><div class="eap-muted" style="margin-top:6px">Click a site for its daily trend and breakdown. “(account level)” rows are usage the report attributes to the account itself.</div></div>`);
     document.querySelectorAll("#us-d-body tr[data-site]").forEach(tr => { tr.onclick = () => { if (tr.dataset.site) usOpenSite(console, tr.dataset.site); }; });
@@ -4995,16 +5168,316 @@ async function usOpenAccount(console, accountId, silent) {
 async function usOpenSite(console, siteId, silent) {
   const backTo = usState.account;
   usState.site = `${console}:${siteId}`;
-  usOpenDrawer("Site", `${_usEsc(_usLabel(console))} · ${_usEsc(siteId)}`, '<div class="eap-muted">Loading…</div>');
+  usOpenDrawer("Site", `${_usLink(console)} · ${_usEsc(siteId)}`, '<div class="eap-muted">Loading…</div>');
   try {
     const res = await fetch(`/api/usage/sites/${encodeURIComponent(console)}/${encodeURIComponent(siteId)}?${usQuery().toString()}`);
     const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
     if (d.account_id) usState.account = `${console}:${d.account_id}`;
-    usOpenDrawer(d.site || siteId, `${_usEsc(_usLabel(console))} · site ${_usEsc(siteId)}${d.account ? ` · account ${_usEsc(d.account)}` : ""} · ${_usEsc(d.month)}`,
+    usOpenDrawer(d.site || siteId, `${_usLink(console)} · site ${_usEsc(siteId)}${d.account ? ` · account ${_usEsc(d.account)}` : ""} · ${_usEsc(d.month)}`,
       `<div><span class="us-back" id="us-back">← Back to account</span></div><div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>`);
     document.getElementById("us-back").onclick = () => usOpenAccount(console, d.account_id || (backTo || "").split(":")[1]);
     usSyncHash();
   } catch (e) { usOpenDrawer("Site", _usEsc(siteId), `<div class="ae-err" style="display:block">${_usEsc(e.message)}</div>`); }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Accounts table: the console's Settings › Scopes › Accounts page, client-side filtered
+// ═══════════════════════════════════════════════════════════════════════════
+const ACCT_COLS = [
+  {key: "name", label: "Account Name", w: 300},
+  {key: "skus", label: "SKUs", w: 300, nosort: true},
+  {key: "totalSurfaces", label: "Total Surfaces", w: 120, num: true},
+  {key: "modules", label: "Modules", w: 300},
+  {key: "settings", label: "Singularity Platform Settings", w: 340},
+  {key: "usageType", label: "Usage Type", w: 100},
+  {key: "billingMode", label: "Billing Mode", w: 110},
+  {key: "activeAgents", label: "Active Agents", w: 110, num: true},
+  {key: "createdAt", label: "Created At", w: 120},
+  {key: "expiration", label: "Expiration Date", w: 210},
+  {key: "state", label: "State", w: 90, off: true},
+  {key: "accountType", label: "Type", w: 90, off: true},
+  {key: "numberOfSites", label: "Sites", w: 70, num: true, off: true},
+  {key: "id", label: "Account ID", w: 180, off: true},
+  {key: "salesforceId", label: "Salesforce ID", w: 180, off: true},
+  {key: "externalId", label: "External ID", w: 160, off: true},
+];
+const ACCT_CHIPS = [
+  {key: "sku", label: "SKU", values: r => r.skus.map(x => x.name)},
+  {key: "module", label: "Module", values: r => r.modules},
+  {key: "state", label: "State", values: r => [r.state]},
+  {key: "type", label: "Type", values: r => [r.usageType]},                      // the console's "Type" chip is mssp / customer
+  {key: "acctType", label: "Account type", values: r => [r.accountType], off: true},   // Paid / Trial / …
+  {key: "billing", label: "Billing Mode", values: r => [r.billingMode], off: true},
+];
+const acctState = {console: "", field: "name", q: "", f: {}, sort: {key: "name", dir: 1}, page: 1, pp: 20, cols: null, chips: null, widths: {}, sel: new Set(), collapsed: false};
+let acctData = null, acctInited = false, acctBusy = false, _acctQTimer = null;
+const _acctSave = () => { try { localStorage.setItem("acctCols", JSON.stringify(acctState.cols)); localStorage.setItem("acctChips", JSON.stringify(acctState.chips)); localStorage.setItem("acctWidths", JSON.stringify(acctState.widths)); } catch (e) {} };
+
+function acctInit() {
+  if (acctInited) { acctReadHash(); return; }
+  acctInited = true;
+  try {
+    acctState.cols = JSON.parse(localStorage.getItem("acctCols") || "null");
+    acctState.chips = JSON.parse(localStorage.getItem("acctChips") || "null");
+    acctState.widths = JSON.parse(localStorage.getItem("acctWidths") || "{}") || {};
+  } catch (e) {}
+  if (!Array.isArray(acctState.cols) || !acctState.cols.length) acctState.cols = ACCT_COLS.filter(c => !c.off).map(c => c.key);
+  if (!Array.isArray(acctState.chips)) acctState.chips = ACCT_CHIPS.filter(c => !c.off).map(c => c.key);
+  document.getElementById("acct-field").onchange = e => { acctState.field = e.target.value; acctState.page = 1; acctRender(); };
+  document.getElementById("acct-q").oninput = e => { clearTimeout(_acctQTimer); _acctQTimer = setTimeout(() => { acctState.q = e.target.value; acctState.page = 1; acctRender(); }, 300); };
+  ACCT_CHIPS.forEach(c => msInit("acct-f-" + c.key, {noun: c.label, onChange: v => { acctState.f[c.key] = v; acctState.page = 1; acctRender(); }}));
+  document.getElementById("acct-pp").onchange = e => { acctState.pp = parseInt(e.target.value, 10) || 20; acctState.page = 1; acctRender(); };
+  document.getElementById("acct-refresh").onclick = () => acctLoad(true);
+  document.getElementById("acct-export").onclick = () => acctExport(acctFiltered(), "filtered");
+  document.getElementById("acct-new").onclick = () => openAccountCreator();
+  document.getElementById("acct-clear").onclick = acctClearFilters;
+  document.getElementById("acct-collapse").onclick = () => { acctState.collapsed = !acctState.collapsed; acctRenderBar(); };
+  [["acct-addf-btn", "acct-addf"], ["acct-cols-btn", "acct-cols"], ["acct-actions-btn", "acct-actions"]].forEach(([b, dd]) => {
+    document.getElementById(b).onclick = e => { e.stopPropagation(); const el = document.getElementById(dd), open = el.classList.contains("open"); acctCloseMenus(); if (!open) el.classList.add("open"); };
+    document.getElementById(dd).querySelector(".us-dd-menu").onclick = e => e.stopPropagation();
+  });
+  document.addEventListener("click", acctCloseMenus);
+  document.getElementById("acct-d-close").onclick = () => document.getElementById("acct-drawer").classList.add("hidden");
+  acctReadHash();
+}
+function acctCloseMenus() { document.querySelectorAll("#acct-page .us-dd.open").forEach(x => x.classList.remove("open")); document.querySelectorAll(".acct-colmenu").forEach(m => m.remove()); }
+function acctReadHash() {
+  if (!_deepQs) return;
+  const qs = new URLSearchParams(_deepQs); _deepQs = "";
+  if (qs.get("console")) acctState.console = qs.get("console");
+  if (qs.get("field")) acctState.field = qs.get("field");
+  if (qs.has("q")) acctState.q = qs.get("q");
+  ACCT_CHIPS.forEach(c => { if (qs.has(c.key)) { acctState.f[c.key] = qs.get(c.key).split("|").filter(Boolean); if (!acctState.chips.includes(c.key)) acctState.chips.push(c.key); } });
+  if (qs.get("sort")) { const [k, d] = qs.get("sort").split(":"); acctState.sort = {key: k, dir: d === "desc" ? -1 : 1}; }
+  if (qs.get("page")) acctState.page = parseInt(qs.get("page"), 10) || 1;
+  if (qs.get("pp")) acctState.pp = parseInt(qs.get("pp"), 10) || 20;
+  document.getElementById("acct-field").value = acctState.field;
+  document.getElementById("acct-q").value = acctState.q;
+  document.getElementById("acct-pp").value = String(acctState.pp);
+}
+function acctSyncHash() {
+  const qs = new URLSearchParams();
+  if (acctData) qs.set("console", acctData.console);
+  if (acctState.field !== "name") qs.set("field", acctState.field);
+  if (acctState.q) qs.set("q", acctState.q);
+  ACCT_CHIPS.forEach(c => { const v = acctState.f[c.key]; if (v && v.length) qs.set(c.key, v.join("|")); });
+  qs.set("sort", `${acctState.sort.key}:${acctState.sort.dir > 0 ? "asc" : "desc"}`);
+  if (acctState.page > 1) qs.set("page", acctState.page);
+  if (acctState.pp !== 20) qs.set("pp", acctState.pp);
+  try { history.replaceState(null, "", "#accounts?" + qs.toString()); } catch (e) {}
+}
+async function acctLoad(refresh) {
+  if (acctBusy) return;
+  acctBusy = true;
+  document.getElementById("acct-err").textContent = "";
+  acctSkeleton();
+  try {
+    const qs = new URLSearchParams();
+    if (refresh) qs.set("refresh", "1");
+    if (acctState.console) qs.set("console", acctState.console);
+    const res = await fetch("/api/accounts/table?" + qs.toString());
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+    acctData = d; acctState.console = d.console; acctState.sel.clear();
+    document.getElementById("acct-src").innerHTML = `${consoleLink(d.console, d.label)} · ${d.total.toLocaleString()} accounts · read ${escHtml(d.fetched_at)}${d.cached ? ' <span class="eap-muted">(cached, Refresh re-reads)</span>' : ""}`;
+    acctFillOptions();
+    acctRender();
+  } catch (e) {
+    document.getElementById("acct-err").textContent = e.message;
+    document.getElementById("acct-rows").innerHTML = `<tr><td colspan="${acctState.cols.length + 1}" class="acct-empty">Could not load — ${escHtml(e.message)}</td></tr>`;
+    document.getElementById("acct-count").textContent = ""; document.getElementById("acct-pager").innerHTML = "";
+  } finally { acctBusy = false; }
+}
+function acctSkeleton() {
+  const cols = ACCT_COLS.filter(c => acctState.cols.includes(c.key));
+  acctRenderHead(cols, []);
+  document.getElementById("acct-rows").innerHTML = Array.from({length: 12}, () => `<tr><td class="acct-cb"></td>${cols.map(() => '<td><span class="acct-skel"></span></td>').join("")}</tr>`).join("");
+  document.getElementById("acct-count").textContent = "Loading…";
+}
+function acctFillOptions() {
+  ACCT_CHIPS.forEach(c => {
+    const counts = {};
+    acctData.rows.forEach(r => new Set(c.values(r).filter(Boolean)).forEach(v => { counts[v] = (counts[v] || 0) + 1; }));
+    msSetOptions("acct-f-" + c.key, Object.keys(counts).sort((a, b) => a.localeCompare(b, undefined, {sensitivity: "base", numeric: true})).map(v => ({value: v, label: v, count: counts[v]})));
+    msSetValue("acct-f-" + c.key, acctState.f[c.key] || [], true);
+  });
+}
+function acctFiltered() {
+  const q = acctState.q.trim().toLowerCase(), field = acctState.field;
+  return acctData.rows.filter(r => {
+    if (q && !String(r[field] ?? "").toLowerCase().includes(q)) return false;
+    for (const c of ACCT_CHIPS) {
+      const sel = acctState.f[c.key];
+      if (sel && sel.length) { const vals = c.values(r); if (!sel.some(v => vals.includes(v))) return false; }
+    }
+    return true;
+  });
+}
+const _acctActive = () => (acctState.q.trim() ? 1 : 0) + ACCT_CHIPS.filter(c => (acctState.f[c.key] || []).length).length;
+function acctClearFilters() {
+  acctState.q = ""; document.getElementById("acct-q").value = "";
+  ACCT_CHIPS.forEach(c => { acctState.f[c.key] = []; msSetValue("acct-f-" + c.key, [], true); });
+  acctState.page = 1; acctRender();
+}
+const _acctSortVal = (r, k) => k === "totalSurfaces" ? (r.totalSurfaces < 0 ? Infinity : r.totalSurfaces)
+  : k === "expiration" ? (r.expiration || "9999") : k === "modules" ? r.modules.join(", ")
+  : k === "settings" ? r.settings.map(x => `${x.label}: ${x.value}`).join("; ") : r[k];
+const _acctShortDate = iso => new Date(iso).toLocaleDateString("en-US", {month: "short", day: "numeric", year: "numeric"});
+const _acctLongDate = iso => { const d = new Date(iso); return `${d.toLocaleDateString("en-US", {month: "long", day: "numeric", year: "numeric"})} ${d.toLocaleTimeString("en-US", {hour: "numeric", minute: "2-digit"})}`; };
+const _acctSkuText = r => r.skus.map(x => `${x.name} (${x.qty == null ? "Unlimited" : x.qty.toLocaleString()})`).join(", ");
+const _acctSettingsList = r => r.settings.map(x => `${x.label}: ${x.value}`);
+function acctCellText(r, key) {
+  switch (key) {
+    case "name": return `${r.name} (${r.id})`;
+    case "skus": return _acctSkuText(r);
+    case "totalSurfaces": return r.totalSurfaces < 0 ? "Unlimited" : (r.totalSurfaces || 0).toLocaleString();
+    case "modules": return r.modules.join(", ");
+    case "settings": return _acctSettingsList(r).join(", ");
+    case "activeAgents": return (r.activeAgents || 0).toLocaleString();
+    case "createdAt": return r.createdAt ? _acctShortDate(r.createdAt) : "";
+    case "expiration": return r.expiration ? _acctLongDate(r.expiration) : "N/A";
+    default: return String(r[key] ?? "");
+  }
+}
+function acctCell(r, c) {
+  const text = acctCellText(r, c.key);
+  if (c.key === "name") return `<a class="acct-name" title="${escHtml(text)}" data-id="${escHtml(r.id)}">${escHtml(text)}</a>`;
+  if (c.key === "settings") return `<span title="${escHtml(_acctSettingsList(r).join("\n"))}">${escHtml(text)}</span>`;
+  if (c.key === "skus" || c.key === "modules") return `<span title="${escHtml(text)}">${escHtml(text)}</span>`;
+  return escHtml(text);
+}
+function acctRenderHead(cols, pageRows) {
+  const all = pageRows.length > 0 && pageRows.every(r => acctState.sel.has(r.id));
+  document.getElementById("acct-head").innerHTML = `<tr><th class="acct-cb"><input type="checkbox" id="acct-sel-all" ${all ? "checked" : ""} title="Select this page"></th>`
+    + cols.map(c => `<th data-key="${c.key}" class="${c.num ? "num" : ""}" style="width:${acctState.widths[c.key] ? acctState.widths[c.key] + "px" : (100 * c.w / cols.reduce((a, x) => a + (acctState.widths[x.key] ? 0 : x.w), 0)).toFixed(2) + "%"}"><span class="acct-th-label" ${c.nosort ? "" : 'data-sort="1"'} title="${escHtml(c.label)}">${escHtml(c.label)}${acctState.sort.key === c.key ? `<span class="arrow">${acctState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</span><button class="acct-th-menu" title="Column options">⋮</button><span class="acct-resize"></span></th>`).join("") + "</tr>";
+  const head = document.getElementById("acct-head");
+  head.querySelectorAll(".acct-th-label[data-sort]").forEach(el => el.onclick = () => { const k = el.closest("th").dataset.key; acctState.sort = acctState.sort.key === k ? {key: k, dir: -acctState.sort.dir} : {key: k, dir: 1}; acctRender(); });
+  head.querySelectorAll(".acct-th-menu").forEach(b => b.onclick = e => { e.stopPropagation(); acctColMenu(b.closest("th").dataset.key, b.getBoundingClientRect()); });
+  head.querySelectorAll(".acct-resize").forEach(h => h.onmousedown = e => {
+    e.preventDefault(); e.stopPropagation();
+    const th = h.closest("th"), key = th.dataset.key, startX = e.clientX, startW = th.getBoundingClientRect().width;
+    th.classList.add("resizing");
+    const move = ev => { const w = Math.max(60, Math.round(startW + ev.clientX - startX)); th.style.width = w + "px"; acctState.widths[key] = w; };
+    const up = () => { th.classList.remove("resizing"); document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); _acctSave(); };
+    document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
+  });
+  const selAll = document.getElementById("acct-sel-all");
+  if (selAll) selAll.onchange = () => { pageRows.forEach(r => selAll.checked ? acctState.sel.add(r.id) : acctState.sel.delete(r.id)); acctRender(); };
+}
+function acctColMenu(key, rect) {
+  acctCloseMenus();
+  const col = ACCT_COLS.find(c => c.key === key), m = document.createElement("div");
+  m.className = "acct-colmenu";
+  m.innerHTML = (col.nosort ? "" : `<button data-act="asc">Sort ascending</button><button data-act="desc">Sort descending</button>`) + `<button data-act="hide">Hide column</button>`;
+  m.style.left = Math.min(rect.left, window.innerWidth - 170) + "px"; m.style.top = (rect.bottom + 4) + "px";
+  m.onclick = e => e.stopPropagation();
+  m.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const act = b.dataset.act;
+    if (act === "hide") { acctState.cols = acctState.cols.filter(k => k !== key); _acctSave(); }
+    else acctState.sort = {key, dir: act === "asc" ? 1 : -1};
+    acctCloseMenus(); acctRender();
+  });
+  document.body.appendChild(m);
+}
+function acctRenderBar() {
+  const bar = document.getElementById("acct-filters");
+  bar.classList.toggle("collapsed", acctState.collapsed);
+  document.getElementById("acct-collapse").textContent = acctState.collapsed ? "﹀" : "︿";
+  document.getElementById("acct-collapse").title = acctState.collapsed ? "Expand filters" : "Collapse filters";
+  const n = _acctActive();
+  document.getElementById("acct-summary").textContent = `Filters${n ? ` · ${n} active` : ""}`;
+  ACCT_CHIPS.forEach(c => { const w = document.getElementById("acct-f-" + c.key); if (w) w.style.display = acctState.chips.includes(c.key) ? "" : "none"; });
+  document.getElementById("acct-clear").style.display = n ? "" : "none";
+  document.getElementById("acct-addf-menu").innerHTML = `<div class="acct-ck-title">Filters in the bar</div>` + ACCT_CHIPS.map(c => `<label><input type="checkbox" data-key="${c.key}" ${acctState.chips.includes(c.key) ? "checked" : ""}> ${escHtml(c.label)}</label>`).join("");
+  document.querySelectorAll("#acct-addf-menu input").forEach(cb => cb.onchange = () => {
+    const k = cb.dataset.key;
+    acctState.chips = cb.checked ? [...acctState.chips, k] : acctState.chips.filter(x => x !== k);
+    if (!cb.checked && (acctState.f[k] || []).length) { acctState.f[k] = []; msSetValue("acct-f-" + k, [], true); }   // a hidden chip must not keep filtering
+    _acctSave(); acctRender();
+  });
+  document.getElementById("acct-cols-menu").innerHTML = `<div class="acct-ck-title">Columns</div>` + ACCT_COLS.map(c => `<label><input type="checkbox" data-key="${c.key}" ${acctState.cols.includes(c.key) ? "checked" : ""} ${c.key === "name" ? "disabled" : ""}> ${escHtml(c.label)}</label>`).join("");
+  document.querySelectorAll("#acct-cols-menu input").forEach(cb => cb.onchange = () => {
+    const k = cb.dataset.key;
+    acctState.cols = cb.checked ? ACCT_COLS.map(c => c.key).filter(x => x === k || acctState.cols.includes(x)) : acctState.cols.filter(x => x !== k);
+    _acctSave(); acctRender();
+  });
+}
+function acctRender() {
+  if (!acctData) return;
+  acctRenderBar();
+  const rows = acctFiltered(), col = ACCT_COLS.find(c => c.key === acctState.sort.key);
+  if (col && !col.nosort) rows.sort((a, b) => {
+    const x = _acctSortVal(a, col.key), y = _acctSortVal(b, col.key);
+    if ((x == null || x === "") && (y == null || y === "")) return 0; if (x == null || x === "") return 1; if (y == null || y === "") return -1;
+    const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, {sensitivity: "base", numeric: true});
+    return c * acctState.sort.dir;
+  });
+  const total = rows.length, pages = Math.max(1, Math.ceil(total / acctState.pp));
+  if (acctState.page > pages) acctState.page = pages;
+  if (acctState.page < 1) acctState.page = 1;
+  const start = (acctState.page - 1) * acctState.pp, pageRows = rows.slice(start, start + acctState.pp);
+  const cols = ACCT_COLS.filter(c => acctState.cols.includes(c.key));
+  acctRenderHead(cols, pageRows);
+  const body = document.getElementById("acct-rows");
+  body.innerHTML = pageRows.length ? pageRows.map(r => `<tr data-id="${escHtml(r.id)}" class="${acctState.sel.has(r.id) ? "sel" : ""}"><td class="acct-cb"><input type="checkbox" ${acctState.sel.has(r.id) ? "checked" : ""}></td>${cols.map(c => `<td class="${c.num ? "num" : ""}">${acctCell(r, c)}</td>`).join("")}</tr>`).join("")
+    : `<tr><td colspan="${cols.length + 1}" class="acct-empty">${acctData.rows.length ? `No accounts match your filters. <a class="acct-clear" id="acct-clear2">Clear filters</a>` : "This console has no accounts."}</td></tr>`;
+  const c2 = document.getElementById("acct-clear2"); if (c2) c2.onclick = acctClearFilters;
+  body.querySelectorAll("td.acct-cb input").forEach(cb => cb.onchange = () => { const id = cb.closest("tr").dataset.id; cb.checked ? acctState.sel.add(id) : acctState.sel.delete(id); cb.closest("tr").classList.toggle("sel", cb.checked); acctRenderActions(); acctRenderHead(cols, pageRows); });
+  body.querySelectorAll("a.acct-name").forEach(a => a.onclick = e => { e.stopPropagation(); acctOpen(a.dataset.id); });
+  document.getElementById("acct-count").textContent = `${total.toLocaleString()} Item${total === 1 ? "" : "s"}${total !== acctData.rows.length ? ` of ${acctData.rows.length.toLocaleString()}` : ""}`;
+  const pager = document.getElementById("acct-pager");
+  pager.innerHTML = acctPager(acctState.page, pages);
+  pager.querySelectorAll(".acct-pg").forEach(b => b.onclick = () => { acctState.page = parseInt(b.dataset.p, 10); acctRender(); document.getElementById("acct-wrap").scrollTop = 0; });
+  acctRenderActions();
+  acctSyncHash();
+}
+function acctPager(page, pages) {
+  if (pages <= 1) return "";
+  let s = Math.max(1, page - 2), e = Math.min(pages, s + 4); s = Math.max(1, e - 4);
+  const btn = (p, label, cls, dis) => `<button class="acct-pg ${cls || ""}" data-p="${p}" ${dis ? "disabled" : ""}>${label}</button>`;
+  let out = btn(page - 1, "‹", "", page === 1);
+  if (s > 1) out += btn(1, "1") + (s > 2 ? '<span class="acct-dots">…</span>' : "");
+  for (let p = s; p <= e; p++) out += btn(p, p, p === page ? "cur" : "");
+  if (e < pages) out += (e < pages - 1 ? '<span class="acct-dots">…</span>' : "") + btn(pages, pages);
+  return out + btn(page + 1, "›", "", page === pages);
+}
+function acctRenderActions() {
+  const n = acctState.sel.size, btn = document.getElementById("acct-actions-btn");
+  btn.disabled = !n; btn.textContent = n ? `Actions (${n}) ▾` : "Actions ▾";
+  const menu = document.getElementById("acct-actions-menu");
+  menu.innerHTML = `<a data-act="export">Export selected (CSV)</a><a data-act="copy">Copy account IDs</a>${n === 1 ? `<a data-act="edit">Open in Account Editor</a>` : ""}<a data-act="clear">Clear selection</a>`;
+  menu.querySelectorAll("a").forEach(a => a.onclick = async () => {
+    const sel = acctData.rows.filter(r => acctState.sel.has(r.id));
+    if (a.dataset.act === "export") acctExport(sel, "selected");
+    if (a.dataset.act === "copy") { try { await navigator.clipboard.writeText(sel.map(r => r.id).join("\n")); } catch (e) {} }
+    if (a.dataset.act === "edit" && sel[0]) openAccountEditor({console: acctData.console, accountId: sel[0].id, name: sel[0].name});
+    if (a.dataset.act === "clear") { acctState.sel.clear(); acctRender(); }
+    acctCloseMenus();
+  });
+}
+function acctExport(rows, what) {
+  const cols = ACCT_COLS.filter(c => acctState.cols.includes(c.key) || c.key === "id");
+  const esc = v => { const t = String(v ?? ""); return /[",\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const lines = [cols.map(c => esc(c.label)).join(",")].concat(rows.map(r => cols.map(c => esc(c.key === "name" ? r.name : c.key === "settings" ? _acctSettingsList(r).join("; ") : acctCellText(r, c.key))).join(",")));
+  const blob = new Blob(["﻿" + lines.join("\r\n")], {type: "text/csv;charset=utf-8"});
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `accounts-${acctData.console}-${what}-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function acctOpen(id) {
+  const r = acctData.rows.find(x => x.id === id); if (!r) return;
+  document.getElementById("acct-d-title").textContent = r.name;
+  document.getElementById("acct-d-sub").innerHTML = `${consoleLink(acctData.console, acctData.label)} · account ${escHtml(r.id)} · ${escHtml(r.state)}`;
+  const kv = pairs => `<dl class="acct-kv">${pairs.filter(p => p[1] !== undefined).map(([k, v]) => `<dt>${escHtml(k)}</dt><dd>${v}</dd>`).join("")}</dl>`;
+  document.getElementById("acct-d-body").innerHTML = `
+    <div class="eap-sec">${kv([["Account ID", `<span style="font-family:var(--mono, monospace)">${escHtml(r.id)}</span>`], ["State", escHtml(r.state)], ["Type", escHtml(r.accountType)], ["Usage type", escHtml(r.usageType)], ["Billing mode", escHtml(r.billingMode)],
+      ["Active agents", (r.activeAgents || 0).toLocaleString()], ["Sites", r.numberOfSites == null ? "—" : String(r.numberOfSites)], ["Total surfaces", escHtml(acctCellText(r, "totalSurfaces"))],
+      ["Created", r.createdAt ? `${escHtml(_acctLongDate(r.createdAt))}` : "—"], ["Expiration", escHtml(acctCellText(r, "expiration"))],
+      ["Salesforce ID", r.salesforceId ? escHtml(r.salesforceId) : '<span class="eap-muted">—</span>'], ["External ID", r.externalId ? escHtml(r.externalId) : '<span class="eap-muted">—</span>']])}</div>
+    <div class="eap-sec"><h4>SKUs</h4>${r.skus.length ? `<table class="rtable us-table" style="font-size:12.5px"><thead><tr><th>Bundle</th><th class="num">Surfaces</th></tr></thead><tbody>${r.skus.map(x => `<tr><td>${escHtml(x.name)}</td><td class="num">${x.qty == null ? "Unlimited" : x.qty.toLocaleString()}</td></tr>`).join("")}</tbody></table>` : '<span class="eap-muted">none</span>'}</div>
+    <div class="eap-sec"><h4>Modules</h4>${r.modules.length ? `<ul style="margin:0;padding-left:18px;font-size:13px">${r.modules.map(m => `<li>${escHtml(m)}</li>`).join("")}</ul>` : '<span class="eap-muted">none</span>'}</div>
+    <div class="eap-sec"><h4>Singularity Platform Settings</h4>${r.settings.length ? kv(r.settings.map(x => [x.label, escHtml(x.value)])) : '<span class="eap-muted">none</span>'}</div>`;
+  document.getElementById("acct-d-edit").onclick = () => openAccountEditor({console: acctData.console, accountId: r.id, name: r.name});
+  document.getElementById("acct-drawer").classList.remove("hidden");
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -5014,6 +5487,7 @@ const chState = {months: 12, gran: "month", console: [], dest: [], inds: null, q
 let chData = null, chDevices = null, chInited = false, chBusy = false, chPoll = null;
 const _chEsc = _eapEsc;
 const _chLabel = code => code ? ((chData && chData.labels && chData.labels[code]) ? `${chData.labels[code]} (${code})` : code) : "";
+const _chLink = code => consoleLink(code, _chLabel(code));
 const CH_HEALTH = {ok: "", never: "not synced", auth: "token rejected", permission: "token lacks Activities – View", unsupported: "no activities API", timeout: "timed out", error: "error", config: "no token"};
 const CH_KIND_LABEL = {internal: "Internal (N-able)", sentinelone: "Other SentinelOne console", competitor: "Competitor", other: "Unknown destination"};
 // Indicator colours: migrations in the accent, uninstalls in the warning colour, decommissions muted.
@@ -5026,6 +5500,7 @@ const _chColor = (key) => {
   return "var(--text-muted)";
 };
 const _chDestColor = {competitor: "var(--error)", sentinelone: "var(--primary)", other: "var(--warn)", internal: "var(--text-muted)"};
+const _chPalette = ["var(--primary)", "var(--error)", "var(--warn)", "#2a9d8f", "#e07a5f", "#6c7bd9", "#8ab17d", "#c77dff", "#f4a261", "#4cc9f0", "var(--text-muted)"];
 
 function chInit() {
   if (chInited) { chReadHash(); return; }
@@ -5121,25 +5596,37 @@ function chFillControls() {
 function chHealth() {
   return (chData.health || []).map(h => {
     const txt = CH_HEALTH[h.state] ?? h.state;
-    const tip = `${_chLabel(h.console)}: ${h.message || txt || "ok"}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.last_event ? ` · last event ${h.last_event}` : ""}`;
+    const tip = `${_chLabel(h.console)}: ${h.message || txt || "ok"}${h.last_sync ? ` · synced ${h.last_sync}` : ""}${h.last_event ? ` · last event ${h.last_event}` : ""}${consoleUrl(h.console) ? `\n${consoleUrl(h.console)}` : ""}`;
     return `<span class="us-chip ${h.state} ${chState.console.includes(h.console) ? "sel" : ""}" title="${_chEsc(tip)}" data-console="${_chEsc(h.console)}" style="cursor:pointer"><span class="status-dot"></span>${_chEsc(h.console)}<span class="eap-muted" style="font-size:11px">${h.state === "ok" ? (h.last_event ? h.last_event.slice(0, 10) : "no events") : txt}</span></span>`;
   }).join("");
 }
 function chTiles() {
-  const t = chData.totals, top = t.top_destination;
+  const t = chData.totals, top = t.top_competitor || t.top_destination;
   const tile = (v, k, cls, title) => `<div class="mp-tile ${cls || ""}" ${title ? `title="${_chEsc(title)}"` : ""}><div class="v">${v}</div><div class="k">${k}</div></div>`;
   return tile(t.devices.toLocaleString(), "devices churned", "", "Distinct devices with at least one indicator in the range")
     + tile(t.uninstalled_devices.toLocaleString(), "uninstalled")
     + tile(t.migrated_devices.toLocaleString(), "moved to another console")
     + tile(t.migrated_external.toLocaleString(), "moved outside N-able", t.migrated_external ? "warn" : "", "Moves whose target console is not one of ours")
     + tile(t.accounts.toLocaleString(), "accounts affected")
-    + tile(top ? _chEsc(top.label) : "—", top ? `top destination · ${top.devices} device${top.devices === 1 ? "" : "s"}` : "top destination", "", top ? top.host : "");
+    + tile(top ? _chEsc(top.label) : "—", top ? `top competitor · ${top.devices} device${top.devices === 1 ? "" : "s"}${top.consoles > 1 ? ` on ${top.consoles} consoles` : ""}` : "top competitor", "", top ? (top.hosts || [top.host]).join("\n") : "");
 }
 function chSegments() {
   // [{key, label, color}] for the stacked chart, depending on the stack mode.
   if (chState.stack === "destination") {
     const kinds = ["competitor", "sentinelone", "other", "internal"].filter(k => chData.trend.some(t => t.by_destination[k]));
     return kinds.map(k => ({key: k, label: CH_KIND_LABEL[k], color: _chDestColor[k], get: t => t.by_destination[k] || 0}));
+  }
+  if (chState.stack === "competitor") {
+    // the biggest vendor groups over the whole range get their own colour, the rest are folded into "Other"
+    const sum = {};
+    chData.trend.forEach(t => Object.entries(t.by_vendor || {}).forEach(([k, n]) => { sum[k] = (sum[k] || 0) + n; }));
+    const name = k => (chData.groups.find(g => g.key === k) || {}).label || k;
+    const kind = k => (chData.groups.find(g => g.key === k) || {}).kind || "other";
+    const ordered = Object.keys(sum).sort((a, b) => sum[b] - sum[a] || name(a).localeCompare(name(b)));
+    const top = ordered.slice(0, _chPalette.length - 1), rest = ordered.slice(_chPalette.length - 1);
+    const segs = top.map((k, i) => ({key: k, label: name(k) + (kind(k) === "internal" ? " · internal" : ""), color: _chPalette[i], get: t => (t.by_vendor || {})[k] || 0}));
+    if (rest.length) segs.push({key: "_rest", label: `Other (${rest.length} more)`, color: _chPalette[_chPalette.length - 1], get: t => rest.reduce((a, k) => a + ((t.by_vendor || {})[k] || 0), 0)});
+    return segs;
   }
   return chData.indicators.map(i => ({key: i.key, label: i.label, color: _chColor(i.key), get: t => t.by_indicator[i.key] || 0}));
 }
@@ -5185,7 +5672,7 @@ function chSort(rows, defKey, defDir) {
   });
 }
 const _chTh = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && chState.sort.key === key ? `<span class="arrow">${chState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
-const _chDestChips = dests => dests.map(d => `<span class="ch-dest" title="${_chEsc(d.host)}"><span class="ch-kind ${d.kind}">${_chEsc(d.label)}</span><span class="eap-muted">${d.devices}</span></span>`).join("") || '<span class="eap-muted">—</span>';
+const _chDestChips = dests => dests.map(d => `<span class="ch-dest" title="${_chEsc((d.hosts || [{host: d.host, devices: d.devices}]).map(h => `${h.host} · ${h.devices}`).join("\n"))}"><span class="ch-kind ${d.kind}">${_chEsc(d.label)}</span><span class="eap-muted">${d.devices}${d.hosts && d.hosts.length > 1 ? ` · ${d.hosts.length} consoles` : ""}</span></span>`).join("") || '<span class="eap-muted">—</span>';
 
 function chRender() {
   if (!chData) return;
@@ -5196,22 +5683,22 @@ function chRender() {
   const segs = chSegments();
   document.querySelectorAll("#ch-stack .result-tab").forEach(b => b.classList.toggle("active", b.dataset.stack === chState.stack));
   document.getElementById("ch-chart-title").textContent = `Devices churned per ${chState.gran}`;
-  document.getElementById("ch-chart-sub").textContent = `${chData.start} to ${chData.end} · ${chState.stack === "destination" ? "moves only, split by where the agents went" : "split by indicator"}${chState.console.length ? ` · ${chState.console.map(_chLabel).join(", ")}` : " · all consoles"}`;
+  document.getElementById("ch-chart-sub").textContent = `${chData.start} to ${chData.end} · ${chState.stack === "destination" ? "moves only, split by where the agents went" : chState.stack === "competitor" ? "moves only, split by competitor (a vendor's consoles grouped together)" : "split by indicator"}${chState.console.length ? ` · ${chState.console.map(_chLabel).join(", ")}` : " · all consoles"}`;
   document.getElementById("ch-chart").innerHTML = chChart(chData.trend, segs);
-  document.getElementById("ch-legend").innerHTML = segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("") + (chState.stack === "destination" && !segs.length ? '<span class="eap-muted">No moves to another console in this range.</span>' : "");
+  document.getElementById("ch-legend").innerHTML = segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("") + ((chState.stack === "destination" || chState.stack === "competitor") && !segs.length ? '<span class="eap-muted">No moves to another console in this range.</span>' : "");
   document.querySelectorAll("#ch-view .result-tab").forEach(b => b.classList.toggle("active", b.dataset.view === chState.view));
   if (chState.view === "accounts") chRenderAccounts();
   else if (chState.view === "destinations") chRenderDestinations();
   else chRenderDevices();
-  document.querySelectorAll("#ch-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; chState.sort = chState.sort.key === k ? {key: k, dir: -chState.sort.dir} : {key: k, dir: k === "account" || k === "host" || k === "console" ? 1 : -1}; chRender(); });
+  document.querySelectorAll("#ch-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; chState.sort = chState.sort.key === k ? {key: k, dir: -chState.sort.dir} : {key: k, dir: k === "account" || k === "host" || k === "console" || k === "label" ? 1 : -1}; chRender(); });
 }
 function chRenderAccounts() {
   const inds = chData.indicators;
   document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("Console", "console") + _chTh("Account", "account") + _chTh("Salesforce", "sf_account") + _chTh("Devices", "devices", "num")
     + inds.map(i => _chTh(`<span title="${_chEsc(i.label)}">${_chEsc(i.short)}</span>`, "i:" + i.key, "num")).join("") + _chTh("Destinations") + _chTh("Last event", "last_event") + _chTh("Trend") + "</tr>";
-  const rows = chSort(chFiltered(chData.accounts, a => [a.account, a.account_id, a.salesforce_id, a.sf_account, a.customer_id, a.console, ...a.destinations.map(d => d.label + " " + d.host)]), "devices", -1);
+  const rows = chSort(chFiltered(chData.accounts, a => [a.account, a.account_id, a.salesforce_id, a.sf_account, a.customer_id, a.console, ...a.destinations.map(d => d.label + " " + (d.hosts || []).map(h => h.host).join(" "))]), "devices", -1);
   document.getElementById("ch-rows").innerHTML = rows.map(a => `<tr data-acc="${_chEsc(a.console)}:${_chEsc(a.account_id)}" class="${chState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
-      <td>${_chEsc(_chLabel(a.console))}</td>
+      <td>${_chLink(a.console)}</td>
       <td>${_chEsc(a.account)}<span class="eap-sub">${_chEsc(a.account_id)}${a.state && a.state !== "active" ? ` · <span class="badge-partial">${_chEsc(a.state)}</span>` : ""}</span></td>
       <td>${a.sf_account ? _chEsc(a.sf_account) : (a.salesforce_id ? `<span class="eap-muted">${_chEsc(a.salesforce_id)}</span>` : '<span class="eap-muted">—</span>')}${a.customer_id ? `<span class="eap-sub">Customer ID ${_chEsc(a.customer_id)}</span>` : ""}</td>
       <td class="num"><b>${a.devices}</b><span class="eap-sub">${a.events} event${a.events === 1 ? "" : "s"}</span></td>
@@ -5226,32 +5713,80 @@ function chRenderAccounts() {
     ? (synced ? `No churn events between ${chData.start} and ${chData.end} for these filters.` : "No console has been synced yet — click “Sync now”.")
     : `${rows.length} of ${chData.accounts.length} accounts · ${chData.totals.devices} devices · ${chData.totals.events} events`;
 }
+const _chOpenGroups = new Set();
 function chRenderDestinations() {
-  document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("Destination console", "host") + _chTh("Label", "label") + _chTh("Kind", "kind") + _chTh("Devices", "devices", "num") + _chTh("Accounts", "accounts", "num") + _chTh("Last event", "last_event") + "<th></th></tr>";
-  const rows = chSort(chFiltered(chData.destinations, d => [d.host, d.label, d.kind, d.note]), "devices", -1);
-  document.getElementById("ch-rows").innerHTML = rows.map(d => `<tr data-host="${_chEsc(d.host)}" style="cursor:default">
-      <td style="font-family:var(--mono, monospace);font-size:12px">${_chEsc(d.host)}</td>
-      <td>${_chEsc(d.label)}${d.note ? `<span class="eap-sub">${_chEsc(d.note)}</span>` : ""}${d.edited ? '<span class="eap-sub">edited</span>' : ""}</td>
-      <td><span class="ch-kind ${d.kind}">${_chEsc(CH_KIND_LABEL[d.kind] || d.kind)}</span></td>
-      <td class="num">${d.devices}</td><td class="num">${d.accounts}</td>
+  document.getElementById("ch-head").innerHTML = "<tr>" + _chTh("Competitor", "label") + _chTh("Kind", "kind") + _chTh("Consoles", "consoles", "num") + _chTh("Devices", "devices", "num") + _chTh("Accounts", "accounts", "num") + _chTh("Last event", "last_event") + "<th></th></tr>";
+  const hostsOf = g => chData.destinations.filter(d => d.vendor === g.key).sort((a, b) => b.devices - a.devices);
+  const rows = chSort(chFiltered(chData.competitors, g => [g.label, g.kind, g.note, g.key, ...g.hosts]), "devices", -1);
+  const q = chState.q.trim();
+  document.getElementById("ch-rows").innerHTML = rows.map(g => {
+    const open = _chOpenGroups.has(g.key) || !!q;
+    const hosts = hostsOf(g);
+    return `<tr class="ch-grp ${open ? "open" : ""}" data-key="${_chEsc(g.key)}">
+      <td><span class="ch-caret">▶</span>${_chEsc(g.label)}${g.note ? `<span class="eap-sub">${_chEsc(g.note)}</span>` : ""}<span class="eap-sub" style="font-family:var(--mono, monospace)">${_chEsc(g.key)}${g.edited ? " · edited" : ""}</span></td>
+      <td><span class="ch-kind ${g.kind}">${_chEsc(CH_KIND_LABEL[g.kind] || g.kind)}</span></td>
+      <td class="num">${g.consoles}</td><td class="num"><b>${g.devices}</b></td><td class="num">${g.accounts}</td>
+      <td class="eap-muted" style="white-space:nowrap">${_chEsc(g.last_event.slice(0, 10))}</td>
+      <td style="white-space:nowrap"><button class="btn btn-sm ch-edit-grp">Edit</button></td>
+    </tr>` + (open ? hosts.map(d => `<tr class="ch-host" data-host="${_chEsc(d.host)}">
+      <td style="font-family:var(--mono, monospace);font-size:12px">${_chEsc(d.host)}${d.edited ? `<span class="eap-sub">own label: ${_chEsc(d.label)}${d.note ? ` · ${_chEsc(d.note)}` : ""}</span>` : (d.note ? `<span class="eap-sub">${_chEsc(d.note)}</span>` : "")}</td>
+      <td>${d.edited ? `<span class="ch-kind ${d.kind}">${_chEsc(CH_KIND_LABEL[d.kind] || d.kind)}</span>` : '<span class="eap-muted" style="font-size:11px">follows group</span>'}</td>
+      <td class="num"></td><td class="num">${d.devices}</td><td class="num">${d.accounts}</td>
       <td class="eap-muted" style="white-space:nowrap">${_chEsc(d.last_event.slice(0, 10))}</td>
-      <td style="white-space:nowrap"><button class="btn btn-sm ch-edit-btn">Edit label</button></td>
-    </tr>`).join("");
-  document.querySelectorAll("#ch-rows .ch-edit-btn").forEach(b => b.onclick = e => { e.stopPropagation(); chEditDestination(b.closest("tr")); });
-  document.getElementById("ch-status").textContent = rows.length ? `${rows.length} destination console${rows.length === 1 ? "" : "s"} · labels and kinds are editable; “competitor” marks a console that is not SentinelOne-hosted by us` : "No moves to another console in this range.";
+      <td style="white-space:nowrap"><button class="btn btn-sm ch-edit-host">Edit console</button></td>
+    </tr>`).join("") : "");
+  }).join("");
+  document.querySelectorAll("#ch-rows tr.ch-grp").forEach(tr => tr.onclick = () => { const k = tr.dataset.key; _chOpenGroups.has(k) ? _chOpenGroups.delete(k) : _chOpenGroups.add(k); chRender(); });
+  document.querySelectorAll("#ch-rows .ch-edit-grp").forEach(b => b.onclick = e => { e.stopPropagation(); chEditGroup(b.closest("tr")); });
+  document.querySelectorAll("#ch-rows .ch-edit-host").forEach(b => b.onclick = e => { e.stopPropagation(); chEditDestination(b.closest("tr")); });
+  const hostsN = chData.destinations.length;
+  document.getElementById("ch-status").textContent = rows.length
+    ? `${rows.length} competitor${rows.length === 1 ? "" : "s"} across ${hostsN} destination console${hostsN === 1 ? "" : "s"} · a vendor's consoles (usea1-ninjaone2, euce1-ninjaone, …) are grouped by tenant slug; click a row to see them`
+    : "No moves to another console in this range.";
 }
-function chEditDestination(tr) {
-  const host = tr.dataset.host, d = chData.destinations.find(x => x.host === host);
-  const cell = tr.children[1];
-  cell.innerHTML = `<div class="ch-edit"><input class="lbl" value="${_chEsc(d.label)}" placeholder="Label"><select>${Object.entries(CH_KIND_LABEL).map(([k, v]) => `<option value="${k}" ${d.kind === k ? "selected" : ""}>${v}</option>`).join("")}</select><input class="note" value="${_chEsc(d.note || "")}" placeholder="Note (who confirmed, when)"><button class="btn btn-sm btn-primary">Save</button><button class="btn btn-sm">Cancel</button></div>`;
+const _chKindSelect = kind => `<select>${Object.entries(CH_KIND_LABEL).map(([k, v]) => `<option value="${k}" ${kind === k ? "selected" : ""}>${v}</option>`).join("")}</select>`;
+function chEditGroup(tr) {
+  const key = tr.dataset.key, g = chData.competitors.find(x => x.key === key);
+  const cell = tr.children[0];
+  cell.innerHTML = `<div class="ch-edit"><input class="lbl" value="${_chEsc(g.label)}" placeholder="Competitor name">${_chKindSelect(g.kind)}<input class="note" value="${_chEsc(g.note || "")}" placeholder="Note (who confirmed, when)"><button class="btn btn-sm btn-primary">Save</button><button class="btn btn-sm">Cancel</button><span class="eap-muted" style="font-size:11px">applies to all ${g.consoles} console${g.consoles === 1 ? "" : "s"} unless one has its own label</span></div>`;
+  cell.onclick = e => e.stopPropagation();
   const [save, cancel] = cell.querySelectorAll("button");
   cancel.onclick = () => chRender();
   save.onclick = async () => {
     save.disabled = true;
     try {
-      const res = await fetch(`/api/churn/destinations/${encodeURIComponent(host)}`, {method: "PATCH", headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({label: cell.querySelector(".lbl").value.trim() || d.label, kind: cell.querySelector("select").value, note: cell.querySelector(".note").value.trim()})});
+      const res = await fetch(`/api/churn/competitors/${encodeURIComponent(key)}`, {method: "PATCH", headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({label: cell.querySelector(".lbl").value.trim() || g.label, kind: cell.querySelector("select").value, note: cell.querySelector(".note").value.trim()})});
       const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      await chLoad();
+    } catch (e) { document.getElementById("ch-err").textContent = e.message; save.disabled = false; }
+  };
+}
+function chEditDestination(tr) {
+  const host = tr.dataset.host, d = chData.destinations.find(x => x.host === host);
+  const cell = tr.children[0];
+  const dl = `<datalist id="ch-groups-dl">${chData.groups.map(g => `<option value="${_chEsc(g.key)}">${_chEsc(g.label)}</option>`).join("")}</datalist>`;
+  cell.innerHTML = `<div class="ch-edit"><span style="font-family:var(--mono, monospace);font-size:12px">${_chEsc(host)}</span>
+      <label class="eap-muted" style="font-size:11px">group <input class="vendor" list="ch-groups-dl" value="${_chEsc(d.vendor)}" placeholder="group key" title="Move this console to another competitor; a new key creates a new group"></label>${dl}
+      <input class="lbl" value="${_chEsc(d.label)}" placeholder="Own label">${_chKindSelect(d.kind)}<input class="note" value="${_chEsc(d.note || "")}" placeholder="Note">
+      <button class="btn btn-sm btn-primary">Save</button>${d.edited ? '<button class="btn btn-sm ch-reset" title="Drop this console\'s own label and kind and follow its group again">Follow group</button>' : ""}<button class="btn btn-sm">Cancel</button></div>`;
+  cell.onclick = e => e.stopPropagation();
+  const btns = cell.querySelectorAll("button"), save = btns[0], cancel = btns[btns.length - 1], reset = cell.querySelector(".ch-reset");
+  cancel.onclick = () => chRender();
+  const send = async body => {
+    const res = await fetch(`/api/churn/destinations/${encodeURIComponent(host)}`, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    const data = await res.json(); if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  };
+  if (reset) reset.onclick = async () => { reset.disabled = true; try { await send({reset: true}); await chLoad(); } catch (e) { document.getElementById("ch-err").textContent = e.message; reset.disabled = false; } };
+  save.onclick = async () => {
+    save.disabled = true;
+    try {
+      const vendor = cell.querySelector(".vendor").value.trim().toLowerCase(), label = cell.querySelector(".lbl").value.trim(), kind = cell.querySelector("select").value, note = cell.querySelector(".note").value.trim();
+      const body = {};
+      if (vendor && vendor !== d.vendor) body.vendor = vendor;
+      if ((label && label !== d.label) || kind !== d.kind) { body.label = label || d.label; body.kind = kind; }   // own label → overrides the group
+      if (note !== (d.note || "")) body.note = note;
+      if (Object.keys(body).length) await send(body);
       await chLoad();
     } catch (e) { document.getElementById("ch-err").textContent = e.message; save.disabled = false; }
   };
@@ -5271,7 +5806,7 @@ function chRenderDevices() {
   const rows = chSort(chFiltered(chDevices.rows, r => [r.account_name, r.sf_account, r.salesforce_id, r.computer_name, r.username, r.destination_host, r.destination_label, r.site_name, r.console, r.os_type]), "created_at", -1);
   const ind = k => chData.all_indicators.find(i => i.key === k) || {short: k, label: k, kind: ""};
   document.getElementById("ch-rows").innerHTML = rows.map(r => `<tr data-acc="${_chEsc(r.console)}:${_chEsc(r.account_id)}" title="${_chEsc(r.primary_description)}">
-      <td class="eap-muted" style="white-space:nowrap">${_chEsc(r.created_at.slice(0, 16))}</td><td>${_chEsc(_chLabel(r.console))}</td>
+      <td class="eap-muted" style="white-space:nowrap">${_chEsc(r.created_at.slice(0, 16))}</td><td>${_chLink(r.console)}</td>
       <td>${_chEsc(r.account_name)}${r.sf_account ? `<span class="eap-sub">${_chEsc(r.sf_account)}</span>` : ""}</td><td>${_chEsc(r.site_name)}<span class="eap-sub">${_chEsc(r.group_name)}</span></td>
       <td>${_chEsc(r.computer_name)}<span class="eap-sub">${_chEsc([r.os_type, r.machine_type].filter(Boolean).join(" · "))}${r.device_uuid ? ` · ${_chEsc(r.device_uuid)}` : ""}</span></td>
       <td><span class="ch-legend"><span class="sw" style="background:${_chColor(r.indicator)}"></span>${_chEsc(ind(r.indicator).label)}</span></td>
@@ -5311,7 +5846,7 @@ function chCloseDrawer() { document.getElementById("ch-drawer").classList.add("h
 async function chOpenAccount(console, accountId, silent) {
   chState.account = `${console}:${accountId}`;
   if (!silent) chRender();
-  chOpenDrawer("Account", `${_chEsc(_chLabel(console))} · ${_chEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
+  chOpenDrawer("Account", `${_chLink(console)} · ${_chEsc(accountId)}`, '<div class="eap-muted">Loading…</div>');
   try {
     const res = await fetch(`/api/churn/accounts/${encodeURIComponent(console)}/${encodeURIComponent(accountId)}?${chQuery().toString()}`);
     const d = await res.json(); if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
@@ -5319,7 +5854,7 @@ async function chOpenAccount(console, accountId, silent) {
     const segs = chData.indicators.map(i => ({key: i.key, label: i.label, color: _chColor(i.key), get: t => t.by_indicator[i.key] || 0}));
     const sfLine = d.sf_account ? `${_chEsc(d.sf_account)}${d.customer_id ? ` · Customer ID ${_chEsc(d.customer_id)}` : ""}${d.country ? ` · ${_chEsc(d.country)}` : ""}` : (d.salesforce_id ? _chEsc(d.salesforce_id) : null);
     const sfLink = d.salesforce_id ? _eapSfLink(d.salesforce_id, d.sf_account || d.salesforce_id) : null;
-    chOpenDrawer(d.account || accountId, `${_chEsc(_chLabel(console))} · account ${_chEsc(accountId)}${d.state && d.state !== "active" ? ` · <span class="badge-partial">${_chEsc(d.state)}</span>` : ""} · ${_chEsc(chData.start)} to ${_chEsc(chData.end)}`,
+    chOpenDrawer(d.account || accountId, `${_chLink(console)} · account ${_chEsc(accountId)}${d.state && d.state !== "active" ? ` · <span class="badge-partial">${_chEsc(d.state)}</span>` : ""} · ${_chEsc(chData.start)} to ${_chEsc(chData.end)}`,
       `<div class="ch-tiles" style="margin-bottom:12px">${[[d.devices, "devices churned"], [d.events, "events"], [d.sites.length, "sites affected"]].map(([v, k]) => `<div class="mp-tile"><div class="v">${v}</div><div class="k">${k}</div></div>`).join("")}</div>
        <div class="eap-sec">${_eapKV([["Salesforce", sfLink ? `${sfLink}${d.customer_id ? ` <span class="eap-muted">· Customer ID ${_chEsc(d.customer_id)}</span>` : ""}${d.country ? ` <span class="eap-muted">· ${_chEsc(d.country)}</span>` : ""}` : (sfLine || null)]])}</div>
        <div class="eap-sec"><h4>Devices churned per ${_chEsc(chState.gran)}</h4>${chChart(d.series, segs, {height: 180})}<div class="ch-legend" style="margin-top:6px">${segs.map(s => `<span><span class="sw" style="background:${s.color}"></span>${_chEsc(s.label)}</span>`).join("")}</div></div>

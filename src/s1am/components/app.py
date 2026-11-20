@@ -137,6 +137,20 @@ def _report_args(cmd_parts, f):
 COMMANDS = [
     # Accounts
     {
+        "id": "accounts",
+        "category": "Accounts",
+        "icon": "🏢",
+        "label": "Accounts",
+        "description": (
+            "Browse the active console's accounts the way the console's Settings › Scopes › Accounts page does: "
+            "filter by name, SKU, module, state and type, sort, choose columns, export, and open an account in the editor."
+        ),
+        "requires": "mgmt",
+        "type": "accounts-table",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "list-accounts",
         "category": "Accounts",
         "icon": "🏢",
@@ -1008,9 +1022,16 @@ def get_profiles():
     except Exception:
         profile_ids = []
     labels = _load_labels()
+
+    def url_of(p):
+        try:
+            return (Config.section(p).get("s1_base_url") or "").rstrip("/")
+        except Exception:
+            return ""
+    # url = the console's base URL so the UI can turn every console name into a link (no tokens here)
     return jsonify({
         "profiles": [
-            {"id": p, "name": labels.get(p) or p}
+            {"id": p, "name": labels.get(p) or p, "url": url_of(p)}
             for p in profile_ids
         ]
     })
@@ -1114,6 +1135,90 @@ def _editor_target(body):
 
 
 _BROWSE_PAGE_SIZE = 50
+
+# ── Accounts table (Settings › Scopes › Accounts look-alike) ────────────────
+_ACCT_CACHE = {}          # console code → {"at": epoch seconds, "rows": [...]}
+_ACCT_TTL = 120           # the page filters client-side; re-pulling 1,700 accounts on every keystroke would be silly
+_ACCT_PAGE = 1000
+# The console shows settings in a different order per account; we always use this one, then the rest alphabetically.
+_SETTING_ORDER = ["Deep Visibility Data Retention", "Malicious Data Retention", "Network Discovery Consolidation Level",
+                  "Marketplace Access", "Remote Shell"]
+
+
+def _account_row(a):
+    """One account as the table needs it: SKUs with quantities, total surfaces (-1 = unlimited), module names,
+    settings as ordered label/value pairs, and expiration None when the account never expires."""
+    lic = a.get("licenses") or {}
+    skus, total, unlimited = [], 0, False
+    for b in lic.get("bundles") or []:
+        n = b.get("totalSurfaces")
+        if n is None:
+            n = sum(int(sf.get("count") or 0) for sf in b.get("surfaces") or [])
+        if n is not None and n < 0:
+            unlimited = True
+            n = None
+        else:
+            total += n or 0
+        skus.append({"name": b.get("displayName") or b.get("name") or "", "qty": n})
+    settings = [{"label": st.get("settingGroupDisplayName") or st.get("settingGroup") or "", "value": st.get("displayName") or st.get("setting") or ""}
+                for st in lic.get("settings") or []]
+    settings.sort(key=lambda st: (_SETTING_ORDER.index(st["label"]) if st["label"] in _SETTING_ORDER else len(_SETTING_ORDER), st["label"]))
+    return {
+        "id": a.get("id"), "name": a.get("name") or "", "state": a.get("state") or "", "accountType": a.get("accountType") or "",
+        "usageType": a.get("usageType") or "", "billingMode": a.get("billingMode") or "", "activeAgents": a.get("activeAgents") or 0,
+        "numberOfSites": a.get("numberOfSites"), "createdAt": a.get("createdAt"),
+        "expiration": None if a.get("unlimitedExpiration") else a.get("expiration"),
+        "salesforceId": a.get("salesforceId") or "", "externalId": a.get("externalId") or "",
+        "skus": skus, "totalSurfaces": -1 if unlimited else total,
+        "modules": [m.get("displayName") or m.get("name") or "" for m in lic.get("modules") or []],
+        "settings": settings,
+    }
+
+
+def _fetch_all_accounts(client):
+    """Every account of a console, read-only, largest page the API accepts."""
+    from s1am.api.exceptions import SentinelOneError
+    try:
+        pages = client.paginate("accounts", {"limit": _ACCT_PAGE, "sortBy": "name", "sortOrder": "asc"})
+    except SentinelOneError as exc:
+        if getattr(exc, "status_code", None) != 400:
+            raise
+        pages = client.paginate("accounts", {"limit": 100, "sortBy": "name", "sortOrder": "asc"})
+    return [a for p in pages for a in ((p or {}).get("data") or [])]
+
+
+@app.route("/api/accounts/table")
+def api_accounts_table():
+    """All accounts of a console for the Accounts page. ?console=CODE (default: the active console), ?refresh=1 to bypass
+    the two-minute cache. Read-only; the UI filters, sorts and pages on the client."""
+    import time as _time
+    console = request.args.get("console") or _active_profile()
+    if not console:
+        return jsonify({"error": "Select a console first."}), 400
+    refresh = request.args.get("refresh") == "1"
+    now = _time.time()
+    hit = _ACCT_CACHE.get(console)
+    cached = bool(hit) and not refresh and now - hit["at"] < _ACCT_TTL
+    if cached:
+        rows, at = hit["rows"], hit["at"]
+    else:
+        try:
+            client = _build_client_for_console(console)
+        except RuntimeError as exc:
+            return jsonify({"error": str(exc)}), 404
+        try:
+            rows = [_account_row(a) for a in _fetch_all_accounts(client)]
+        except Exception as exc:
+            return jsonify({"error": f"Could not read accounts from {console}: {str(exc)[:300]}"}), 502
+        at = now
+        _ACCT_CACHE[console] = {"at": at, "rows": rows}
+    from s1am.api.config import Config
+    try:
+        url = (Config.section(console).get("s1_base_url") or "").rstrip("/")
+    except Exception:
+        url = ""
+    return jsonify({"console": console, "console_url": url, "label": _load_labels().get(console) or console, "rows": rows, "total": len(rows),
+                    "fetched_at": datetime.datetime.fromtimestamp(at).strftime("%Y-%m-%d %H:%M:%S"), "cached": cached})
 
 
 @app.route("/api/accounts-browse", methods=["POST"])
@@ -2513,13 +2618,13 @@ def marketplace_export():
     view = request.args.get("view", "accounts")
     inst = svc.instances_of(result)
     q = (request.args.get("q") or "").lower().strip()
-    console = request.args.get("console") or ""
+    consoles = [c for c in (request.args.get("console") or "").split(",") if c]   # one, several (comma-separated) or none = all
     connector = request.args.get("connector") or ""
     status = request.args.get("status") or ""
     retention = request.args.get("retention") or ""
 
     def keep(i):
-        if console and i["console"] != console: return False
+        if consoles and i["console"] not in consoles: return False
         if connector and i["app_name"] != connector: return False
         if retention and not svc.retention_matches(svc.effective_retention(i), retention): return False
         if status == "enabled" and i["desired_status"] != "active": return False
@@ -2623,13 +2728,14 @@ def _usage_daily_job():
 
 
 def start_usage_scheduler():
-    """Daily background sync (default 04:00 local) of the current and previous month. Disable with [usage] daily_sync = false."""
+    """Daily background sync (default 14:00 local, after S1 publishes the previous day at ~12:15 UTC) of the current and
+    previous month. Disable with [usage] daily_sync = false; move it with [usage] daily_sync_hour."""
     from s1am.api.config import Config
     sect = Config.section("usage")
     if str(sect.get("daily_sync", "true")).lower() in ("0", "false", "no", "off"):
         return None
     from s1am.metering import service as svc
-    t = svc.DailySync(_usage_daily_job, hour=int(sect.get("daily_sync_hour", 4) or 4))
+    t = svc.DailySync(_usage_daily_job, hour=int(sect.get("daily_sync_hour", svc.DEFAULT_SYNC_HOUR) or svc.DEFAULT_SYNC_HOUR))
     t.start()
     return t
 
@@ -2644,7 +2750,9 @@ def usage_summary():
     all_consoles = _usage_consoles()
     hide_zero = request.args.get("zero") != "1"
     s = svc.summary(store, month, products, consoles, rules, cfg["bytes_base"], hide_zero)
-    return jsonify({**s, "products": [{k: p[k] for k in ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")} for p in products],
+    fields = ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")
+    return jsonify({**s, "products": [{k: p[k] for k in fields} for p in products],
+                    "all_products": [{k: p[k] for k in fields} for p in cfg["products"]],   # the toggle row needs every product, not just the selected ones
                     "health": svc.health(store, all_consoles, cfg["products"]), "consoles": all_consoles, "labels": _load_labels(),
                     "last_sync": store.get_meta("last_sync"), "last_sync_month": store.get_meta("last_sync_month"),
                     "sync": _usage_sync_state, "bytes_base": cfg["bytes_base"]})
@@ -2843,16 +2951,34 @@ def churn_devices():
 
 @app.route("/api/churn/destinations/<host>", methods=["PATCH"])
 def churn_destination(host):
-    """Rename a destination console or change its kind (internal / sentinelone / competitor / other). Labels only, no S1 call."""
-    svc, store, _ = _churn()
+    """Edit one destination console: label / kind make it override its competitor group, `vendor` moves it to another
+    group, `reset: true` drops its override so it follows the group again. Labels only, no S1 call."""
+    svc, store, cfg = _churn()
     body = request.get_json() or {}
     try:
-        d = store.set_destination(host, label=body.get("label"), kind=body.get("kind"), note=body.get("note"))
+        if body.get("reset"):
+            d = store.reset_destination(host)
+        else:
+            d = store.set_destination(host, label=body.get("label"), kind=body.get("kind"), note=body.get("note"), vendor=body.get("vendor"), cfg=cfg)
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     if not d:
         return jsonify({"error": f"Unknown destination {host}"}), 404
     return jsonify(d)
+
+
+@app.route("/api/churn/competitors/<key>", methods=["PATCH"])
+def churn_competitor(key):
+    """Rename a competitor (a group of destination consoles) or change its kind; its consoles follow unless edited by hand."""
+    svc, store, _ = _churn()
+    body = request.get_json() or {}
+    try:
+        g = store.set_group(key, label=body.get("label"), kind=body.get("kind"), note=body.get("note"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    if not g:
+        return jsonify({"error": f"Unknown competitor {key}"}), 404
+    return jsonify(g)
 
 
 @app.route("/api/churn/export")
@@ -2892,7 +3018,8 @@ def churn_sync():
     body = request.get_json() or {}
     consoles = [c for c in (body.get("consoles") or []) if c in _churn_consoles()] or None
     if _churn_sync_state["running"]:
-        return jsonify({"error": "A sync is already running", "sync": _churn_sync_state}), 409
+        return jsonify({"error": f"A sync started at {_churn_sync_state.get('started') or '?'} is still running (the web server pulls every console when it starts); the page updates when it finishes",
+                        "sync": _churn_sync_state}), 409
     if body.get("wait"):
         return jsonify(_churn_run_sync(consoles))
     threading.Thread(target=_churn_run_sync, args=(consoles,), daemon=True).start()

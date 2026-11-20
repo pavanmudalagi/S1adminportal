@@ -7,6 +7,10 @@ What it does
     activity retention and can be read back over months and years.
   * Classifies the target console of migration events (the "competitor" indicator) by host:
     internal (one of our consoles), another SentinelOne console, or other. Labels are editable.
+  * Groups destination hosts into competitors: a vendor usually runs several SentinelOne consoles
+    (usea1-ninjaone2, euce1-ninjaone, apse1-ninjaone …), so hosts are keyed by their tenant slug with
+    the region prefix, numbering and role suffixes (-mssp, -mdr, …) removed. Label and kind live on
+    the group; a host only carries its own when someone edits it.
   * Rolls up per month / quarter / year, per account, per indicator and per destination; the
     device view keeps only the most recent record per device, as the ticket asks.
 
@@ -16,6 +20,7 @@ import csv
 import fnmatch
 import io
 import json
+import re
 import sqlite3
 import threading
 import time
@@ -66,6 +71,66 @@ def host_of(url):
     if "://" not in u:
         u = "https://" + u
     return (urlparse(u).hostname or "").lower()
+
+
+S1_DOMAINS = (".sentinelone.net", ".s1gov.net")
+_REGION_RE = re.compile(r"^[a-z]{2,6}(?:gov)?[a-z]{0,3}\d-")        # usea1-, euce1-, apse2-, usgovwe1-
+_ROLE_SUFFIXES = {"mssp", "msp", "mdr", "edr", "xdr", "nfr", "sled", "exsp", "staging", "stg", "prod", "prd", "test", "dev", "poc", "lab"}
+INTERNAL_VENDOR = "n-able"
+NUMBERED_VENDOR = "sentinelone-numbered"
+
+
+def vendor_key(host):
+    """Grouping key for a destination host: the vendor's tenant slug.
+
+    usea1-ninjaone2.sentinelone.net, euce1-ninjaone.sentinelone.net → "ninjaone"; usea1-pax8-03 → "pax8";
+    usea1-cw04mdr / euce1-cw01 → "cw"; carvir-msp02 → "carvir"; euce1-109 → "109" (a numbered S1 console).
+    Hosts outside SentinelOne are keyed by their registrable domain (console.rival.example.com → rival.example.com).
+    """
+    h = (host or "").lower().strip().strip(".")
+    if not h:
+        return ""
+    for d in S1_DOMAINS:
+        if h.endswith(d):
+            slug = _REGION_RE.sub("", h[:-len(d)])
+            break
+    else:
+        parts = h.split(".")
+        return ".".join(parts[-3:] if len(parts) >= 3 and len(parts[-2]) <= 3 and parts[-1] != "com" else parts[-2:]) if len(parts) >= 2 else h
+    toks = slug.split("-")
+    while len(toks) > 1 and (toks[-1].isdigit() or re.sub(r"\d+$", "", toks[-1]) in _ROLE_SUFFIXES):
+        toks.pop()
+    m = re.match(r"^([a-z]+?)(\d+)([a-z]{0,4})$", toks[0])
+    if m and (len(m.group(2)) >= 2 or len(m.group(1)) >= 5 or m.group(3)):
+        toks[0] = m.group(1)          # ninjaone2 → ninjaone, swprd1 → swprd, cw04mdr → cw; pax8 stays pax8
+    return "-".join(toks) or slug
+
+
+def vendor_for(host, kind, cfg):
+    """Group key for a host: our own consoles collapse into one group, numbered S1 consoles into another,
+    configured aliases (swprd → n-able) apply, everything else is vendor_key(host)."""
+    if kind == "internal":
+        return INTERNAL_VENDOR
+    key = vendor_key(host)
+    for v in cfg.get("vendors", []):
+        if key == v["key"] or key in v.get("match", []):
+            return v["key"]
+    if key.isdigit():
+        return NUMBERED_VENDOR
+    return key
+
+
+def vendor_defaults(key, kind, cfg):
+    """(label, kind) a new group starts with: the configured vendor, else a readable form of the key."""
+    for v in cfg.get("vendors", []):
+        if v["key"] == key:
+            return v["label"], v.get("kind") or kind or "other"
+    if key == INTERNAL_VENDOR:
+        return "N-able (internal move)", "internal"
+    if key == NUMBERED_VENDOR:
+        return "SentinelOne direct (numbered console)", "sentinelone"
+    label = key.replace("-", " ").title() if key and "." not in key else key
+    return label or "Unknown destination", kind or "other"
 
 
 def classify_destination(host, own_hosts, rules):
@@ -192,6 +257,7 @@ CREATE TABLE IF NOT EXISTS accounts (console TEXT NOT NULL, account_id TEXT NOT 
   external_id TEXT, state TEXT, updated_at TEXT, PRIMARY KEY (console, account_id));
 CREATE TABLE IF NOT EXISTS sf_accounts (salesforce_id TEXT PRIMARY KEY, name TEXT, customer_id TEXT, country TEXT, updated_at TEXT);
 CREATE TABLE IF NOT EXISTS destinations (host TEXT PRIMARY KEY, label TEXT, kind TEXT, note TEXT, first_seen TEXT, updated_at TEXT, edited INTEGER DEFAULT 0);
+CREATE TABLE IF NOT EXISTS destination_groups (key TEXT PRIMARY KEY, label TEXT, kind TEXT, note TEXT, created_at TEXT, updated_at TEXT, edited INTEGER DEFAULT 0);
 CREATE TABLE IF NOT EXISTS console_status (console TEXT PRIMARY KEY, ok INTEGER, kind TEXT, message TEXT, last_sync TEXT, last_ok TEXT, last_event TEXT, events INTEGER);
 CREATE TABLE IF NOT EXISTS sync_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, console TEXT, since TEXT, fetched INTEGER, new INTEGER, message TEXT);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
@@ -203,10 +269,14 @@ class Store:
         self.path = Path(path or DEFAULT_DB)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self.conn = sqlite3.connect(str(self.path), check_same_thread=False)
+        self.conn = sqlite3.connect(str(self.path), check_same_thread=False, timeout=30)  # wait for a concurrent writer instead of failing
         self.conn.row_factory = sqlite3.Row
         with self._lock:
             self.conn.executescript(SCHEMA)
+            cols = {r[1] for r in self.conn.execute("PRAGMA table_info(destinations)")}
+            if "vendor" not in cols:
+                self.conn.execute("ALTER TABLE destinations ADD COLUMN vendor TEXT")
+                self.conn.commit()
 
     def _q(self, sql, args=()):
         with self._lock:
@@ -258,7 +328,7 @@ class Store:
         rows = self._q(sql + " ORDER BY created_at", args)
         if dest_kind:
             kinds = {dest_kind} if isinstance(dest_kind, str) else set(dest_kind)
-            dests = self.destinations()
+            dests = self.effective_destinations()
             rows = [r for r in rows if r["destination_host"] and (dests.get(r["destination_host"]) or {}).get("kind") in kinds]
         return rows
 
@@ -285,34 +355,112 @@ class Store:
         return {r["salesforce_id"]: r for r in self._q("SELECT * FROM sf_accounts")}
 
     # destinations
-    def seen_destinations(self, hosts, own_hosts, rules):
-        """Create label rows for hosts we have not seen before; edited labels are never overwritten."""
-        if not hosts:
-            return
+    def seen_destinations(self, hosts, own_hosts, rules, cfg=None):
+        """Create rows for hosts we have not seen before and put them in their vendor group; edited rows are never overwritten."""
+        cfg = cfg if cfg is not None else {"destinations": rules}
         known = self.destinations()
         new = []
-        for h in sorted({h for h in hosts if h}):
+        for h in sorted({h for h in (hosts or []) if h}):
             if h in known:
                 continue
             kind, label = classify_destination(h, own_hosts, rules)
-            new.append((h, label, kind, "", _now(), _now(), 0))
+            new.append((h, label, kind, "", _now(), _now(), 0, vendor_for(h, kind, cfg)))
         if new:
             with self._lock:
-                self.conn.executemany("INSERT OR IGNORE INTO destinations VALUES (?,?,?,?,?,?,?)", new)
+                self.conn.executemany("INSERT OR IGNORE INTO destinations VALUES (?,?,?,?,?,?,?,?)", new)
+                self.conn.commit()
+        self.ensure_groups(cfg)
+
+    def ensure_groups(self, cfg):
+        """Give every host a vendor and every vendor a group row. Runs on sync and before rollups, so databases
+        written before grouping existed are upgraded in place; a group's first label comes from a host someone
+        already edited, then from the configured vendors, then from the key itself."""
+        hosts = self._q("SELECT * FROM destinations")
+        missing = [h for h in hosts if not h.get("vendor")]
+        if missing:
+            with self._lock:
+                self.conn.executemany("UPDATE destinations SET vendor=? WHERE host=?",
+                                      [(vendor_for(h["host"], h["kind"], cfg), h["host"]) for h in missing])
+                self.conn.commit()
+            for h in missing:
+                h["vendor"] = vendor_for(h["host"], h["kind"], cfg)
+        groups = self.groups()
+        new = []
+        for key in sorted({h["vendor"] for h in hosts if h.get("vendor")} - set(groups)):
+            members = [h for h in hosts if h["vendor"] == key]
+            edited = sorted((h for h in members if h["edited"]), key=lambda h: h["updated_at"] or "", reverse=True)
+            if edited:
+                label, kind = edited[0]["label"], edited[0]["kind"]
+            else:
+                label, kind = vendor_defaults(key, members[0]["kind"], cfg)
+            new.append((key, label, kind, "", _now(), _now(), 0))
+        if new:
+            with self._lock:
+                self.conn.executemany("INSERT OR IGNORE INTO destination_groups VALUES (?,?,?,?,?,?,?)", new)
                 self.conn.commit()
 
     def destinations(self):
         return {r["host"]: r for r in self._q("SELECT * FROM destinations")}
 
-    def set_destination(self, host, label=None, kind=None, note=None):
+    def groups(self):
+        return {r["key"]: r for r in self._q("SELECT * FROM destination_groups")}
+
+    def effective_destinations(self):
+        """host → {label, kind, note, vendor, vendor_label, override}: a host edited by hand keeps its own label and
+        kind, every other host shows its group's."""
+        groups = self.groups()
+        out = {}
+        for h, d in self.destinations().items():
+            g = groups.get(d.get("vendor") or "") or {}
+            own = bool(d.get("edited"))
+            out[h] = {**d, "label": d["label"] if own or not g else g["label"], "kind": d["kind"] if own or not g else g["kind"],
+                      "vendor": d.get("vendor") or "", "vendor_label": g.get("label") or d["label"], "vendor_kind": g.get("kind") or d["kind"],
+                      "override": own, "group_note": g.get("note") or ""}
+        return out
+
+    @staticmethod
+    def _check_kind(kind):
+        if kind and kind not in ("internal", "sentinelone", "competitor", "other"):
+            raise ValueError("kind must be internal, sentinelone, competitor or other")
+
+    def set_destination(self, host, label=None, kind=None, note=None, vendor=None, cfg=None):
+        """Edit one host. label / kind make the host override its group; vendor moves it to another group
+        (created on the fly when the key is new) and drops the override so it follows that group."""
         cur = self.destinations().get(host)
         if not cur:
             return None
-        if kind and kind not in ("internal", "sentinelone", "competitor", "other"):
-            raise ValueError("kind must be internal, sentinelone, competitor or other")
-        self._x("UPDATE destinations SET label=?, kind=?, note=?, updated_at=?, edited=1 WHERE host=?",
-                (label if label is not None else cur["label"], kind or cur["kind"], note if note is not None else cur["note"], _now(), host))
-        return self.destinations()[host]
+        self._check_kind(kind)
+        if vendor is not None:
+            vendor = vendor.strip().lower()
+            if not vendor:
+                raise ValueError("vendor must not be empty")
+            if vendor not in self.groups():
+                glabel, gkind = vendor_defaults(vendor, self.effective_destinations()[host]["kind"], cfg or load_indicators())
+                self._x("INSERT OR IGNORE INTO destination_groups VALUES (?,?,?,?,?,?,?)", (vendor, glabel, gkind, "", _now(), _now(), 0))
+            self._x("UPDATE destinations SET vendor=?, updated_at=?, edited=0 WHERE host=?", (vendor, _now(), host))
+            cur = self.destinations()[host]
+        if label is not None or kind or note is not None:
+            edited = 1 if (label is not None or kind) else cur["edited"]
+            self._x("UPDATE destinations SET label=?, kind=?, note=?, updated_at=?, edited=? WHERE host=?",
+                    (label if label is not None else cur["label"], kind or cur["kind"], note if note is not None else cur["note"], _now(), edited, host))
+        return self.effective_destinations()[host]
+
+    def reset_destination(self, host):
+        """Drop a host's own label and kind so it follows its group again."""
+        if host not in self.destinations():
+            return None
+        self._x("UPDATE destinations SET edited=0, updated_at=? WHERE host=?", (_now(), host))
+        return self.effective_destinations()[host]
+
+    def set_group(self, key, label=None, kind=None, note=None):
+        """Rename a competitor or change its kind; every host in the group that has no override follows."""
+        cur = self.groups().get(key)
+        if not cur:
+            return None
+        self._check_kind(kind)
+        self._x("UPDATE destination_groups SET label=?, kind=?, note=?, updated_at=?, edited=1 WHERE key=?",
+                (label if label is not None else cur["label"], kind or cur["kind"], note if note is not None else cur["note"], _now(), key))
+        return self.groups()[key]
 
     # status
     def set_status(self, console, ok, kind, message, events=None):
@@ -361,7 +509,7 @@ def sync_console(store, console, client, cfg, own_hosts=(), backfill_days=365, n
         raw = fetch_activities(client, types, since, sleep=sleep)
         rows = [r for r in (parse_event(a, console, by_type) for a in raw) if r]
         new = store.add_events(rows)
-        store.seen_destinations([r["destination_host"] for r in rows], own_hosts, cfg["destinations"])
+        store.seen_destinations([r["destination_host"] for r in rows], own_hosts, cfg["destinations"], cfg)
         try:
             accounts = fetch_accounts(client, [r["account_id"] for r in rows], sleep=sleep)
             # Names from the events themselves fill in anything the accounts endpoint did not return (deleted accounts).
@@ -473,14 +621,19 @@ def summary(store, start_month, end_month, granularity="month", consoles=None, i
     inds = [i for i in enabled_indicators(cfg) if not indicators or i["key"] in indicators]
     keys = [i["key"] for i in inds]
     start, end = month_range(start_month, end_month)
+    store.ensure_groups(cfg)
     rows = store.events(start, end, consoles, keys, dest_kind=dest_kind)
-    dests = store.destinations()
+    dests = store.effective_destinations()
+    groups = store.groups()
     accounts_meta = store.accounts()
     sf = store.sf_accounts()
     periods = periods_between(start_month, end_month, granularity)
 
-    # trend: per period, devices per indicator and per destination kind
-    trend = {p: {"period": p, "devices": 0, "events": 0, "accounts": 0, "by_indicator": {k: 0 for k in keys}, "by_destination": {}} for p in periods}
+    def dest(h):
+        return dests.get(h) or {"label": h, "kind": "other", "vendor": h, "vendor_label": h, "vendor_kind": "other", "note": "", "override": False}
+
+    # trend: per period, devices per indicator, per destination kind and per competitor (vendor group)
+    trend = {p: {"period": p, "devices": 0, "events": 0, "accounts": 0, "by_indicator": {k: 0 for k in keys}, "by_destination": {}, "by_vendor": {}} for p in periods}
     buckets = {}
     for r in rows:
         buckets.setdefault(period_key(r["created_at"], granularity), []).append(r)
@@ -495,9 +648,11 @@ def summary(store, start_month, end_month, granularity="month", consoles=None, i
             t["by_indicator"][k] = _count_devices([r for r in prs if r["indicator"] == k])
         for r in prs:
             if r["destination_host"]:
-                dk = (dests.get(r["destination_host"]) or {}).get("kind") or "other"
-                t["by_destination"].setdefault(dk, set()).add((r["console"], r["device_key"]))
+                d = dest(r["destination_host"])
+                t["by_destination"].setdefault(d["kind"] or "other", set()).add((r["console"], r["device_key"]))
+                t["by_vendor"].setdefault(d["vendor"] or r["destination_host"], set()).add((r["console"], r["device_key"]))
         t["by_destination"] = {k: len(v) for k, v in t["by_destination"].items()}
+        t["by_vendor"] = {k: len(v) for k, v in t["by_vendor"].items()}
 
     # accounts
     by_acct = {}
@@ -511,6 +666,18 @@ def summary(store, start_month, end_month, granularity="month", consoles=None, i
         for r in ars:
             if r["destination_host"]:
                 dest_counts.setdefault(r["destination_host"], set()).add((r["console"], r["device_key"]))
+        # one chip per competitor; its hosts listed inside, biggest first
+        by_vendor = {}
+        for h, v in dest_counts.items():
+            d = dest(h)
+            g = by_vendor.setdefault(d["vendor"] or h, {"vendor": d["vendor"] or h, "label": d["vendor_label"], "kind": d["vendor_kind"], "devices": set(), "hosts": []})
+            g["devices"] |= v
+            g["hosts"].append({"host": h, "devices": len(v), "label": d["label"], "kind": d["kind"]})
+        vendor_chips = []
+        for g in by_vendor.values():
+            g["hosts"].sort(key=lambda x: -x["devices"])
+            vendor_chips.append({**g, "devices": len(g["devices"]), "host": g["hosts"][0]["host"]})
+        vendor_chips.sort(key=lambda g: -g["devices"])
         series = {p: 0 for p in periods}
         for p, prs in buckets.items():
             if p in series:
@@ -520,8 +687,9 @@ def summary(store, start_month, end_month, granularity="month", consoles=None, i
             "salesforce_id": sfid, "sf_account": (sf.get(sfid) or {}).get("name") or "", "customer_id": (sf.get(sfid) or {}).get("customer_id") or "",
             "events": len(ars), "devices": _count_devices(ars),
             "by_indicator": {k: _count_devices([r for r in ars if r["indicator"] == k]) for k in keys},
-            "destinations": sorted(({"host": h, "devices": len(v), "label": (dests.get(h) or {}).get("label", h), "kind": (dests.get(h) or {}).get("kind", "other")}
-                                    for h, v in dest_counts.items()), key=lambda d: -d["devices"]),
+            "destinations": vendor_chips,
+            "destination_hosts": sorted(({"host": h, "devices": len(v), "label": dest(h)["label"], "kind": dest(h)["kind"], "vendor": dest(h)["vendor"]}
+                                         for h, v in dest_counts.items()), key=lambda d: -d["devices"]),
             "last_event": ars[-1]["created_at"], "first_event": ars[0]["created_at"],
             "series": [series[p] for p in periods],
         })
@@ -533,22 +701,40 @@ def summary(store, start_month, end_month, granularity="month", consoles=None, i
         if r["destination_host"]:
             d = dest_rows.setdefault(r["destination_host"], {"devices": set(), "accounts": set(), "last": r["created_at"]})
             d["devices"].add((r["console"], r["device_key"])); d["accounts"].add((r["console"], r["account_id"])); d["last"] = max(d["last"], r["created_at"])
-    destinations = sorted(({"host": h, "label": (dests.get(h) or {}).get("label", h), "kind": (dests.get(h) or {}).get("kind", "other"),
-                            "note": (dests.get(h) or {}).get("note", ""), "edited": bool((dests.get(h) or {}).get("edited")),
+    destinations = sorted(({"host": h, "label": dest(h)["label"], "kind": dest(h)["kind"], "note": dest(h).get("note") or "",
+                            "edited": bool(dest(h).get("override")), "vendor": dest(h)["vendor"] or h, "vendor_label": dest(h)["vendor_label"],
                             "devices": len(d["devices"]), "accounts": len(d["accounts"]), "last_event": d["last"]} for h, d in dest_rows.items()),
                           key=lambda d: -d["devices"])
 
+    # competitors: one row per vendor group with its consoles
+    grp_rows = {}
+    for h, d in dest_rows.items():
+        key = dest(h)["vendor"] or h
+        g = grp_rows.setdefault(key, {"devices": set(), "accounts": set(), "last": d["last"], "hosts": []})
+        g["devices"] |= d["devices"]; g["accounts"] |= d["accounts"]; g["last"] = max(g["last"], d["last"]); g["hosts"].append(h)
+    competitors = []
+    for key, g in grp_rows.items():
+        meta = groups.get(key) or {}
+        first = dest(g["hosts"][0])
+        competitors.append({"key": key, "label": meta.get("label") or first["vendor_label"], "kind": meta.get("kind") or first["vendor_kind"],
+                            "note": meta.get("note") or "", "edited": bool(meta.get("edited")), "known": key in groups,
+                            "hosts": sorted(g["hosts"], key=lambda h: -len(dest_rows[h]["devices"])), "consoles": len(g["hosts"]),
+                            "devices": len(g["devices"]), "accounts": len(g["accounts"]), "last_event": g["last"]})
+    competitors.sort(key=lambda c: -c["devices"])
+
     migr = [r for r in rows if r["kind"] == "migration"]
-    external = [r for r in migr if (dests.get(r["destination_host"]) or {}).get("kind") not in ("internal", None)]
+    external = [r for r in migr if r["destination_host"] and dest(r["destination_host"])["kind"] != "internal"]
     totals = {
         "events": len(rows), "devices": _count_devices(rows), "accounts": len(by_acct),
         "by_indicator": {k: _count_devices([r for r in rows if r["indicator"] == k]) for k in keys},
         "migrated_devices": _count_devices(migr), "migrated_external": _count_devices(external),
         "uninstalled_devices": _count_devices([r for r in rows if r["kind"] == "uninstall"]),
         "top_destination": destinations[0] if destinations else None,
+        "top_competitor": next((c for c in competitors if c["kind"] != "internal"), None),
     }
     return {"start": start_month, "end": end_month, "granularity": granularity, "periods": periods, "trend": [trend[p] for p in periods],
-            "totals": totals, "accounts": accounts, "destinations": destinations,
+            "totals": totals, "accounts": accounts, "destinations": destinations, "competitors": competitors,
+            "groups": sorted(({"key": k, "label": g["label"], "kind": g["kind"]} for k, g in groups.items()), key=lambda g: g["label"].lower()),
             "indicators": [{k: i[k] for k in ("type", "key", "label", "short", "kind", "note")} for i in inds]}
 
 
@@ -557,7 +743,7 @@ def account_detail(store, console, account_id, start_month, end_month, granulari
     keys = [i["key"] for i in enabled_indicators(cfg)]
     start, end = month_range(start_month, end_month)
     rows = store.events(start, end, indicators=keys, account=(console, account_id))
-    dests = store.destinations()
+    dests = store.effective_destinations()
     meta = store.accounts().get((console, account_id)) or {}
     sf = store.sf_accounts().get(meta.get("salesforce_id") or "") or {}
     periods = periods_between(start_month, end_month, granularity)
@@ -567,7 +753,8 @@ def account_detail(store, console, account_id, start_month, end_month, granulari
         series.append({"period": p, "devices": _count_devices(prs), "events": len(prs),
                        "by_indicator": {k: _count_devices([r for r in prs if r["indicator"] == k]) for k in keys}})
     devices = [{**r, "destination_label": (dests.get(r["destination_host"]) or {}).get("label", ""),
-                "destination_kind": (dests.get(r["destination_host"]) or {}).get("kind", "")} for r in latest_per_device(rows)]
+                "destination_kind": (dests.get(r["destination_host"]) or {}).get("kind", ""),
+                "destination_vendor": (dests.get(r["destination_host"]) or {}).get("vendor_label", "")} for r in latest_per_device(rows)]
     sites = {}
     for r in rows:
         s = sites.setdefault((r["site_id"], r["site_name"]), set()); s.add((r["console"], r["device_key"]))
@@ -584,7 +771,7 @@ def device_rows(store, start_month, end_month, consoles=None, indicators=None, d
     keys = [i["key"] for i in enabled_indicators(cfg) if not indicators or i["key"] in indicators]
     start, end = month_range(start_month, end_month)
     rows = store.events(start, end, consoles, keys, dest_kind=dest_kind)
-    dests = store.destinations()
+    dests = store.effective_destinations()
     accounts = store.accounts()
     sf = store.sf_accounts()
     out = []
@@ -593,7 +780,8 @@ def device_rows(store, start_month, end_month, consoles=None, indicators=None, d
         sfid = meta.get("salesforce_id") or ""
         out.append({**r, "salesforce_id": sfid, "sf_account": (sf.get(sfid) or {}).get("name") or "",
                     "destination_label": (dests.get(r["destination_host"]) or {}).get("label", ""),
-                    "destination_kind": (dests.get(r["destination_host"]) or {}).get("kind", "")})
+                    "destination_kind": (dests.get(r["destination_host"]) or {}).get("kind", ""),
+                    "destination_vendor": (dests.get(r["destination_host"]) or {}).get("vendor_label", "")})
     return out
 
 
@@ -616,7 +804,7 @@ DEVICE_COLUMNS = [("Console", "console"), ("Account ID", "account_id"), ("Accoun
                   ("Salesforce account", "sf_account"), ("Site ID", "site_id"), ("Site", "site_name"), ("Group ID", "group_id"), ("Group", "group_name"),
                   ("Agent ID", "agent_id"), ("Device UUID", "device_uuid"), ("Computer", "computer_name"), ("OS", "os_type"), ("Type", "machine_type"),
                   ("Indicator", "indicator"), ("Activity type", "activity_type"), ("When (UTC)", "created_at"), ("User", "username"),
-                  ("Destination console", "destination_url"), ("Destination", "destination_label"), ("Destination kind", "destination_kind"),
+                  ("Destination console", "destination_url"), ("Destination", "destination_label"), ("Competitor", "destination_vendor"), ("Destination kind", "destination_kind"),
                   ("Description", "primary_description")]
 
 
@@ -642,6 +830,8 @@ def flatten_trend(trend, keys):
         row.update({k: t["by_indicator"].get(k, 0) for k in keys})
         for dk, n in t["by_destination"].items():
             row[f"dest_{dk}"] = n
+        for vk, n in t.get("by_vendor", {}).items():
+            row[f"vendor_{vk}"] = n
         out.append(row)
     return out
 
@@ -667,12 +857,18 @@ def to_xlsx(summary_data, devices, cfg=None):
     for a in summary_data["accounts"]:
         sh.append([a["console"], a["account_id"], a["account"], a["salesforce_id"], a["sf_account"], a["devices"], a["events"],
                    *[a["by_indicator"].get(k, 0) for k in keys], "; ".join(f"{d['label']} ({d['devices']})" for d in a["destinations"]), a["first_event"], a["last_event"]])
+    sc = wb.create_sheet("Competitors")
+    sc.append(["Competitor", "Kind", "Consoles", "Devices", "Accounts", "Last event", "Hosts", "Note"])
+    for c in sc[1]:
+        c.font = Font(bold=True)
+    for g in summary_data.get("competitors", []):
+        sc.append([g["label"], g["kind"], g["consoles"], g["devices"], g["accounts"], g["last_event"], "; ".join(g["hosts"]), g["note"]])
     sd = wb.create_sheet("Destinations")
-    sd.append(["Host", "Label", "Kind", "Devices", "Accounts", "Last event", "Note"])
+    sd.append(["Host", "Competitor", "Label", "Kind", "Devices", "Accounts", "Last event", "Note"])
     for c in sd[1]:
         c.font = Font(bold=True)
     for d in summary_data["destinations"]:
-        sd.append([d["host"], d["label"], d["kind"], d["devices"], d["accounts"], d["last_event"], d["note"]])
+        sd.append([d["host"], d.get("vendor_label", ""), d["label"], d["kind"], d["devices"], d["accounts"], d["last_event"], d["note"]])
     dv = wb.create_sheet("Devices")
     dv.append([c[0] for c in DEVICE_COLUMNS])
     for c in dv[1]:

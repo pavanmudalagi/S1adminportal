@@ -80,7 +80,7 @@ class Store:
         self._init()
 
     def _conn(self):
-        conn = sqlite3.connect(str(self.path))
+        conn = sqlite3.connect(str(self.path), timeout=30)
         conn.row_factory = sqlite3.Row
         return conn
 
