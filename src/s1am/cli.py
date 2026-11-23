@@ -158,6 +158,18 @@ _AGENT_PLATFORMS = [
     ("linux", "Linux"),
 ]
 
+# (machineTypes filter value, column label) — the console's "Type" filter. "Other Type"
+# is the remainder (the console's "Other": unknown machine type, Kubernetes helpers).
+_AGENT_MACHINE_TYPES = [
+    ("desktop", "Desktop"),
+    ("laptop", "Laptop"),
+    ("server", "Server"),
+    ("kubernetes node", "Kubernetes Node"),
+    ("kubernetes pod", "Kubernetes Pod"),
+    ("ecs task", "ECS Task"),
+    ("storage", "Storage"),
+]
+
 
 def _count_from_response(resp):
     """Extract the integer total from a GET /agents/count response."""
@@ -167,34 +179,114 @@ def _count_from_response(resp):
     return 0
 
 
-def _agent_counts_by_platform(client, account_id=None):
-    """
-    Return {"Total": n, "Windows": n, ..., "Other": n} for one console.
+def _parallel_map(fn, items, workers=6):
+    """Run fn over items on a small thread pool, preserving order. Exceptions propagate."""
+    from concurrent.futures import ThreadPoolExecutor
+    if len(items) <= 1 or workers <= 1:
+        return [fn(x) for x in items]
+    with ThreadPoolExecutor(max_workers=min(workers, len(items))) as pool:
+        return list(pool.map(fn, items))
 
-    Uses GET /agents/count (one call for the total, one per osTypes value) so
-    no agent records are paged through. "Other" is whatever the total holds
-    beyond the known platforms (e.g. unknown OS), never negative.
+
+def _agent_counts_by_platform(client, account_id=None, workers=6):
+    """
+    Return {"Total": n, "Windows": n, …, "Other OS": n, "Desktop": n, …, "Other Type": n}
+    for one console.
+
+    Uses GET /agents/count only (one call for the total, one per osTypes value and one
+    per machineTypes value, run in parallel) so no agent records are paged through.
+    The two "Other" columns are whatever the total holds beyond the known values,
+    never negative.
     """
     base = {"accountIds": account_id} if account_id else {}
-    total = _count_from_response(client.request("GET", "agents/count", params=base))
+    calls = [{}] + [{"osTypes": o} for o, _ in _AGENT_PLATFORMS] + [{"machineTypes": m} for m, _ in _AGENT_MACHINE_TYPES]
+    results = _parallel_map(lambda extra: _count_from_response(client.request("GET", "agents/count", params={**base, **extra})), calls, workers)
+    total = results[0]
     counts = {"Total": total}
-    for os_type, label in _AGENT_PLATFORMS:
-        resp = client.request("GET", "agents/count", params={**base, "osTypes": os_type})
-        counts[label] = _count_from_response(resp)
-    counts["Other"] = max(total - sum(counts[label] for _, label in _AGENT_PLATFORMS), 0)
+    i = 1
+    for _, label in _AGENT_PLATFORMS:
+        counts[label] = results[i]; i += 1
+    counts["Other OS"] = max(total - sum(counts[label] for _, label in _AGENT_PLATFORMS), 0)
+    for _, label in _AGENT_MACHINE_TYPES:
+        counts[label] = results[i]; i += 1
+    counts["Other Type"] = max(total - sum(counts[label] for _, label in _AGENT_MACHINE_TYPES), 0)
     return counts
 
 
-def cmd_agent_count(args):
-    if getattr(args, "all_profiles", False):
-        profiles = Config.list_profiles() or [None]
-    elif getattr(args, "profiles", None):
-        profiles = [p.strip() for p in args.profiles.split(",")]
-    else:
-        profiles = [args.profile]
+def _discover_agent_versions(client, os_type, base, max_versions=400):
+    """
+    List the distinct agentVersion values of one OS on a console.
 
+    There is no aggregation endpoint, so this asks for one agent at a time while
+    excluding every version already seen (GET /agents?limit=1&agentVersionsNin=…);
+    each call surfaces one new version and the walk ends when nothing is left.
+    """
+    seen = []
+    while len(seen) < max_versions:
+        params = {**base, "limit": 1, "skipCount": "true", "osTypes": os_type}
+        if seen:
+            params["agentVersionsNin"] = ",".join(seen)
+        rows = (client.request("GET", "agents", params=params) or {}).get("data") or []
+        if not rows:
+            break
+        version = rows[0].get("agentVersion")
+        if not version or version in seen:
+            break
+        seen.append(version)
+    return seen
+
+
+def _agent_version_counts(client, account_id=None, workers=6):
+    """
+    Return {"Total": n, "versions": [{"version", "os", "count"}, …], "Other": n} for one
+    console: how many agents run each agent version, per OS, like the console's
+    "Version" filter. Discovery walks each OS in parallel (see _discover_agent_versions),
+    then one GET /agents/count per (version, OS). "Other" is the remainder of the total
+    not covered (agents of an unknown OS type), never negative.
+    """
+    base = {"accountIds": account_id} if account_id else {}
+    total = _count_from_response(client.request("GET", "agents/count", params=base))
+    found = _parallel_map(lambda o: _discover_agent_versions(client, o, base), [o for o, _ in _AGENT_PLATFORMS], workers)
+    pairs = [(v, o) for (o, _), versions in zip(_AGENT_PLATFORMS, found) for v in versions]
+    counts = _parallel_map(lambda vo: _count_from_response(client.request("GET", "agents/count", params={**base, "agentVersions": vo[0], "osTypes": vo[1]})), pairs, workers)
+    labels = dict(_AGENT_PLATFORMS)
+    rows = [{"version": v, "os": labels[o], "count": n} for (v, o), n in zip(pairs, counts)]
+    rows.sort(key=lambda r: (_version_key(r["version"]), r["os"]), reverse=True)
+    return {"Total": total, "versions": rows, "Other": max(total - sum(counts), 0)}
+
+
+def _version_key(v):
+    """Sort key for dotted agent versions: numeric parts compare as numbers."""
+    parts = []
+    for p in str(v or "").split("."):
+        parts.append((0, int(p)) if p.isdigit() else (1, p))
+    return tuple(parts)
+
+
+def _profiles_for(args):
+    if getattr(args, "all_profiles", False):
+        return Config.list_profiles() or [None]
+    if getattr(args, "profiles", None):
+        return [p.strip() for p in args.profiles.split(",")]
+    return [args.profile]
+
+
+def cmd_agent_version_count(args):
     results = []
-    for profile in profiles:
+    for profile in _profiles_for(args):
+        label = profile or "default"
+        try:
+            client = build_client(profile=profile)
+            data = _agent_version_counts(client, account_id=args.account_id)
+            results.append({"console": label, **data})
+        except SentinelOneError as exc:
+            results.append({"console": label, "Total": f"ERROR: {exc}"})
+    _print_json(results)
+
+
+def cmd_agent_count(args):
+    results = []
+    for profile in _profiles_for(args):
         label = profile or "default"
         try:
             client = build_client(profile=profile)
@@ -1016,6 +1108,24 @@ def build_parser():
         help="Query every saved profile",
     )
     agent_count.set_defaults(func=cmd_agent_count)
+
+    agent_version_count = sub.add_parser(
+        "agent-version-count",
+        help="Count installed agents per agent version (and OS) on each console",
+    )
+    agent_version_count.add_argument(
+        "--account-id", dest="account_id", default=None,
+        help="Only count agents in this account",
+    )
+    agent_version_count.add_argument(
+        "--profiles", default=None,
+        help="Comma-separated profile names for multi-console query",
+    )
+    agent_version_count.add_argument(
+        "--all-profiles", dest="all_profiles", action="store_true",
+        help="Query every saved profile",
+    )
+    agent_version_count.set_defaults(func=cmd_agent_version_count)
 
     export_passphrases = sub.add_parser(
         "export-agent-passphrases",

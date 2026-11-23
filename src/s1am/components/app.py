@@ -476,10 +476,25 @@ COMMANDS = [
         "category": "Agents",
         "icon": "📊",
         "label": "Agent Count by Platform",
-        "description": "Health check: total installed agents per console, broken down by platform (Windows, Windows Legacy, macOS, Linux).",
+        "description": "Health check: total installed agents per console, broken down by OS (Windows, Windows Legacy, macOS, Linux) and by machine type (Desktop, Laptop, Server, Kubernetes, ECS, Storage), with a total row across the selected consoles.",
         "requires": "none",
         "console_field": "profiles",
         "stream_url": "/api/agent-count-stream",
+        "totals": True,
+        "fields": [
+            {"id": "profiles", "type": "console-selector", "label": "Consoles to query"},
+        ],
+        "build_args": lambda f: [],
+    },
+    {
+        "id": "agent-version-count",
+        "category": "Agents",
+        "icon": "🔢",
+        "label": "Agent Count by Version",
+        "description": "Installed agents per agent version and OS on each console, like the console's Version filter, with per-console columns and a total row. Slow on big consoles: one call per version found.",
+        "requires": "none",
+        "console_field": "profiles",
+        "stream_url": "/api/agent-version-count-stream",
         "fields": [
             {"id": "profiles", "type": "console-selector", "label": "Consoles to query"},
         ],
@@ -2058,6 +2073,72 @@ def _process_one_agent_count(profile, labels):
     except Exception as exc:
         _log.error("[agent-count] console=%s error=%s", display, exc)
         return {"console": display, "Total": f"ERROR: {exc}"}
+
+
+def _process_one_agent_version_count(profile, labels):
+    """Count agents per agent version on one console (see cli._agent_version_counts). Never raises."""
+    from s1am.cli import _agent_version_counts
+    from s1am.api.client import SentinelOneClient
+
+    display = labels.get(profile, profile) if profile else "default"
+    t0 = time.monotonic()
+    try:
+        cfg = _load_config_silent(profile=profile)
+        if not cfg or not cfg.api_token:
+            raise ValueError("No API token configured for this profile")
+        client = SentinelOneClient(
+            base_url=cfg.base_url,
+            api_token=cfg.api_token,
+            api_path=cfg.api_path,
+            timeout=cfg.timeout,
+            verify=cfg.verify_ssl,
+            auth_prefix=cfg.auth_prefix,
+        )
+        row = {"console": display}
+        row.update(_agent_version_counts(client))
+        _log.info("[agent-version-count] console=%s total=%s versions=%d elapsed=%.2fs",
+                  display, row["Total"], len(row["versions"]), time.monotonic() - t0)
+        return row
+    except Exception as exc:
+        _log.error("[agent-version-count] console=%s error=%s", display, exc)
+        return {"console": display, "Total": f"ERROR: {exc}"}
+
+
+@app.route("/api/agent-version-count-stream", methods=["POST"])
+def agent_version_count_stream():
+    """Stream per-console agent counts by version via SSE. Discovery walks one agent per
+    version, so a big console takes a minute or two: the per-console wait is 600 s."""
+    data = request.get_json() or {}
+    profiles = _resolve_profiles(data.get("profiles", []))
+    if not profiles:
+        return jsonify({"success": False, "error": "No consoles selected."}), 400
+
+    labels = _load_labels()
+    result_q = queue.Queue()
+
+    def worker(profile):
+        result_q.put(_process_one_agent_version_count(profile, labels))
+
+    threads = [threading.Thread(target=worker, args=(p,), daemon=True) for p in profiles]
+    for t in threads:
+        t.start()
+
+    def generate():
+        total = len(profiles)
+        yield f"data: {json.dumps({'__total__': total})}\n\n"
+        for _ in range(total):
+            try:
+                row = result_q.get(timeout=600)
+            except queue.Empty:
+                row = {"console": "?", "Total": "TIMEOUT"}
+            yield f"data: {json.dumps(row)}\n\n"
+        yield 'data: {"__done__": true}\n\n'
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.route("/api/agent-count-stream", methods=["POST"])

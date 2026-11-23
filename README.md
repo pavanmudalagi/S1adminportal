@@ -59,6 +59,15 @@ The browser UI follows the SentinelOne "Unity" console design language: dark the
 console scope selector, and a narrow sidebar of categories. Picking a category shows its commands as a tab strip; the landing
 page is a searchable directory of every command, with pages greyed out when their token is not configured.
 Press **⌘K / Ctrl+K** to find a page by name. Every page has a deep link (`#list-accounts`, `#eap-tracker`, …).
+
+Every category you open stays in a **workspace tab** under the top bar, so Usage can keep loading while you look at
+Accounts. Home is pinned first; a sidebar entry or a Home card opens a new tab, or focuses the tab that already has that
+page (one tab per category; the sub-tabs inside a page pick the command and show as the tab's small sub-label). Each tab
+keeps its filters, sort, drawers, scroll position, form values and last result, and a pulsing dot marks a tab that is
+still loading. Close with the × on the tab, a middle-click, **⌥W** or the right-click menu (Close, Close others, Close
+tabs to the right); **⌥1…9** jump to a tab and **⌥0** to Home. Open tabs are remembered per browser and restored on the
+next visit (their data loads when first shown); the URL hash still names the active page. The console selector stays
+global: the Accounts table and the account editor reload for the new console when their tab is next shown.
 Wherever a console is named (console pickers, the EAP, Marketplace, Usage and Churn tables and drawers, the account
 editor badge) the name links to that console's URL from its profile, shown in full on hover; the ↗ button next to the
 console switcher opens the active console. `/api/profiles` carries the base URL for this, never a token.
@@ -211,6 +220,22 @@ What the API gives us (observed on the Staging console): each installed app's `s
 `errorLog`, `retryUntil`, creator/modifier and timestamps. The list accepts `accountIds` and `siteIds` filters;
 `groupIds` is ignored. The instance `log` endpoint ignores `limit`, so the server truncates it.
 
+## Agent counts
+
+Two health-check pages under **Agents** query every selected console in parallel and stream the rows in as they arrive;
+both end with a bold **Total** row across the consoles. Neither pages through agent records: everything comes from
+`GET /agents/count` with filters.
+
+- **Agent Count by Platform** (`s1am agent-count --all-profiles`): per console the total, the OS split (Windows,
+  Windows Legacy, macOS, Linux, Other OS) and the console's *Type* filter split (Desktop, Laptop, Server, Kubernetes
+  Node, Kubernetes Pod, ECS Task, Storage, Other Type). The two *Other* columns are the remainder of the total that no
+  known value covers, never negative.
+- **Agent Count by Version** (`s1am agent-version-count --all-profiles`): one row per agent version and OS, a column per
+  console, a Total column, an *Other / Unknown OS* row when the total is not fully covered, and the total footer. The
+  API has no aggregation endpoint, so each OS is walked one agent at a time (`GET /agents?limit=1&osTypes=…`
+  excluding every version already seen with `agentVersionsNin`) and each version found is counted once. Expect a
+  minute or two on a console with many versions; the browser waits up to ten minutes per console.
+
 ## Usage & Billing (SDL metering)
 
 Daily usage from the SDL PowerQuery `metering` datasource, rolled up to one billable number per account and site per
@@ -236,7 +261,8 @@ previous and current month runs while the web server is up (`[usage] daily_sync 
 sets the hour). Scope the consoles with `S1AM_USAGE_CONSOLES=Staging` or `[usage] consoles`.
 
 **Rollups.** Agent and user counts default to the peak daily value (average and month-end selectable per column), CNS to
-the average, Data Ingest to the sum of bytes. Rows with any `live` day carry a *provisional* badge; the "Finalize for
+the average, Data Ingest and the Prompt usage counts to the sum (average per day, peak day and month end selectable). Rows with
+any `live` day carry a *provisional* badge; the "Finalize for
 billing" export is only enabled when every row is final. On the drill-down charts the live tail (today, and yesterday
 until S1 publishes it) is drawn dashed.
 

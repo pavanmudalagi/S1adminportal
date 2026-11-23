@@ -149,6 +149,45 @@
     /* ── Layout ── */
     .layout { display: flex; flex: 1; overflow: hidden; }
 
+    /* ── Workspace tabs: every opened page stays in a tab under the top bar ── */
+    .wstrip { height: 38px; flex-shrink: 0; display: flex; align-items: flex-end; gap: 2px; padding: 0 10px; background: var(--bg); border-bottom: 1px solid var(--border); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    .wstrip::-webkit-scrollbar { display: none; }
+    .wtab { height: 32px; display: flex; align-items: center; position: relative; flex: 0 1 auto; min-width: 120px; max-width: 220px; margin-bottom: -1px; color: var(--text-dim); border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; user-select: none; }
+    .wtab:hover { background: var(--surface-2); color: var(--text); }
+    .wtab.active { background: var(--surface); border-color: var(--border); color: var(--text); }
+    .wtab.active::before { content: ""; position: absolute; left: -1px; right: -1px; top: -1px; height: 2px; background: var(--primary); border-radius: 6px 6px 0 0; }
+    .wtab.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 1px; background: var(--surface); }
+    .wtab.home { min-width: 0; width: 40px; justify-content: center; }
+    .wtab.home .wlab { padding: 0; justify-content: center; }
+    .wlab { height: 100%; flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 6px 0 12px; text-align: left; background: none; border: 0; color: inherit; font: inherit; cursor: pointer; }
+    .wtxt { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
+    .wname { font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wsub { font-size: 10px; font-weight: 400; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wtab.active .wsub { color: var(--text-dim); }
+    .wclose { width: 22px; height: 22px; margin-right: 5px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0; flex-shrink: 0; background: none; border: 0; cursor: pointer; }
+    .wtab:hover .wclose, .wtab.active .wclose { opacity: 1; }
+    .wclose:hover { background: var(--surface-3); color: var(--text); }
+    .wclose .ico { width: 11px; height: 11px; stroke-width: 2; }
+    .wbusy { display: none; width: 7px; height: 7px; border-radius: 50%; background: var(--primary-h); margin-right: 9px; flex-shrink: 0; animation: wpulse 1.2s ease-in-out infinite; }
+    .wtab.busy .wbusy { display: block; }
+    .wtab.busy .wclose { display: none; }
+    .wtab.busy:hover .wclose { display: inline-flex; }
+    .wtab.busy:hover .wbusy { display: none; }
+    @keyframes wpulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+    .wadd { width: 30px; height: 30px; margin: 0 0 2px 4px; border-radius: var(--radius); display: inline-flex; align-items: center; justify-content: center; color: var(--text-dim); flex-shrink: 0; background: none; border: 0; cursor: pointer; }
+    .wadd:hover { background: var(--surface-2); color: var(--text); }
+    .whint { margin-left: auto; align-self: center; font-size: 11px; color: var(--text-muted); white-space: nowrap; padding: 0 4px 0 12px; }
+    .whint .kbd { margin-left: 2px; }
+    .wmenu { position: fixed; z-index: 170; min-width: 190px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; display: flex; flex-direction: column; }
+    .wmenu.hidden { display: none; }
+    .wmenu-item { height: 30px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12px; border-radius: var(--radius); cursor: pointer; color: var(--text); }
+    .wmenu-item:hover { background: var(--surface-2); }
+    .wmenu-item.off { color: var(--text-muted); cursor: default; }
+    .wmenu-item.off:hover { background: none; }
+    .wmenu-item .kbd { color: var(--text-muted); }
+    .nav-item .nav-open { margin-left: auto; width: 5px; height: 5px; border-radius: 50%; background: var(--primary-h); flex-shrink: 0; display: none; }
+    .nav-item.has-tab .nav-open { display: block; }
+
     /* ── Sidebar: narrow, icon + label, categories only ── */
     nav {
       width: var(--sidebar-w); flex-shrink: 0;
@@ -161,7 +200,7 @@
     .kbd { font-family: inherit; font-size: 11px; color: var(--text-dim); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; line-height: 17px; background: var(--surface-2); flex: 0 0 auto !important; }
     .nav-group-gap { height: 12px; flex-shrink: 0; }
     .nav-item { height: 32px; padding: 6px 10px; cursor: pointer; border-radius: var(--radius); color: var(--text-dim); display: flex; align-items: center; gap: 10px; transition: background .1s, color .1s; font-size: 13px; line-height: 1.3; white-space: nowrap; overflow: hidden; flex-shrink: 0; }
-    .nav-item span:last-child { overflow: hidden; text-overflow: ellipsis; }
+    .nav-item span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; }
     .nav-ico { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
     .nav-item.active { background: var(--wash); color: var(--text); font-weight: 500; }
@@ -310,6 +349,7 @@
     .rtable td.col-num { color: var(--text-muted); font-size: 11px; text-align: right; padding-right: 8px; user-select: none; }
     .rtable tr:last-child td { border-bottom: none; }
     .rtable tr:hover td { background: var(--surface-2); }
+    .rtable tfoot td { font-weight: 600; border-top: 2px solid var(--border); border-bottom: none; background: var(--surface-2); }
     .table-hint { font-size: 11px; color: var(--text-muted); padding: 6px 12px 8px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; }
     .table-hint b { color: var(--text-dim); }
 
@@ -554,6 +594,8 @@
     .us-table th[data-key] { cursor: pointer; user-select: none; } .us-table th .arrow { font-size: 10px; margin-left: 4px; color: var(--primary); }
     .us-table th select { height: 22px; padding: 0 20px 0 6px; font-size: 11px; width: auto; margin-left: 6px; background-position: right 5px center; vertical-align: middle; text-transform: none; font-weight: 400; }
     .us-table td.num, .us-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .us-table th.num { width: 130px; } .us-table th .eap-sub { max-width: none; }
+    .us-table .us-fill { width: auto; padding: 0; border-left: 0; }   /* empty last column: takes the leftover width when few products are shown */
     .us-table tbody tr { cursor: pointer; }
     .us-table tfoot td { font-weight: 600; background: var(--surface-2); border-top: 1px solid var(--border); height: 40px; }
     .us-table tr.sel > td { background: var(--surface-2); }
@@ -826,6 +868,10 @@
   <button class="btn btn-ghost" id="settings-btn" title="API credentials for the active console"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5"/></svg> Credentials</button>
   <button class="btn icon-btn" id="prefs-btn" title="My preferences"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></button>
 </header>
+
+<!-- ── Workspace tabs ── -->
+<div class="wstrip" id="wstrip"></div>
+<div class="wmenu hidden" id="wmenu"></div>
 
 <div class="layout">
   <!-- ── Sidebar ── -->
@@ -1349,9 +1395,12 @@ let currentTab = "json";
     updateStatus(statusRes);
     populateProfiles(profilesRes.profiles, statusRes.active_profile);
     renderSidebar();
+    const savedActive = _tabsRestore();   // tabs come back from the last visit; their data loads when shown
     const [deep, deepQs] = location.hash.replace(/^#/, "").split("?");
     _deepQs = deepQs || "";
-    if (deep && COMMANDS.some(c => c.id === deep)) selectCommand(deep); else goHome();
+    if (deep && COMMANDS.some(c => c.id === deep)) selectCommand(deep);
+    else if (savedActive && _tabOf(savedActive)) activateTab(savedActive);
+    else goHome();
 
     // Auto-open credentials only when no tokens exist anywhere (session, env, or any saved profile)
     if (!statusRes.has_saved_tokens) {
@@ -1459,7 +1508,11 @@ document.getElementById("profile-select").addEventListener("change", async (e) =
 
   updateStatus(result);
   _setProfileOpen(profile);
-  if (activeCmd && activeCmd.type === "accounts-table") { acctState.console = ""; acctLoad(); }   // the Accounts page follows the active console
+  // The Accounts table and the account editor follow the active console: reload the one
+  // on screen now, and mark hidden tabs of theirs stale so they reload when shown again.
+  acctState.console = "";
+  if (activeCmd && activeCmd.type === "accounts-table") acctLoad();
+  for (const t of _tabs) { const c = COMMANDS.find(x => x.id === t.cmdId); if (c && t.cat !== _activeTab && (c.type === "accounts-table" || c.type === "account-editor")) _tabStale.add(t.cat); }
 
   if (!result.mgmt_configured && !result.pq_configured) {
     openCredModal();
@@ -1598,6 +1651,7 @@ const CATEGORY_ORDER = ["Accounts","Sites","Agents","Prompt EAP","Marketplace","
 
 // 16px line icons (Lucide paths, 1.5px stroke) — the console uses line icons, not emoji.
 const ICONS = {
+  x: '<path d="M18 6 6 18M6 6l12 12"/>',
   trend: '<path d="M22 17l-8.5-8.5-5 5L2 7"/><path d="M16 17h6v-6"/>',
   home: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/>',
   building: '<rect width="16" height="20" x="4" y="2" rx="2"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01M16 6h.01M12 6h.01M12 10h.01M12 14h.01M16 10h.01M16 14h.01M8 10h.01M8 14h.01"/>',
@@ -1648,8 +1702,8 @@ function renderSidebar() {
     if (groupBreaks.has(cat)) gap();
     const item = document.createElement("div");
     item.className = "nav-item"; item.dataset.cat = cat; item.title = cat;
-    item.innerHTML = `<span class="nav-ico">${_catIcon(cat)}</span><span>${cat}</span>`;
-    item.addEventListener("click", () => selectCommand(groups[cat][0].id));
+    item.innerHTML = `<span class="nav-ico">${_catIcon(cat)}</span><span>${cat}</span><span class="nav-open" title="Open in a tab"></span>`;
+    item.addEventListener("click", () => _tabs.some(t => t.cat === cat) ? activateTab(cat) : selectCommand(groups[cat][0].id));
     nav.appendChild(item);
   }
   const foot = document.createElement("div"); foot.className = "nav-foot";
@@ -1679,6 +1733,8 @@ function _setPage(cmd) {
 }
 
 function goHome() {
+  _tabPark(_activeTab);
+  _activeTab = null; _tabsSave(); renderWorkspaceTabs();
   activeCmd = null;
   try { history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
   document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.cat === "__home__"));
@@ -1789,9 +1845,237 @@ document.getElementById("prefs-reset").addEventListener("click", () => {
 document.getElementById("prefs-modal").addEventListener("click", e => { if (e.target.id === "prefs-modal") closePrefs(); });
 
 // ── Command Selection ───────────────────────────────────────────────────────
-function selectCommand(id) {
+// ── Workspace tabs ──────────────────────────────────────────────────────────
+// Every category the user opens becomes a tab under the top bar (one tab per
+// category; the sub-tabs inside a page pick the command). Pages are singleton
+// DOM blocks, so switching tabs only shows/hides them; each page keeps its own
+// state object, and the shared generic command form is snapshotted per tab.
+let _tabs = [];          // [{cat, cmdId}] in strip order
+let _activeTab = null;   // category of the active tab; null = Home
+const _tabSnap = {};     // generic command page snapshots, keyed by category
+const _tabScroll = {};   // scroll positions, keyed by category
+const _tabStale = new Set();   // tabs whose data belongs to a previous console
+const _tabRunning = new Set(); // categories with a generic command run in flight
+const _PAGE_IDS = {usage: "usage-page", churn: "churn-page", "accounts-table": "acct-page", "eap-tracker": "eap-page", marketplace: "mp-page", "account-editor": "ae-browser"};
+const _pageId = cmd => _PAGE_IDS[cmd.type] || "command-area";
+const _isGeneric = cmd => !_PAGE_IDS[cmd.type];
+const _tabOf = cat => _tabs.find(t => t.cat === cat);
+const _tabCmd = cat => { const t = _tabOf(cat); return t ? COMMANDS.find(c => c.id === t.cmdId) : null; };
+
+function _tabsSave() { try { localStorage.setItem("s1amTabs", JSON.stringify({tabs: _tabs.map(t => ({cat: t.cat, cmdId: t.cmdId})), active: _activeTab})); } catch (e) {} }
+function _tabsRestore() {
+  try {
+    const s = JSON.parse(localStorage.getItem("s1amTabs") || "null");
+    if (s && Array.isArray(s.tabs)) { _tabs = s.tabs.filter(t => t && COMMANDS.some(c => c.id === t.cmdId && c.category === t.cat)); return s.active; }
+  } catch (e) {}
+  return null;
+}
+
+function renderWorkspaceTabs() {
+  const strip = document.getElementById("wstrip");
+  strip.innerHTML = "";
+  const home = document.createElement("div");
+  home.className = "wtab home" + (_activeTab === null ? " active" : "");
+  home.innerHTML = `<button class="wlab" title="Home (⌥0)">${icon("home")}</button>`;
+  home.querySelector("button").addEventListener("click", goHome);
+  strip.appendChild(home);
+  const groups = _groups();
+  _tabs.forEach((t, i) => {
+    const cmd = COMMANDS.find(c => c.id === t.cmdId);
+    const multi = (groups[t.cat] || []).length > 1 && cmd && cmd.label !== t.cat;
+    const el = document.createElement("div");
+    el.className = "wtab" + (t.cat === _activeTab ? " active" : "") + (_tabBusy(t.cat) ? " busy" : "");
+    el.dataset.cat = t.cat;
+    const tip = escHtml(t.cat) + (cmd && multi ? " · " + escHtml(cmd.label) : "") + (i < 9 ? ` (⌥${i + 1})` : "");
+    el.innerHTML = `<button class="wlab" title="${tip}"><span class="nav-ico">${_catIcon(t.cat)}</span><span class="wtxt"><span class="wname">${escHtml(t.cat)}</span>${cmd && multi ? `<span class="wsub">${escHtml(cmd.label)}</span>` : ""}</span></button><span class="wbusy" title="Loading in the background"></span><button class="wclose" title="Close tab (⌥W)">${icon("x")}</button>`;
+    el.querySelector(".wlab").addEventListener("click", () => activateTab(t.cat));
+    el.querySelector(".wclose").addEventListener("click", e => { e.stopPropagation(); closeTab(t.cat); });
+    el.addEventListener("auxclick", e => { if (e.button === 1) { e.preventDefault(); closeTab(t.cat); } });
+    el.addEventListener("mousedown", e => { if (e.button === 1) e.preventDefault(); });   // no autoscroll cursor on middle-click
+    el.addEventListener("contextmenu", e => { e.preventDefault(); openTabMenu(e, t.cat); });
+    strip.appendChild(el);
+  });
+  const add = document.createElement("button");
+  add.className = "wadd"; add.title = "New tab — find a page (⌘K)"; add.innerHTML = icon("plus");
+  add.addEventListener("click", openPalette);
+  strip.appendChild(add);
+  if (_tabs.length) {
+    const hint = document.createElement("span"); hint.className = "whint";
+    hint.innerHTML = `${_tabs.length} tab${_tabs.length === 1 ? "" : "s"} · middle-click or <span class="kbd">⌥W</span> closes`;
+    strip.appendChild(hint);
+  }
+  const act = strip.querySelector(".wtab.active");
+  if (act) act.scrollIntoView({block: "nearest", inline: "nearest"});
+  document.querySelectorAll("#sidebar .nav-item[data-cat]").forEach(el => el.classList.toggle("has-tab", _tabs.some(t => t.cat === el.dataset.cat)));
+}
+
+function _tabBusy(cat) {
+  const cmd = _tabCmd(cat);
+  if (!cmd) return false;
+  switch (cmd.type) {
+    case "usage": return usBusy;
+    case "churn": return chBusy;
+    case "accounts-table": return acctBusy;
+    case "marketplace": return mpBusy;
+    case "eap-tracker": return _eapLoading;
+    case "account-editor": return aeb.loading;
+    default: return _tabRunning.has(cat);
+  }
+}
+// Busy dots update on a timer so the loaders need no hooks.
+setInterval(() => document.querySelectorAll("#wstrip .wtab[data-cat]").forEach(el => el.classList.toggle("busy", _tabBusy(el.dataset.cat))), 400);
+
+function activateTab(cat) { const t = _tabOf(cat); if (t) selectCommand(t.cmdId, {resume: true}); }
+
+function closeTab(cat) { _closeTabsWhere(t => t.cat === cat); }
+function _closeTabsWhere(pred) {
+  const closing = _tabs.filter((t, j) => pred(t, j));
+  if (!closing.length) return;
+  const idx = _tabs.findIndex(t => t.cat === _activeTab);
+  const keep = _tabs.filter((t, j) => !pred(t, j));
+  closing.forEach(t => { delete _tabSnap[t.cat]; delete _tabScroll[t.cat]; _tabStale.delete(t.cat); });
+  const activeClosed = closing.some(t => t.cat === _activeTab);
+  _tabs = keep;
+  if (activeClosed) {
+    _activeTab = null;   // nothing left to park; the closed page is hidden by the next selection
+    const next = keep.slice(0, Math.max(idx, 0)).pop() || keep[0];
+    if (next) selectCommand(next.cmdId, {resume: true}); else goHome();
+  } else { _tabsSave(); renderWorkspaceTabs(); }
+}
+
+function openTabMenu(e, cat) {
+  const m = document.getElementById("wmenu");
+  const i = _tabs.findIndex(t => t.cat === cat);
+  const items = [
+    ["Close", () => closeTab(cat), false, "⌥W"],
+    ["Close others", () => _closeTabsWhere(t => t.cat !== cat), _tabs.length < 2, ""],
+    ["Close tabs to the right", () => _closeTabsWhere((t, j) => j > i), i >= _tabs.length - 1, ""],
+  ];
+  m.innerHTML = items.map(([label, , off, kbd], k) => `<div class="wmenu-item${off ? " off" : ""}" data-k="${k}"><span>${label}</span>${kbd ? `<span class="kbd">${kbd}</span>` : ""}</div>`).join("");
+  m.querySelectorAll(".wmenu-item").forEach(el => el.addEventListener("click", () => { closeTabMenu(); if (!el.classList.contains("off")) items[+el.dataset.k][1](); }));
+  m.classList.remove("hidden");
+  const r = m.getBoundingClientRect();
+  m.style.left = Math.min(e.clientX, window.innerWidth - r.width - 8) + "px";
+  m.style.top = Math.min(e.clientY, window.innerHeight - r.height - 8) + "px";
+}
+function closeTabMenu() { document.getElementById("wmenu").classList.add("hidden"); }
+document.addEventListener("mousedown", e => { if (!(e.target instanceof Element && e.target.closest("#wmenu"))) closeTabMenu(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeTabMenu();
+  if (!e.altKey || e.metaKey || e.ctrlKey) return;
+  if (e.code === "KeyW") { e.preventDefault(); if (_activeTab) closeTab(_activeTab); return; }
+  const m = /^Digit([0-9])$/.exec(e.code);
+  if (m) {
+    e.preventDefault();
+    const n = +m[1];
+    if (n === 0) goHome(); else if (_tabs[n - 1]) activateTab(_tabs[n - 1].cat);
+  }
+});
+
+// Remember what the outgoing tab looks like so switching back shows it as left.
+function _tabPark(cat) {
+  if (!cat) return;
+  const cmd = _tabCmd(cat);
+  if (!cmd) return;
+  const page = document.getElementById(_pageId(cmd));
+  const inner = [];
+  page.querySelectorAll("div").forEach(d => { if (d.scrollTop || d.scrollLeft) inner.push([d, d.scrollTop, d.scrollLeft]); });
+  _tabScroll[cat] = {main: document.getElementById("main").scrollTop, inner};
+  if (_isGeneric(cmd) && activeCmd && activeCmd.id === cmd.id) {
+    const card = document.getElementById("results-card");
+    const snap = Object.assign(_tabSnap[cat] || {}, {cmdId: cmd.id, values: getFormValues(), consoles: _consoleSelection(cmd), meta: document.getElementById("run-meta").textContent});
+    if (lastResult) { snap.result = lastResult; snap.view = currentTab; snap.html = null; }
+    else if (card.style.display !== "none" && cmd.id !== "latest-agent-versions") {
+      snap.result = null;
+      snap.html = {status: document.getElementById("result-status").innerHTML, tabs: document.getElementById("result-tabs").innerHTML, content: document.getElementById("result-content").innerHTML, tableView: document.getElementById("result-content").classList.contains("table-view")};
+    } else { snap.result = null; snap.html = null; }
+    _tabSnap[cat] = snap;
+  }
+}
+function _tabUnpark(cat) {
+  const s = _tabScroll[cat];
+  if (!s) return;
+  requestAnimationFrame(() => { document.getElementById("main").scrollTop = s.main; s.inner.forEach(([d, t, l]) => { d.scrollTop = t; d.scrollLeft = l; }); });
+}
+function _tabRestoreGeneric(cat, cmd) {
+  const snap = _tabSnap[cat];
+  if (!snap || snap.cmdId !== cmd.id) return;
+  setFormValues(cmd, snap.values || {});
+  _applyConsoleSelection(cmd, snap.consoles);
+  document.getElementById("run-meta").textContent = snap.meta || "";
+  const running = _tabRunning.has(cat);
+  document.getElementById("spinner").style.display = running ? "block" : "none";
+  document.getElementById("run-btn").disabled = running;
+  if (snap.result) { lastResult = snap.result; renderResult(snap.result, {quiet: true}); if (snap.view) switchTab(snap.view, snap.result); }
+  else if (snap.html) {
+    document.getElementById("results-card").style.display = "block";
+    document.getElementById("result-status").innerHTML = snap.html.status;
+    document.getElementById("result-tabs").innerHTML = snap.html.tabs;
+    const content = document.getElementById("result-content");
+    content.innerHTML = snap.html.content; content.classList.toggle("table-view", !!snap.html.tableView);
+    document.getElementById("cli-hint").style.display = "none"; document.getElementById("stderr-box").style.display = "none";
+  }
+}
+// Console picker state: "__all__", a list of console ids, or null when the command has no picker.
+const _pickerReady = {};
+function _consoleSelection(cmd) {
+  const fid = cmd.console_field;
+  const allBox = fid && document.getElementById(`f_${fid}_all`);
+  if (!allBox) return null;
+  if (allBox.checked) return "__all__";
+  return Array.from(document.querySelectorAll(`.cs-cb-${fid}:checked`)).map(cb => cb.value);
+}
+function _applyConsoleSelection(cmd, sel) {
+  const fid = cmd.console_field;
+  if (!fid || sel == null) return;
+  (_pickerReady[fid] || Promise.resolve()).then(() => {
+    const allBox = document.getElementById(`f_${fid}_all`);
+    if (!allBox) return;
+    const boxes = document.querySelectorAll(`.cs-cb-${fid}`);
+    boxes.forEach(cb => cb.checked = sel === "__all__" || sel.includes(cb.value));
+    const checked = document.querySelectorAll(`.cs-cb-${fid}:checked`).length;
+    allBox.checked = boxes.length > 0 && checked === boxes.length;
+    allBox.indeterminate = checked > 0 && checked < boxes.length;
+  });
+}
+function setFormValues(cmd, values) {
+  for (const field of (cmd.fields || [])) {
+    if (!(field.id in values) || field.type === "console-selector" || field.type === "file") continue;
+    const el = document.getElementById("f_" + field.id);
+    if (!el) continue;
+    if (field.type === "checkbox") el.checked = !!values[field.id]; else el.value = values[field.id];
+  }
+}
+// A finished run lands in the tab it was started from, even if another tab is showing.
+function _tabDeliverResult(cat, cmdId, result, metaText) {
+  _tabRunning.delete(cat);
+  if (_activeTab === cat && activeCmd && activeCmd.id === cmdId) {
+    lastResult = result; document.getElementById("run-meta").textContent = metaText; renderResult(result);
+    return true;
+  }
+  const snap = _tabSnap[cat] && _tabSnap[cat].cmdId === cmdId ? _tabSnap[cat] : {cmdId, values: {}};
+  Object.assign(snap, {result, view: null, html: null, meta: metaText});
+  _tabSnap[cat] = snap;
+  return false;
+}
+
+function selectCommand(id, opts) {
   const cmd = COMMANDS.find(c => c.id === id);
   if (!cmd) return;
+  const resume = !!(opts && opts.resume);
+  const cat = cmd.category;
+  if (_activeTab !== cat) _tabPark(_activeTab);
+  let tab = _tabOf(cat);
+  if (!tab) { tab = {cat, cmdId: id}; _tabs.push(tab); } else tab.cmdId = id;
+  _activeTab = cat; _tabsSave(); renderWorkspaceTabs();
+  _selectCommandPage(cmd, resume);
+  if (resume) _tabUnpark(cat);
+  _tabStale.delete(cat);
+}
+
+function _selectCommandPage(cmd, resume) {
+  const id = cmd.id, cat = cmd.category;
+  const stale = _tabStale.has(cat);
   _setPage(cmd);
   try { history.replaceState(null, "", "#" + id); } catch (e) {}
 
@@ -1814,7 +2098,7 @@ function selectCommand(id) {
     document.getElementById("eap-drawer").classList.add("hidden");
     acctPage.style.display = "flex";
     acctInit();
-    acctLoad();
+    if (!resume || !acctData || stale) acctLoad(); else acctSyncHash();
     return;
   }
   if (cmd.type === "churn") {
@@ -1823,7 +2107,7 @@ function selectCommand(id) {
     document.getElementById("eap-drawer").classList.add("hidden");
     chPage.style.display = "flex";
     chInit();
-    chLoad();
+    if (!resume || !chData) chLoad(); else chSyncHash();
     return;
   }
   if (cmd.type === "usage") {
@@ -1832,7 +2116,7 @@ function selectCommand(id) {
     document.getElementById("eap-drawer").classList.add("hidden");
     usPage.style.display = "flex";
     usInit();
-    usLoad();
+    if (!resume || !usData) usLoad(); else usSyncHash();
     return;
   }
   if (cmd.type === "eap-tracker") {
@@ -1843,7 +2127,7 @@ function selectCommand(id) {
     mpPage.style.display = "none";
     eapPage.style.display = "flex";
     eapInit();
-    eapLoad();
+    if (!resume || !eapRows.length) eapLoad();
     return;
   }
   eapPage.style.display = "none";
@@ -1853,7 +2137,7 @@ function selectCommand(id) {
     document.getElementById("eap-drawer").classList.add("hidden");
     mpPage.style.display = "flex";
     mpInit();
-    mpLoad();
+    if (!resume || !mpData) mpLoad(); else mpSyncHash();
     return;
   }
   mpPage.style.display = "none";
@@ -1865,7 +2149,7 @@ function selectCommand(id) {
     document.getElementById("welcome").style.display = "none";
     document.getElementById("command-area").style.display = "none";
     browser.style.display = "flex";
-    aebReload();
+    if (!resume || !aeb.count || stale) aebReload();
     return;
   }
   browser.style.display = "none";
@@ -1884,9 +2168,12 @@ function selectCommand(id) {
 
   renderForm(cmd);
 
-  // Hide results when switching commands
+  // Hide results when switching commands (a resumed tab puts its own back below)
+  lastResult = null;
   document.getElementById("results-card").style.display = "none";
   document.getElementById("run-meta").textContent = "";
+  document.getElementById("spinner").style.display = "none";
+  document.getElementById("run-btn").disabled = false;
 
   // Agent Versions: change button label, restore cached data
   if (cmd.id === "latest-agent-versions") {
@@ -1895,6 +2182,7 @@ function selectCommand(id) {
   } else {
     document.getElementById("run-btn").textContent = "▶ Run";
   }
+  if (resume) _tabRestoreGeneric(cat, cmd);
 }
 
 // ── Form Rendering ──────────────────────────────────────────────────────────
@@ -1963,7 +2251,7 @@ function renderForm(cmd) {
   // Wire up console-selector pickers
   for (const field of (cmd.fields || [])) {
     if (field.type !== "console-selector") continue;
-    _populateConsolePicker(field.id);
+    _pickerReady[field.id] = _populateConsolePicker(field.id);
   }
 
   // Wire up file drop zones
@@ -2000,8 +2288,9 @@ function renderForm(cmd) {
 function getFormValues() {
   const values = {};
   for (const field of (activeCmd?.fields || [])) {
+    if (field.type === "console-selector" || field.type === "file") continue;   // not text inputs
     const el = document.getElementById("f_" + field.id);
-    if (!el) continue;
+    if (!el || typeof el.value !== "string") continue;
     if (field.type === "checkbox") {
       values[field.id] = el.checked;
     } else {
@@ -2055,7 +2344,7 @@ async function _populateConsolePicker(fieldId) {
 }
 
 // ── Console Streaming (generic — used by console-modules and agent-versions) ─
-async function _streamConsoleModules(profiles, meta, t0, streamUrl, extraBody) {
+async function _streamConsoleModules(profiles, meta, t0, streamUrl, extraBody, shape) {
   const card      = document.getElementById("results-card");
   const statusEl  = document.getElementById("result-status");
   const content   = document.getElementById("result-content");
@@ -2076,9 +2365,15 @@ async function _streamConsoleModules(profiles, meta, t0, streamUrl, extraBody) {
   let total = 0;
   let received = 0;
 
+  // What the table shows: the raw per-console rows, pivoted by `shape` when given, with a
+  // totals footer for commands flagged `totals` in the registry.
+  const view = () => {
+    if (shape) return shape(rows);
+    return activeCmd && activeCmd.totals ? _appendTotals(rows, "console") : rows;
+  };
   const rebuildTable = () => {
     content.innerHTML = rows.length
-      ? renderTable(rows)
+      ? renderTable(view())
       : `<div style="padding:14px;color:var(--text-muted);font-size:12px">Waiting for first result…</div>`;
   };
 
@@ -2126,7 +2421,7 @@ async function _streamConsoleModules(profiles, meta, t0, streamUrl, extraBody) {
           meta.textContent = `${elapsed}s`;
           statusEl.innerHTML = `<span class="badge-ok">✓ Success</span>`;
           // Hand off to the normal tab/switch infrastructure
-          lastResult = { success: true, data: rows, preferred_view: "table" };
+          lastResult = { success: true, data: view(), preferred_view: "table" };
           renderTabs(["table", "json"]);
           switchTab("table", lastResult);
           continue;
@@ -2152,6 +2447,8 @@ document.getElementById("run-btn").addEventListener("click", runCommand);
 
 async function runCommand() {
   if (!activeCmd) return;
+  const runCat = activeCmd.category, runCmdId = activeCmd.id;
+  _tabRunning.add(runCat);
 
   const runBtn = document.getElementById("run-btn");
   const spinner = document.getElementById("spinner");
@@ -2205,6 +2502,8 @@ async function runCommand() {
 
       if (activeCmd.id === "latest-agent-versions") {
         await _streamAgentVersions(profiles, meta, t0, extraBody);
+      } else if (activeCmd.id === "agent-version-count") {
+        await _streamConsoleModules(profiles, meta, t0, activeCmd.stream_url, extraBody, _shapeAgentVersionCounts);
       } else {
         await _streamConsoleModules(profiles, meta, t0, activeCmd.stream_url, extraBody);
       }
@@ -2222,20 +2521,17 @@ async function runCommand() {
 
     const result = await resp.json();
     const elapsed = ((Date.now() - t0) / 1000).toFixed(2);
-    lastResult = result;
-    meta.textContent = `${elapsed}s`;
-    renderResult(result);
+    if (!_tabDeliverResult(runCat, runCmdId, result, `${elapsed}s`)) return;
   } catch (e) {
-    meta.textContent = "Network error";
-    renderResult({ success: false, error: String(e) });
+    if (!_tabDeliverResult(runCat, runCmdId, { success: false, error: String(e) }, "Network error")) return;
   } finally {
-    runBtn.disabled = false;
-    spinner.style.display = "none";
+    _tabRunning.delete(runCat);
+    if (_activeTab === runCat) { runBtn.disabled = false; spinner.style.display = "none"; }
   }
 }
 
 // ── Result Rendering ────────────────────────────────────────────────────────
-function renderResult(result) {
+function renderResult(result, opts) {
   const card = document.getElementById("results-card");
   card.style.display = "block";
 
@@ -2287,7 +2583,7 @@ function renderResult(result) {
     stderrBox.style.display = "none";
   }
 
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  if (!(opts && opts.quiet)) card.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function renderTabs(tabs) {
@@ -2348,9 +2644,12 @@ function extractRows(data) {
   return null;
 }
 
-function renderTable(rows) {
-  if (!rows || rows.length === 0) return "<div style='padding:12px;color:var(--text-muted)'>(no rows returned)</div>";
-  const keys = Array.from(new Set(rows.flatMap(r => Object.keys(r || {}))));
+function renderTable(allRows) {
+  if (!allRows || allRows.length === 0) return "<div style='padding:12px;color:var(--text-muted)'>(no rows returned)</div>";
+  // Rows flagged __total render as a bold footer (sums across the body rows).
+  const rows = allRows.filter(r => !(r && r.__total));
+  const foot = allRows.filter(r => r && r.__total);
+  const keys = Array.from(new Set(allRows.flatMap(r => Object.keys(r || {})))).filter(k => k !== "__total");
   const MAX_CELL = 80;
 
   const colCount = keys.length;
@@ -2378,9 +2677,57 @@ function renderTable(rows) {
     }
     html += "</tr>";
   });
-
-  html += "</tbody></table></div>";
+  html += "</tbody>";
+  if (foot.length) {
+    html += "<tfoot>" + foot.map(row => `<tr class="rtotal"><td class="col-num"></td>${keys.map(k => { const v = row[k]; const raw = v === null || v === undefined ? "" : String(v); return `<td title="${escHtml(raw)}">${escHtml(raw)}</td>`; }).join("")}</tr>`).join("") + "</tfoot>";
+  }
+  html += "</table></div>";
   return html;
+}
+
+// Sum every numeric column across rows into one footer row (error cells are skipped).
+function _appendTotals(rows, labelKey) {
+  if (!rows.length) return rows;
+  const tot = {__total: true};
+  tot[labelKey] = `Total (${rows.length} console${rows.length === 1 ? "" : "s"})`;
+  for (const r of rows) for (const [k, v] of Object.entries(r)) { if (k === labelKey) continue; if (typeof v === "number") tot[k] = (tot[k] || 0) + v; else if (!(k in tot)) tot[k] = ""; }
+  return rows.concat([tot]);
+}
+
+// Agent Count by Version: pivot the per-console {versions: [{version, os, count}]} payloads
+// into one row per version × OS with a column per console, a Total column, an "Other"
+// row for agents of unknown OS and a total footer.
+const _verCmp = (a, b) => {
+  const pa = String(a).split("."), pb = String(b).split(".");
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? "", y = pb[i] ?? "";
+    const nx = /^\d+$/.test(x), ny = /^\d+$/.test(y);
+    if (nx && ny) { if (+x !== +y) return +x - +y; } else if (x !== y) return nx ? 1 : ny ? -1 : x.localeCompare(y);
+  }
+  return 0;
+};
+function _shapeAgentVersionCounts(raw) {
+  const consoles = raw.map(r => r.console);
+  const byKey = new Map(), totals = {}, other = {};
+  for (const r of raw) {
+    totals[r.console] = r.Total;
+    if (!Array.isArray(r.versions)) continue;   // error row: Total holds the message
+    other[r.console] = r.Other || 0;
+    for (const v of r.versions) {
+      const k = v.version + "|" + v.os;
+      const row = byKey.get(k) || {version: v.version, os: v.os, counts: {}};
+      row.counts[r.console] = (row.counts[r.console] || 0) + v.count;
+      byKey.set(k, row);
+    }
+  }
+  const rows = [...byKey.values()].sort((a, b) => _verCmp(b.version, a.version) || a.os.localeCompare(b.os));
+  const line = (version, os, get) => { const o = {Version: version, OS: os}; let t = 0; for (const c of consoles) { const n = get(c); o[c] = n; if (typeof n === "number") t += n; } o.Total = t; return o; };
+  const out = rows.map(r => line(r.version, r.os, c => r.counts[c] || 0));
+  if (consoles.some(c => other[c])) out.push(line("Other", "Unknown OS", c => other[c] || 0));
+  const tot = line(`Total (${consoles.length} console${consoles.length === 1 ? "" : "s"})`, "", c => totals[c]);
+  tot.__total = true;
+  out.push(tot);
+  return out;
 }
 
 // ── JSON Syntax Highlighter ─────────────────────────────────────────────────
@@ -3780,7 +4127,7 @@ const msOptionsFrom = (values, fmt = v => v) => { const cnt = {}; values.filter(
   return Object.keys(cnt).sort((a, b) => String(fmt(a)).localeCompare(String(fmt(b)), undefined, {sensitivity: "base", numeric: true})).map(v => ({value: v, label: fmt(v), count: cnt[v]})); };
 const _msHas = (id, v) => { const sel = msValue(id); return !sel.length || sel.includes(String(v)); };
 
-let eapRows = [], eapMeta = {}, eapOpenId = null, _eapInited = false;
+let eapRows = [], eapMeta = {}, eapOpenId = null, _eapInited = false, _eapLoading = false;
 const EAP_STATUS = {
   new:          ["New",          "badge-fetch"],
   needs_review: ["Needs review", "badge-partial"],
@@ -3856,8 +4203,9 @@ function eapInit() {
 
 let eapNoticeSeen = false;
 async function eapLoad() {
-  const res = await fetch("/api/eap/requests");
-  const data = await res.json();
+  _eapLoading = true;
+  let data;
+  try { const res = await fetch("/api/eap/requests"); data = await res.json(); } finally { _eapLoading = false; }
   eapRows = data.rows || [];
   eapMeta = data.meta || {};
   eapRenderSummary();
@@ -5067,19 +5415,19 @@ function usRender() {
   const th = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && usState.sort.key === key ? `<span class="arrow">${usState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
   document.getElementById("us-head").innerHTML = "<tr>" + th("Console", "console") + th("Account", "account") + th("Account ID", "account_id") + th("Salesforce ID", "salesforce_id") + th("State", "state") +
     prods.map(p => th(`${_usEsc(p.short)}<span class="eap-sub" style="font-weight:400">${_usEsc(p.unit)}</span>` +
-      (p.alt_rollups.length ? `<select data-rule="${p.key}" title="Rollup rule for ${_usEsc(p.label)}" onclick="event.stopPropagation()">${[p.rollup, ...p.alt_rollups].map(r => `<option value="${r}" ${(usData.rules[p.key] || p.rollup) === r ? "selected" : ""}>${US_RULE[r]}</option>`).join("")}</select>` : `<span class="us-rule">${US_RULE[p.rollup]}</span>`), "p:" + p.key, "num")).join("") + "</tr>";
+      (p.alt_rollups.length ? `<select data-rule="${p.key}" title="Rollup rule for ${_usEsc(p.label)}" onclick="event.stopPropagation()">${[p.rollup, ...p.alt_rollups].map(r => `<option value="${r}" ${(usData.rules[p.key] || p.rollup) === r ? "selected" : ""}>${US_RULE[r]}</option>`).join("")}</select>` : `<span class="us-rule">${US_RULE[p.rollup]}</span>`), "p:" + p.key, "num")).join("") + '<th class="us-fill"></th></tr>';
   document.querySelectorAll("#us-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; usState.sort = usState.sort.key === k ? {key: k, dir: -usState.sort.dir} : {key: k, dir: 1}; usRender(); });
   document.querySelectorAll("#us-head select[data-rule]").forEach(sel => sel.onchange = () => { usState.rules[sel.dataset.rule] = sel.value; usLoad(); });
   const rows = usSort(usFiltered());
   document.getElementById("us-rows").innerHTML = rows.map(a => `<tr data-acc="${_usEsc(a.console)}:${_usEsc(a.account_id)}" class="${usState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
       <td>${_usLink(a.console)}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>
       <td>${a.state === "final" ? '<span class="us-badge-final">final</span>' : '<span class="us-badge-prov" title="Some days are still live and can change">provisional</span>'}</td>
-      ${prods.map(p => { const c = a.products[p.key]; return `<td class="num" title="${c ? `${c.days} days, ${c.live_days} live · ${US_RULE[c.rule]}` : "no data"}">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}
+      ${prods.map(p => { const c = a.products[p.key]; return `<td class="num" title="${c ? `${c.days} days, ${c.live_days} live · ${US_RULE[c.rule]}` : "no data"}">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}<td class="us-fill"></td>
     </tr>`).join("");
   const tot = usData.totals || {};
   document.getElementById("us-foot").innerHTML = rows.length ? `<tr><td colspan="5">Total · ${rows.length} account${rows.length === 1 ? "" : "s"}${usState.q ? " (filtered rows summed)" : ""}</td>` +
     prods.map(p => { const vals = rows.map(a => a.products[p.key] ? a.products[p.key].value : null).filter(v => v != null); const sum = vals.length ? vals.reduce((x, y) => x + y, 0) : null;
-      const disp = sum == null ? "—" : (p.unit === "bytes" ? _usBytes(sum) : (usData.rules[p.key] === "average" ? sum.toLocaleString(undefined, {maximumFractionDigits: 2}) : Math.round(sum).toLocaleString())); return `<td class="num">${disp}</td>`; }).join("") + "</tr>" : "";
+      const disp = sum == null ? "—" : (p.unit === "bytes" ? _usBytes(sum) : (usData.rules[p.key] === "average" ? sum.toLocaleString(undefined, {maximumFractionDigits: 2}) : Math.round(sum).toLocaleString())); return `<td class="num">${disp}</td>`; }).join("") + '<td class="us-fill"></td></tr>' : "";
   document.querySelectorAll("#us-rows tr").forEach(tr => tr.onclick = () => { const [c, id] = tr.dataset.acc.split(":"); usOpenAccount(c, id); });
   const synced = usData.health.some(h => h.state === "ok");
   document.getElementById("us-status").textContent = !usData.accounts.length

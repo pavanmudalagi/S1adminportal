@@ -15,8 +15,8 @@
      "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": "cloud_provider",
      "note": "Max concurrently connected agents per day."},
     {"key": "data_ingest", "report": "xdr_ingested_bytes", "label": "Data Ingest", "short": "Ingest", "unit": "bytes",
-     "rollup": "sum", "alt_rollups": [], "breakdown": "source_name",
-     "note": "Third-party data ingested; summed over the month and shown in GB/TB."},
+     "rollup": "sum", "alt_rollups": ["average", "peak", "month_end"], "breakdown": "source_name",
+     "note": "Third-party data ingested; summed over the month and shown in GB/TB (average = mean bytes per day, peak = busiest day)."},
     {"key": "idr", "report": "singularity_identity_endpoints", "label": "Identity – IDR", "short": "IDR", "unit": "agents",
      "rollup": "peak", "alt_rollups": ["average", "month_end"], "breakdown": null,
      "note": "Max deployed, not-decommissioned agents per day."},
@@ -31,13 +31,13 @@
      "rollup": "peak", "alt_rollups": ["average", "month_end"], "daily": "max", "breakdown": null, "group": "Prompt",
      "note": "Distinct developers with the agent per day (daily seat count) — never summed across days; peak day of the period."},
     {"key": "prompt_homegrown", "report": "ai_security_homegrown_app_calls", "label": "Prompt – Homegrown Apps", "short": "Prompt Apps", "unit": "calls",
-     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "rollup": "sum", "alt_rollups": ["average", "peak", "month_end"], "daily": "sum", "breakdown": null, "group": "Prompt",
      "note": "API calls made by homegrown apps; usage count summed over the billing period."},
     {"key": "prompt_agentic", "report": "ai_security_agentic_ai_usage", "label": "Prompt – Agentic AI", "short": "Prompt Agentic", "unit": "events",
-     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "rollup": "sum", "alt_rollups": ["average", "peak", "month_end"], "daily": "sum", "breakdown": null, "group": "Prompt",
      "note": "Agentic events; usage count summed over the billing period."},
     {"key": "prompt_redteam", "report": "ai_security_red_teaming_usage", "label": "Prompt – AI Red Teaming", "short": "Prompt RT", "unit": "attacks",
-     "rollup": "sum", "alt_rollups": [], "daily": "sum", "breakdown": null, "group": "Prompt",
+     "rollup": "sum", "alt_rollups": ["average", "peak", "month_end"], "daily": "sum", "breakdown": null, "group": "Prompt",
      "note": "Executed attacks; usage count summed over the billing period."}
   ]
 }
