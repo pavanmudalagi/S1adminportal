@@ -140,6 +140,24 @@ SentinelOne consoles (read-only):
 3. **Check S1 consoles** — `GET /accounts/{id}` on the matching console: is a Prompt bundle
    present, and if so the tenant name and first users.
 
+**Export to Excel…** opens a picker before the download: choose the sheets (Summary, the old *Customer List*
+layout, the full Tracker) and the content groups to include. *All details* is everything, for the team; *Just enough
+to share* keeps the request basics, console / Prompt status and agent counts and leaves out contact emails,
+identifiers (Customer ID, 1000_ tenant, S1 account name and ID, Prompt tenant), Prompt admins, the Salesforce account
+team and the internal workflow columns (match, reasons, notes, who enabled it). Any mix can be ticked; the Summary
+sheet records what was left out, the file name gets "(selected content)" when anything is, and the last choice is
+remembered in the browser. API: `GET /api/eap/export?groups=basics,console,agents&sheets=summary,list,tracker`
+(`GET /api/eap/export/options` lists the groups; `level=full|share` are the presets).
+
+**Backup / Restore.** *Backup* downloads the complete tracker as one JSON file — every request, additional tenant,
+history line, audit line and setting from `eap.db`, plus the custom email template — and keeps a copy in
+`~/.config/s1am/backups/` (`[eap] backups_dir`). *Restore…* takes such a file, shows what it holds next to what the
+tracker holds now, and on confirmation replaces everything with it; a safety copy of the current tracker is written to
+the backups folder first, so a restore can itself be undone. Row ids are kept, so history and tenants stay attached;
+columns a backup has that this version does not know are skipped and reported. From the shell:
+`s1am eap-backup [PATH]` and `s1am eap-restore PATH` (preview) / `s1am eap-restore PATH --yes` (apply).
+API: `GET /api/eap/backup[?save=1]`, `POST /api/eap/restore[?apply=1]` with the file as multipart field `file`.
+
 Click a row for the full detail (candidates, raw form text, console data, history) and the
 editable provisioning fields (tenant name, first users, notes, enabled Y/N …). The Salesforce
 candidate tenants table also shows each tenant's SentinelOne account name and state, read from

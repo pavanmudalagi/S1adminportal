@@ -29,11 +29,12 @@ from ..api.config import Config
 from . import email as email_mod
 from . import enrich as enrich_mod
 from . import forms, s1check
-from .store import DEFAULT_DB, Store
+from .store import BACKUP_TABLES, DEFAULT_DB, Store
 
 DEFAULTS = {
     "form_path": "",
     "db_path": str(DEFAULT_DB),
+    "backups_dir": str(DEFAULT_DB.parent / "backups"),
     "downloads_dir": "~/Downloads",
     "default_count": "-1",
     "actioned_by": "",
@@ -442,6 +443,7 @@ TRACKER_COLUMNS = [
     ("#", "id"), ("Submitted", "completion_time"), ("Company", "company"), ("Contact", "contact_name"),
     ("Contact Email", "contact_email"), ("Super Admin", "super_admin_name"), ("Super Admin Email", "super_admin_email"),
     ("Requested", "products"), ("SF Account", "sf_account_name"), ("Customer ID", "customer_id"), ("Country", "country"),
+    ("SF account team", "_team"),
     ("Tenant", "sf_tenant"), ("Tenant state", "_tenant_state"), ("Match", "_match"), ("Match note", "match_note"),
     ("Status", "status"), ("Status reason", "status_reason"), ("Console", "s1_console"), ("S1 Account", "s1_account_name"),
     ("S1 Account ID", "s1_account_id"), ("Prompt on console", "_prompt"), ("Prompt tenant", "s1_prompt_tenant"),
@@ -450,6 +452,76 @@ TRACKER_COLUMNS = [
     ("Enabled (Y/N)", "_enabled"), ("Date Enabled", "date_enabled"), ("Enabled By", "enabled_by"),
     ("First contacted", "first_contacted"), ("Notes", "notes"), ("Joe status", "joe_status"), ("Joe ref", "joe_ref"),
 ]
+
+
+# Export content. The export picker offers these groups; a preset is a set of them. "full" is everything (internal),
+# "share" is just enough for someone outside the team — no identifiers (S1 account IDs, Customer IDs, 1000_ tenants,
+# Prompt tenant names), no contact emails or admin lists, no Salesforce account team, no internal workflow columns.
+# Every Customer List header and Tracker label belongs to exactly one group (checked by a test).
+EXPORT_GROUPS = [
+    {"key": "basics", "label": "Request basics", "always": True, "share": True,
+     "desc": "Company, contact name, Salesforce account, country, what was requested, status, enabled and when",
+     "list": ["#", "Contact Name", "Company (Form)", "SF Account Name", "Country", "SKU Requested 1", "SKU Requested 2",
+              "Wayfinder MDR Essential", "Hyperautomation", "First contacted", "Enabled (Y/N)", "Date Enabled"],
+     "tracker": ["#", "Submitted", "Company", "Contact", "Requested", "SF Account", "Country", "Status", "Enabled (Y/N)", "Date Enabled", "First contacted"]},
+    {"key": "console", "label": "Console and Prompt status", "always": False, "share": True,
+     "desc": "Which console, whether Prompt is enabled there, Prompt SKUs, when it was last checked",
+     "list": [], "tracker": ["Console", "Prompt on console", "Prompt SKUs", "Checked"]},
+    {"key": "agents", "label": "Agent counts", "always": False, "share": True,
+     "desc": "Complete, Control and total agents from Salesforce",
+     "list": ["Complete Agents", "Control Agents", "Total Agents (Complete + Control)"], "tracker": ["Complete agents", "Control agents", "Total agents"]},
+    {"key": "emails", "label": "Contact emails", "always": False, "share": False,
+     "desc": "Requester and super-admin email addresses from the form",
+     "list": ["Contact Email", "Super Admin"], "tracker": ["Contact Email", "Super Admin", "Super Admin Email"]},
+    {"key": "ids", "label": "Identifiers", "always": False, "share": False,
+     "desc": "Customer ID, 1000_ tenant, S1 account name and ID, Prompt tenant name, console details typed on the form",
+     "list": ["Customer ID", "1000_ Tenant (Contract)", "Account name", "S1 Console/Account (from form)"],
+     "tracker": ["Customer ID", "Tenant", "S1 Account", "S1 Account ID", "Prompt tenant"]},
+    {"key": "admins", "label": "Prompt admins", "always": False, "share": False,
+     "desc": "Names and emails of the Prompt tenant admins read from the console",
+     "list": [], "tracker": ["Prompt admins"]},
+    {"key": "team", "label": "Salesforce account team", "always": False, "share": False,
+     "desc": "Account team members (name, role, email) from Salesforce",
+     "list": [], "tracker": ["SF account team"]},
+    {"key": "workflow", "label": "Internal workflow", "always": False, "share": False,
+     "desc": "Tenant state, match confidence and notes, status reasons, who enabled it, notes, Joe status",
+     "list": ["Enabled By", "Notes"], "tracker": ["Tenant state", "Match", "Match note", "Status reason", "Enabled By", "Notes", "Joe status", "Joe ref"]},
+]
+EXPORT_SHEETS = [{"key": "summary", "label": "Summary", "desc": "Counts by status and console"},
+                 {"key": "list", "label": "Customer List", "desc": "The old EAP - Customer List layout"},
+                 {"key": "tracker", "label": "Tracker", "desc": "One line per request and additional tenant"}]
+EXPORT_LEVELS = ("full", "share")
+
+
+def export_groups_for(level):
+    if level not in EXPORT_LEVELS:
+        raise ValueError(f"unknown export level {level!r}")
+    return [g["key"] for g in EXPORT_GROUPS if level == "full" or g["share"]]
+
+
+def export_columns(groups=None, level=None):
+    """(Customer List headers, Tracker (label, key) pairs) for the chosen content groups (or a preset level).
+    The basics are always included; column order follows the master lists."""
+    keys = set(groups if groups is not None else export_groups_for(level or "full"))
+    known = {g["key"] for g in EXPORT_GROUPS}
+    bad = sorted(keys - known)
+    if bad:
+        raise ValueError(f"unknown export group(s): {', '.join(bad)}")
+    keys |= {g["key"] for g in EXPORT_GROUPS if g["always"]}
+    list_ok = {c for g in EXPORT_GROUPS if g["key"] in keys for c in g["list"]}
+    tr_ok = {c for g in EXPORT_GROUPS if g["key"] in keys for c in g["tracker"]}
+    return [c for c in EXPORT_COLUMNS if c in list_ok], [(l, k) for l, k in TRACKER_COLUMNS if l in tr_ok]
+
+
+def export_options():
+    """What the export picker shows: groups, sheets and the two presets."""
+    return {"groups": [{k: g[k] for k in ("key", "label", "desc", "always", "share")} for g in EXPORT_GROUPS],
+            "sheets": EXPORT_SHEETS, "presets": {lvl: export_groups_for(lvl) for lvl in EXPORT_LEVELS}}
+
+
+def _team_text(team):
+    return "; ".join(f"{m.get('name') or m.get('email') or ''}{' (' + m['role'] + ')' if m.get('role') else ''} <{m.get('email') or ''}>"
+                     if isinstance(m, dict) else str(m) for m in team or [])
 
 
 def _enabled_yn(r):
@@ -527,10 +599,19 @@ def summary(rows):
             "tenants_enabled": len(enabled) + sum(1 for t in extra if t.get("s1_prompt_enabled"))}
 
 
-def export_workbook(st, path):
-    """Write a new .xlsx: Summary, Customer List (the old sheet's layout) and the full Tracker table."""
+def export_workbook(st, path, level="full", groups=None, sheets=None):
+    """Write a new .xlsx with the chosen sheets (Summary, Customer List in the old layout, Tracker) and the chosen
+    content groups — ``groups`` wins over the ``level`` preset ("full" = everything, "share" = just enough to pass on)."""
     import openpyxl
     from openpyxl.styles import Font
+    groups = list(groups) if groups is not None else export_groups_for(level)
+    list_cols, tracker_cols = export_columns(groups)
+    sheet_keys = [sh["key"] for sh in EXPORT_SHEETS]
+    sheets = list(sheets) if sheets else sheet_keys
+    bad = sorted(set(sheets) - set(sheet_keys))
+    if bad:
+        raise ValueError(f"unknown sheet(s): {', '.join(bad)}")
+    left_out = [g["label"] for g in EXPORT_GROUPS if g["key"] not in groups and not g["always"]]
     rows = st.list()
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -555,22 +636,26 @@ def export_workbook(st, path):
     ws.append([])
     ws.append(["Data as of", f"workbook synced {st.get_meta('last_sync') or '—'}; Salesforce {st.get_meta('sf_as_of') or '—'}; "
                              f"consoles {st.get_meta('s1_as_of') or '—'}"])
+    ws.append(["Export content", ("All details" if not left_out else "Left out: " + ", ".join(left_out))])
     ws["A1"].font = Font(bold=True, size=13)
     ws.column_dimensions["A"].width = 34
     ws.column_dimensions["B"].width = 60
 
     cl = wb.create_sheet("Customer List")
-    cl.append(EXPORT_COLUMNS)
+    cl.append(list_cols)
+    keep = [i for i, c in enumerate(EXPORT_COLUMNS) if c in list_cols]
     for row in export_rows(rows):
-        cl.append(row)
+        cl.append([row[i] for i in keep])
 
     tr = wb.create_sheet("Tracker")
-    tr.append([label for label, _ in TRACKER_COLUMNS])
+    tr.append([label for label, _ in tracker_cols])
 
     def tracker_line(r, tenant_state):
         line = []
-        for _, key in TRACKER_COLUMNS:
-            if key == "_tenant_state":
+        for _, key in tracker_cols:
+            if key == "_team":
+                value = _team_text(r.get("sf_team"))
+            elif key == "_tenant_state":
                 value = tenant_state
             elif key == "_match":
                 value = match_label(r)
@@ -601,6 +686,9 @@ def export_workbook(st, path):
             cell.font = Font(bold=True)
         sheet.freeze_panes = "B2"
         sheet.auto_filter.ref = sheet.dimensions
+    for key, sheet in (("summary", ws), ("list", cl), ("tracker", tr)):
+        if key not in sheets:
+            wb.remove(sheet)
 
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -608,8 +696,72 @@ def export_workbook(st, path):
     return {"path": str(path), **s}
 
 
-def export_default_path():
-    return Path.home() / "Downloads" / f"EAP - Customer List {datetime.datetime.now():%Y-%m-%d %H%M}.xlsx"
+# ── backup / restore ────────────────────────────────────────────────────────
+
+BACKUP_FORMAT = "s1am-eap-backup"
+BACKUP_VERSION = 1
+
+
+def backup_data(st):
+    """The complete tracker as one JSON-able document: every table row (requests, additional tenants, history, audit
+    trail, meta) plus the custom email template. Restoring it brings the tracker back exactly."""
+    tpl = email_mod.load_template()
+    return {"format": BACKUP_FORMAT, "version": BACKUP_VERSION, "created_at": _now(), "db_path": str(st.path),
+            "counts": st.counts(), "tables": st.dump_tables(),
+            "files": {"email_template": tpl["text"] if tpl["custom"] else None}}
+
+
+def backup_default_path(tag=""):
+    return Path(os.path.expanduser(setting("backups_dir"))) / f"eap-backup {datetime.datetime.now():%Y-%m-%d %H%M%S}{tag}.json"
+
+
+def write_backup(st, path=None, tag=""):
+    """Write the backup document to ``path`` (default: the backups folder). Returns {path, counts, created_at}."""
+    data = backup_data(st)
+    path = Path(path or backup_default_path(tag))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    return {"path": str(path), "counts": data["counts"], "created_at": data["created_at"], "bytes": path.stat().st_size}
+
+
+def check_backup(data):
+    """Raise ValueError unless ``data`` is a backup document this version can restore."""
+    if not isinstance(data, dict) or data.get("format") != BACKUP_FORMAT:
+        raise ValueError("not an s1am EAP backup file")
+    if int(data.get("version") or 0) > BACKUP_VERSION:
+        raise ValueError(f"backup version {data.get('version')} is newer than this app understands ({BACKUP_VERSION})")
+    tables = data.get("tables")
+    if not isinstance(tables, dict) or not isinstance(tables.get("requests"), list):
+        raise ValueError("backup has no requests table")
+    for t, rows in tables.items():
+        if not isinstance(rows, list) or not all(isinstance(r, dict) for r in rows):
+            raise ValueError(f"table {t!r} is not a list of rows")
+
+
+def restore_backup(st, data, apply=False):
+    """Preview (default) or apply a restore. Applying first writes a safety copy of the current tracker to the backups
+    folder, then replaces every table and the custom email template with what the file holds."""
+    check_backup(data)
+    tables = data["tables"]
+    files = data.get("files") or {}
+    preview = {"created_at": data.get("created_at"), "db_path": data.get("db_path"),
+               "file": {t: len(tables.get(t) or []) for t in BACKUP_TABLES},
+               "current": st.counts(), "email_template": "custom" if files.get("email_template") else "built-in",
+               "applied": False}
+    if not apply:
+        return preview
+    safety = write_backup(st, tag=" (before restore)")
+    result = st.load_tables(tables)
+    if "email_template" in files:
+        email_mod.save_template(files.get("email_template") or "")
+    st.add_history(0, "restore", f"Tracker restored from backup made {data.get('created_at')}", {"safety_copy": safety["path"]})
+    return {**preview, "applied": True, "restored": result["counts"], "skipped_columns": result["skipped_columns"],
+            "safety_copy": safety["path"]}
+
+
+def export_default_path(level="full", groups=None):
+    tag = "" if (groups is None and level == "full") or (groups is not None and set(groups) >= set(export_groups_for("full"))) else " (selected content)"
+    return Path.home() / "Downloads" / f"EAP - Customer List {datetime.datetime.now():%Y-%m-%d %H%M}{tag}.xlsx"
 
 
 # ── additional tenants ──────────────────────────────────────────────────────

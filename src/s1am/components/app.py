@@ -1799,15 +1799,62 @@ def eap_check_tenant(tid):
 
 @app.route("/api/eap/export")
 def eap_export():
-    """Download the tracker as a fresh .xlsx (Summary + Customer List layout + full table)."""
+    """Download the tracker as a fresh .xlsx with the chosen content: ``groups=basics,console,…`` and
+    ``sheets=summary,list,tracker`` (see /api/eap/export/options), or a preset ``level=full|share``."""
     import tempfile
     from flask import send_file
     svc, st = _eap()
-    name = svc.export_default_path().name
-    tmp = Path(tempfile.mkdtemp(prefix="s1am-eap-")) / name
-    svc.export_workbook(st, tmp)
+    level = request.args.get("level", "full")
+    groups = [g for g in (request.args.get("groups") or "").split(",") if g] or None
+    sheets = [x for x in (request.args.get("sheets") or "").split(",") if x] or None
+    if level not in svc.EXPORT_LEVELS:
+        return jsonify({"error": f"level must be one of {', '.join(svc.EXPORT_LEVELS)}"}), 400
+    try:
+        svc.export_columns(groups, level)
+        name = svc.export_default_path(level, groups).name
+        tmp = Path(tempfile.mkdtemp(prefix="s1am-eap-")) / name
+        svc.export_workbook(st, tmp, level, groups, sheets)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     return send_file(str(tmp), as_attachment=True, download_name=name,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+@app.route("/api/eap/backup")
+def eap_backup():
+    """Download the complete tracker (every table plus the custom email template) as one JSON file that
+    POST /api/eap/restore brings back exactly. ``save=1`` also keeps a copy in the backups folder."""
+    svc, st = _eap()
+    data = svc.backup_data(st)
+    if request.args.get("save") == "1":
+        svc.write_backup(st)
+    name = svc.backup_default_path().name
+    return Response(json.dumps(data, ensure_ascii=False, indent=1), mimetype="application/json",
+                    headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+@app.route("/api/eap/restore", methods=["POST"])
+def eap_restore():
+    """Preview (default) or apply (``apply=1``) a restore from an uploaded backup file (multipart field ``file``) or a
+    JSON body. Applying replaces everything; a safety copy of the current tracker is written first."""
+    svc, st = _eap()
+    try:
+        if "file" in request.files:
+            data = json.loads(request.files["file"].read().decode("utf-8"))
+        else:
+            data = request.get_json(silent=True)
+        if data is None:
+            return jsonify({"error": "upload a backup file (field 'file') or post its JSON"}), 400
+        return jsonify(svc.restore_backup(st, data, apply=request.args.get("apply") == "1"))
+    except (ValueError, UnicodeDecodeError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/eap/export/options")
+def eap_export_options():
+    """Content groups, sheets and presets for the export picker."""
+    svc, _ = _eap()
+    return jsonify(svc.export_options())
 
 
 @app.route("/api/eap/summary")

@@ -481,3 +481,42 @@ class TestCustomerEmail:
         assert d["subject"] == "Hello Cheops" and d["body_html"] == "<p>Body <b></b></p>" and d["body"] == "Body\n"
         t = client.put("/api/eap/email-template", json={"text": ""}).json
         assert t["custom"] is False and not (tmp_path / "tpl.txt").exists()
+
+
+def test_export_options_and_picked_content(api):
+    import io, openpyxl
+    client, _ = api
+    opts = client.get("/api/eap/export/options").json
+    assert [g["key"] for g in opts["groups"]][:3] == ["basics", "console", "agents"] and opts["presets"]["share"] == ["basics", "console", "agents"]
+    assert [s["key"] for s in opts["sheets"]] == ["summary", "list", "tracker"]
+    r = client.get("/api/eap/export?groups=basics,ids&sheets=tracker,summary")
+    assert r.status_code == 200 and "(selected content)" in r.headers["Content-Disposition"]
+    wb = openpyxl.load_workbook(io.BytesIO(r.data))
+    assert wb.sheetnames == ["Summary", "Tracker"]
+    head = list(next(wb["Tracker"].iter_rows(values_only=True)))
+    assert "S1 Account ID" in head and "Contact Email" not in head
+    full = client.get("/api/eap/export")
+    assert full.status_code == 200 and "(selected" not in full.headers["Content-Disposition"]
+    assert client.get("/api/eap/export?groups=basics,secrets").status_code == 400
+    assert client.get("/api/eap/export?sheets=pivot").status_code == 400
+    assert client.get("/api/eap/export?level=top").status_code == 400
+
+
+def test_backup_download_and_restore_routes(api, tmp_path, monkeypatch):
+    import io, json
+    from s1am.eap import service
+    monkeypatch.setattr(service, "setting", lambda key: {"backups_dir": str(tmp_path / "backups"), "db_path": str(tmp_path / "eap.db")}.get(key, ""))
+    client, st = api
+    r = client.get("/api/eap/backup")
+    assert r.status_code == 200 and r.headers["Content-Disposition"].startswith('attachment; filename="eap-backup')
+    data = json.loads(r.data)
+    assert data["format"] == service.BACKUP_FORMAT and data["counts"]["requests"] == 1 and data["tables"]["requests"][0]["company"] == "Cheops"
+    st.update(3, {"notes": "scribble"}, source="user")
+    pv = client.post("/api/eap/restore", data={"file": (io.BytesIO(json.dumps(data).encode()), "b.json")}, content_type="multipart/form-data").json
+    assert pv["applied"] is False and pv["file"]["requests"] == 1 and st.get(3)["notes"] == "scribble"
+    ap = client.post("/api/eap/restore?apply=1", data={"file": (io.BytesIO(json.dumps(data).encode()), "b.json")}, content_type="multipart/form-data").json
+    assert ap["applied"] and ap["restored"]["requests"] == 1 and st.get(3)["notes"] is None and "(before restore)" in ap["safety_copy"]
+    assert client.post("/api/eap/restore?apply=1", json={"format": "nope"}).status_code == 400
+    assert client.post("/api/eap/restore", data={"file": (io.BytesIO(b"not json"), "b.json")}, content_type="multipart/form-data").status_code == 400
+    assert client.post("/api/eap/restore").status_code == 400
+    assert st.counts()["requests"] == 1

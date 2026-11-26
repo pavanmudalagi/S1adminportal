@@ -69,6 +69,9 @@ USER_FIELDS = {"notes", "first_contacted", "enabled_yn", "date_enabled", "enable
                "tenant_confirmed"}
 
 
+BACKUP_TABLES = ("requests", "request_tenants", "history", "audit", "meta")   # everything the tracker keeps
+
+
 def _now():
     return datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -246,6 +249,49 @@ class Store:
             c.execute("INSERT INTO audit (ts, actor, console, account_id, action, dry_run, payload_hash, result) "
                       "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                       (_now(), actor, console, str(account_id), action, int(bool(dry_run)), digest, result))
+
+    # ── backup / restore ─────────────────────────────────────────────────
+
+    def dump_tables(self):
+        """Every row of every table, raw (JSON columns stay text), ordered — the whole tracker as plain data."""
+        out = {}
+        with self._conn() as c:
+            for t in BACKUP_TABLES:
+                order = "key" if t == "meta" else "id"
+                out[t] = [dict(r) for r in c.execute(f"SELECT * FROM {t} ORDER BY {order}")]
+        return out
+
+    def counts(self):
+        with self._conn() as c:
+            return {t: c.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in BACKUP_TABLES}
+
+    def load_tables(self, tables):
+        """Replace the whole content with ``tables`` (the shape dump_tables returns) in one transaction. Columns the
+        current schema does not know are skipped and reported; ids are kept so history and tenants stay attached."""
+        skipped = {}
+        counts = {}
+        conn = self._conn()
+        try:
+            conn.execute("BEGIN")
+            for t in BACKUP_TABLES:
+                have = [r["name"] for r in conn.execute(f"PRAGMA table_info({t})")]
+                rows = tables.get(t) or []
+                conn.execute(f"DELETE FROM {t}")
+                conn.execute("DELETE FROM sqlite_sequence WHERE name = ?", (t,))
+                unknown = sorted({k for r in rows for k in r} - set(have))
+                if unknown:
+                    skipped[t] = unknown
+                for r in rows:
+                    cols = [k for k in r if k in have]
+                    conn.execute(f"INSERT INTO {t} ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", [r[k] for k in cols])
+                counts[t] = len(rows)
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+        return {"counts": counts, "skipped_columns": skipped}
 
     def set_meta(self, key, value):
         with self._conn() as c:

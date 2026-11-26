@@ -498,6 +498,26 @@ def cmd_eap_export(args):
     _print_json(service.export_workbook(st, args.path or service.export_default_path()))
 
 
+def cmd_eap_backup(args):
+    from .eap import service
+    st = service.open_store()
+    _print_json(service.write_backup(st, args.path))
+
+
+def cmd_eap_restore(args):
+    import json as _json
+    from pathlib import Path
+    from .eap import service
+    st = service.open_store()
+    data = _json.loads(Path(args.path).read_text(encoding="utf-8"))
+    preview = service.restore_backup(st, data, apply=False)
+    if not args.yes:
+        _print_json(preview)
+        print("Preview only. Re-run with --yes to replace the tracker (a safety copy is written first).", file=sys.stderr)
+        return
+    _print_json(service.restore_backup(st, data, apply=True))
+
+
 def cmd_eap_seed(args):
     from .eap import service
     st = service.open_store()
@@ -1207,6 +1227,13 @@ def build_parser():
     eap_export.add_argument("path", nargs="?", default=None, help="Output file (default: ~/Downloads/EAP - Customer List <date>.xlsx)")
     eap_export.set_defaults(func=cmd_eap_export)
 
+    eap_backup = sub.add_parser("eap-backup", help="Write the complete EAP tracker (all tables + custom email template) to a JSON backup")
+    eap_backup.add_argument("path", nargs="?", default=None, help="Output file (default: ~/.config/s1am/backups/eap-backup <date>.json)")
+    eap_backup.set_defaults(func=cmd_eap_backup)
+    eap_restore = sub.add_parser("eap-restore", help="Restore the EAP tracker from a backup JSON (preview unless --yes)")
+    eap_restore.add_argument("path", help="Backup file written by eap-backup or the Backup button")
+    eap_restore.add_argument("--yes", action="store_true", help="Apply: replace every table (a safety copy is written first)")
+    eap_restore.set_defaults(func=cmd_eap_restore)
     eap_seed = sub.add_parser("eap-seed", help="One-time import of notes/enabled columns from 'EAP - Customer List.xlsx'")
     eap_seed.add_argument("path", help="Path to the Customer List workbook (Sheet1, '#' = form Id)")
     eap_seed.set_defaults(func=cmd_eap_seed)

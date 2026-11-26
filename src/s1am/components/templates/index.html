@@ -767,6 +767,39 @@
 </div>
 
 <!-- ── Add Console Modal ── -->
+<div id="eapexp-backdrop" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="eapexp-title" style="width:560px">
+    <div class="modal-title" id="eapexp-title">Export to Excel</div>
+    <div class="modal-desc">Pick what goes into the workbook. Start from a preset, then tick or untick content. The Summary sheet lists what was left out.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm" id="eapexp-preset-full" title="Every column — for the team">All details</button>
+      <button class="btn btn-sm" id="eapexp-preset-share" title="Just enough to pass on outside the team: no identifiers, emails, admins, Salesforce team or internal notes">Just enough to share</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="acct-checklist" id="eapexp-groups" style="padding:0;max-height:none"></div>
+      <div class="acct-checklist" id="eapexp-sheets" style="padding:0;max-height:none"></div>
+    </div>
+    <div class="modal-desc" id="eapexp-note"></div>
+    <div class="modal-desc" id="eapexp-err" style="color:var(--error)"></div>
+    <div class="modal-footer">
+      <button class="btn" id="eapexp-cancel">Cancel</button>
+      <a class="btn btn-primary" id="eapexp-download" download>Download</a>
+    </div>
+  </div>
+</div>
+<div id="eaprst-backdrop" class="modal-backdrop hidden">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="eaprst-title" style="width:560px">
+    <div class="modal-title" id="eaprst-title">Restore the EAP tracker</div>
+    <div class="modal-desc">Pick a backup file made with <b>Backup</b> (or <code>s1am eap-backup</code>). You will see what it holds before anything changes. Restoring replaces every request, tenant, history line, audit line, setting and the custom email template; a safety copy of the current tracker is written to the backups folder first.</div>
+    <input type="file" id="eaprst-file" accept="application/json,.json" class="input">
+    <div id="eaprst-preview" class="modal-desc"></div>
+    <div class="modal-desc" id="eaprst-err" style="color:var(--error)"></div>
+    <div class="modal-footer">
+      <button class="btn" id="eaprst-cancel">Cancel</button>
+      <button class="btn btn-primary" id="eaprst-apply" disabled>Replace the tracker</button>
+    </div>
+  </div>
+</div>
 <div id="add-console-modal" class="modal-backdrop hidden">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ac-title">
     <div class="modal-title" id="ac-title">＋ Add Console</div>
@@ -910,7 +943,10 @@
             <button class="btn" id="eap-sync-btn" title="Read the latest Forms export (highest (1-N) in Downloads) and add new or changed responses; never overwrites your edits"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Import form responses</button>
             <button class="btn" id="eap-enrich-btn" title="Look each request up in Salesforce and pull its account, 1000_ tenant, country, Customer ID and agent counts into the tracker"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg> Match in Salesforce</button>
             <button class="btn btn-primary" id="eap-check-btn" title="Read each matched account from its SentinelOne console: Prompt bundle present, tenant name, first users (read-only)"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg> Check S1 consoles</button>
-            <a class="btn" id="eap-export-btn" href="/api/eap/export" download title="Excel with a Summary sheet, the Customer List layout and the full table"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export to Excel</a>
+            <a class="btn" id="eap-backup-btn" href="/api/eap/backup?save=1" download title="Download the complete tracker (every request, additional tenant, history, audit line, setting and the custom email template) as one JSON file that Restore brings back exactly; a copy is also kept in ~/.config/s1am/backups"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg> Backup</a>
+            <button class="btn" id="eap-restore-btn" title="Replace the whole tracker with a backup file — you see what the file holds first, and a safety copy of the current data is written before anything changes"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5"/></svg> Restore…</button>
+            <button class="btn" id="eap-export-btn" title="Excel export — pick the sheets and the content to include before downloading"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export to Excel…</button>
+            </div>
           </div>
         </div>
         <div class="card-body" style="display:flex;flex-direction:column;gap:8px;">
@@ -4175,6 +4211,8 @@ function eapInit() {
   if (_eapInited) return;
   _eapInited = true;
   document.getElementById("eap-add-btn").onclick    = eapAddOpen;
+  document.getElementById("eap-export-btn").onclick = eapExportOpen;
+  document.getElementById("eap-restore-btn").onclick = eapRestoreOpen;
   document.getElementById("eap-sync-btn").onclick   = eapSync;
   document.getElementById("eap-enrich-btn").onclick = () => eapEnrich();
   document.getElementById("eap-check-btn").onclick  = () => eapCheck();
@@ -4261,6 +4299,85 @@ function _eapFill(selId, values, fmt = v => v) {
 }
 // ── add a request by hand ──
 const EAP_PRODUCT_CHOICES = ["Prompt Security", "Identity Security", "Hyperautomation", "Wayfinder MDR Essentials"];
+function eapRestoreOpen() {
+  const bd = document.getElementById("eaprst-backdrop"), file = document.getElementById("eaprst-file");
+  const prev = document.getElementById("eaprst-preview"), err = document.getElementById("eaprst-err"), apply = document.getElementById("eaprst-apply");
+  file.value = ""; prev.innerHTML = ""; err.textContent = ""; apply.disabled = true; apply.textContent = "Replace the tracker";
+  bd.classList.remove("hidden");
+  const close = () => bd.classList.add("hidden");
+  document.getElementById("eaprst-cancel").onclick = close;
+  bd.onclick = e => { if (e.target === bd) close(); };
+  const post = async applyNow => {
+    const fd = new FormData(); fd.append("file", file.files[0]);
+    const r = await fetch("/api/eap/restore" + (applyNow ? "?apply=1" : ""), {method: "POST", body: fd});
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.statusText);
+    return d;
+  };
+  const table = (d, key) => `<table class="rtable" style="margin-top:6px"><thead><tr><th>Table</th><th class="num">In the file</th><th class="num">Now</th></tr></thead><tbody>${Object.keys(d.file).map(t => `<tr><td>${_eapEsc(t)}</td><td class="num">${d.file[t]}</td><td class="num">${d.current[t]}</td></tr>`).join("")}</tbody></table>`;
+  file.onchange = async () => {
+    err.textContent = ""; prev.innerHTML = ""; apply.disabled = true;
+    if (!file.files[0]) return;
+    try {
+      const d = await post(false);
+      prev.innerHTML = `Backup made <b>${_eapEsc(d.created_at || "?")}</b>${d.db_path ? ` from <span class="eap-muted">${_eapEsc(d.db_path)}</span>` : ""} · email template: ${_eapEsc(d.email_template)}` + table(d);
+      apply.disabled = false;
+    } catch (e) { err.textContent = String(e.message || e); }
+  };
+  apply.onclick = async () => {
+    if (!file.files[0] || !confirm("Replace the whole tracker with this backup? A safety copy of the current data is written first.")) return;
+    apply.disabled = true; apply.textContent = "Restoring…"; err.textContent = "";
+    try {
+      const d = await post(true);
+      const skipped = Object.keys(d.skipped_columns || {}).length ? `<div class="eap-muted">Columns not in this version were skipped: ${_eapEsc(JSON.stringify(d.skipped_columns))}</div>` : "";
+      prev.innerHTML = `<b>Restored.</b> ${Object.entries(d.restored).map(([t, n]) => `${_eapEsc(t)} ${n}`).join(", ")}.<div class="eap-muted">Safety copy of the previous data: ${_eapEsc(d.safety_copy)}</div>${skipped}`;
+      apply.textContent = "Done";
+      eapLoad();
+    } catch (e) { err.textContent = String(e.message || e); apply.disabled = false; apply.textContent = "Replace the tracker"; }
+  };
+}
+let _eapExportOpts = null;
+async function eapExportOpen() {
+  const bd = document.getElementById("eapexp-backdrop"), err = document.getElementById("eapexp-err");
+  err.textContent = "";
+  bd.classList.remove("hidden");
+  if (!_eapExportOpts) {
+    try { const r = await fetch("/api/eap/export/options"); _eapExportOpts = await r.json(); }
+    catch (e) { err.textContent = "Could not load the export options: " + e; return; }
+  }
+  const o = _eapExportOpts;
+  const remembered = (() => { try { return JSON.parse(localStorage.getItem("s1amEapExport") || "null"); } catch (e) { return null; } })();
+  const picked = new Set(remembered && remembered.groups ? remembered.groups : o.presets.full);
+  const sheets = new Set(remembered && remembered.sheets ? remembered.sheets : o.sheets.map(x => x.key));
+  const groupsEl = document.getElementById("eapexp-groups"), sheetsEl = document.getElementById("eapexp-sheets");
+  const render = () => {
+    groupsEl.innerHTML = `<div class="acct-ck-title">Content</div>` + o.groups.map(g => `<label title="${_eapEsc(g.desc)}"><input type="checkbox" data-group="${_eapEsc(g.key)}" ${picked.has(g.key) || g.always ? "checked" : ""} ${g.always ? "disabled" : ""}> <span>${_eapEsc(g.label)}${g.share ? "" : ' <span class="eap-muted" style="font-size:11px">internal</span>'}</span></label>`).join("");
+    sheetsEl.innerHTML = `<div class="acct-ck-title">Sheets</div>` + o.sheets.map(x => `<label title="${_eapEsc(x.desc)}"><input type="checkbox" data-sheet="${_eapEsc(x.key)}" ${sheets.has(x.key) ? "checked" : ""}> <span>${_eapEsc(x.label)}</span></label>`).join("");
+    groupsEl.querySelectorAll("input[data-group]").forEach(cb => cb.onchange = () => { cb.checked ? picked.add(cb.dataset.group) : picked.delete(cb.dataset.group); update(); });
+    sheetsEl.querySelectorAll("input[data-sheet]").forEach(cb => cb.onchange = () => { cb.checked ? sheets.add(cb.dataset.sheet) : sheets.delete(cb.dataset.sheet); update(); });
+    update();
+  };
+  const update = () => {
+    const groups = o.groups.filter(g => g.always || picked.has(g.key)).map(g => g.key);
+    const sh = o.sheets.filter(x => sheets.has(x.key)).map(x => x.key);
+    const internal = o.groups.filter(g => groups.includes(g.key) && !g.share).map(g => g.label);
+    const left = o.groups.filter(g => !groups.includes(g.key)).map(g => g.label);
+    document.getElementById("eapexp-note").textContent = !sh.length ? "Pick at least one sheet."
+      : (internal.length ? `Includes internal content (${internal.join(", ")}) — for the team only.` : "No identifiers, emails, admins, Salesforce team or notes — fine to pass on.")
+        + (left.length ? ` Left out: ${left.join(", ")}.` : "");
+    const a = document.getElementById("eapexp-download");
+    a.classList.toggle("off", !sh.length); a.style.pointerEvents = sh.length ? "" : "none";
+    a.href = `/api/eap/export?groups=${encodeURIComponent(groups.join(","))}&sheets=${encodeURIComponent(sh.join(","))}`;
+    try { localStorage.setItem("s1amEapExport", JSON.stringify({groups, sheets: sh})); } catch (e) {}
+  };
+  document.getElementById("eapexp-preset-full").onclick = () => { picked.clear(); o.presets.full.forEach(k => picked.add(k)); render(); };
+  document.getElementById("eapexp-preset-share").onclick = () => { picked.clear(); o.presets.share.forEach(k => picked.add(k)); render(); };
+  const close = () => bd.classList.add("hidden");
+  document.getElementById("eapexp-cancel").onclick = close;
+  document.getElementById("eapexp-download").onclick = () => setTimeout(close, 300);
+  bd.onclick = e => { if (e.target === bd) close(); };
+  render();
+}
 function eapAddOpen() {
   const bd = document.getElementById("eapadd-backdrop");
   ["company", "contact-name", "contact-email", "admin-name", "admin-email", "details", "tenant", "account", "notes"].forEach(k => document.getElementById("eapadd-" + k).value = "");
