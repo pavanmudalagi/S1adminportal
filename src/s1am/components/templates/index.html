@@ -179,7 +179,7 @@
     .whint { margin-left: auto; align-self: center; font-size: 11px; color: var(--text-muted); white-space: nowrap; padding: 0 4px 0 12px; }
     .whint .kbd { margin-left: 2px; }
     .wmenu { position: fixed; z-index: 170; min-width: 190px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0,0,0,.25); padding: 4px; display: flex; flex-direction: column; }
-    .wmenu.hidden { display: none; }
+    .wmenu.hidden, .btn.hidden { display: none; }
     .wmenu-item { height: 30px; padding: 0 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 12px; border-radius: var(--radius); cursor: pointer; color: var(--text); }
     .wmenu-item:hover { background: var(--surface-2); }
     .wmenu-item.off { color: var(--text-muted); cursor: default; }
@@ -595,6 +595,11 @@
     .us-table th select { height: 22px; padding: 0 20px 0 6px; font-size: 11px; width: auto; margin-left: 6px; background-position: right 5px center; vertical-align: middle; text-transform: none; font-weight: 400; }
     .us-table td.num, .us-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
     .us-table th.num { width: 130px; } .us-table th .eap-sub { max-width: none; }
+    /* Prompt Security view: Prompt Console · Tenant · Admins sit between Salesforce ID and State */
+    .us-table.pv thead th:nth-child(5) { width: 180px; } .us-table.pv thead th:nth-child(6) { width: 170px; } .us-table.pv thead th:nth-child(7) { width: 280px; } .us-table.pv thead th:nth-child(8) { width: 72px; }
+    .us-table.pv tbody td:nth-child(6) { max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .us-admin { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 280px; line-height: 1.5; } .us-admin .eap-muted { font-size: 11px; }
+    .us-tenant-missing { color: var(--text-muted); font-style: italic; }
     .us-table .us-fill { width: auto; padding: 0; border-left: 0; }   /* empty last column: takes the leftover width when few products are shown */
     .us-table tbody tr { cursor: pointer; }
     .us-table tfoot td { font-weight: 600; background: var(--surface-2); border-top: 1px solid var(--border); height: 40px; }
@@ -1035,11 +1040,12 @@
       <div class="card">
         <div class="card-header">
           <div>
-            <div class="card-title">Usage &amp; Billing</div>
-            <div class="card-desc">Daily usage from the SDL metering datasource, rolled up to one billable number per account and site. Click a row for the daily trend and the site breakdown.</div>
+            <div class="card-title" id="us-title">Usage &amp; Billing</div>
+            <div class="card-desc" id="us-desc">Daily usage from the SDL metering datasource, rolled up to one billable number per account and site. Click a row for the daily trend and the site breakdown.</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:flex-end;">
             <span class="eap-muted" id="us-synced"></span>
+            <button class="btn hidden" id="us-prompt-refresh" title="Re-read every listed account's Prompt tenant, admins and console from its SentinelOne console (read-only GET per account)"><svg class="ico" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Refresh tenant details</button>
             <button class="btn" id="us-sync" title="Fetch this month from every console (live days are re-fetched, archived days kept)"><svg class="ico" viewBox="0 0 24 24"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8M21 3v5h-5M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16M8 16H3v5"/></svg> Sync month</button>
             <div class="us-dd" id="us-export-dd">
               <button class="btn" id="us-export-btn"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> Export ▾</button>
@@ -2115,8 +2121,12 @@ function _selectCommandPage(cmd, resume) {
     ["welcome", "command-area", "ae-browser", "eap-page", "mp-page"].forEach(id => document.getElementById(id).style.display = "none");
     document.getElementById("eap-drawer").classList.add("hidden");
     usPage.style.display = "flex";
+    const view = cmd.view || "usage";
+    const switched = usState.view !== view;
+    if (switched) { usState.view = view; usState.products = null; usState.sort = {key: "", dir: 1}; usState.account = ""; usState.site = ""; }
     usInit();
-    if (!resume || !usData) usLoad(); else usSyncHash();
+    usApplyView();
+    if (!resume || !usData || switched || usData.view !== view) usLoad(); else usSyncHash();
     return;
   }
   if (cmd.type === "eap-tracker") {
@@ -5289,7 +5299,20 @@ async function mpLoadDetail(kind, console, instId, btn) {
 // Usage & billing
 // ═══════════════════════════════════════════════════════════════════════════
 let usData = null, usInited = false, usBusy = false, usPoll = null;
-const usState = {month: "", console: [], products: null, rules: {}, q: "", sort: {key: "", dir: 1}, account: "", site: "", zero: false};
+const usState = {month: "", console: [], products: null, rules: {}, q: "", sort: {key: "", dir: 1}, account: "", site: "", zero: false, view: "usage"};
+const US_VIEWS = {
+  usage:  {title: "Usage & Billing", desc: "Daily usage from the SDL metering datasource, rolled up to one billable number per account and site. Click a row for the daily trend and the site breakdown.", url: "/api/usage/summary?"},
+  prompt: {title: "Prompt Security", desc: "Accounts with Prompt Security usage this month, with the Prompt console they are hosted in, the tenant name and the admins read from the account on its SentinelOne console. Click a row for the daily trend and the tenant details.", url: "/api/usage/prompt?"},
+};
+const _usPv = () => usState.view === "prompt";
+function usApplyView() {
+  const v = US_VIEWS[usState.view] || US_VIEWS.usage;
+  document.getElementById("us-title").textContent = v.title;
+  document.getElementById("us-desc").textContent = v.desc;
+  document.getElementById("us-prompt-refresh").classList.toggle("hidden", !_usPv());
+  document.getElementById("us-table").classList.toggle("pv", _usPv());
+  document.getElementById("us-q").placeholder = _usPv() ? "Search account, ID, Salesforce ID, tenant, admin…" : "Search account, ID, Salesforce ID…";
+}
 const _usEsc = _eapEsc;
 const _usLabel = code => code ? ((usData && usData.labels && usData.labels[code]) ? `${usData.labels[code]} (${code})` : code) : "";
 const _usLink = code => consoleLink(code, _usLabel(code));
@@ -5307,6 +5330,7 @@ function usInit() {
   document.getElementById("us-q").oninput = e => { usState.q = e.target.value; usRender(); };
   document.getElementById("us-zero").onchange = e => { usState.zero = e.target.checked; usLoad(); };
   document.getElementById("us-sync").onclick = usSync;
+  document.getElementById("us-prompt-refresh").onclick = () => usPromptRefresh(true);
   document.getElementById("us-export-btn").onclick = e => { e.stopPropagation(); document.getElementById("us-export-dd").classList.toggle("open"); };
   document.addEventListener("click", () => document.getElementById("us-export-dd").classList.remove("open"));
   document.getElementById("us-d-close").onclick = usCloseDrawer;
@@ -5341,30 +5365,39 @@ function usQuery() {
 function usSyncHash() {
   const qs = usQuery(); qs.delete("consoles"); if (usState.console.length) qs.set("console", usState.console.join(","));
   if (usState.account) qs.set("account", usState.account); if (usState.site) qs.set("site", usState.site);
-  try { history.replaceState(null, "", "#usage?" + qs.toString()); } catch (e) {}
+  try { history.replaceState(null, "", "#" + (_usPv() ? "prompt-security" : "usage") + "?" + qs.toString()); } catch (e) {}
   const allFinal = usData && usData.accounts.length && usData.accounts.every(a => a.state === "final");
   const menu = document.getElementById("us-export-menu");
+  if (_usPv()) {
+    menu.innerHTML = `<a href="#" id="us-prompt-csv">CSV — Prompt Security table (consoles, tenants, admins, meters)</a>`;
+    document.getElementById("us-prompt-csv").onclick = e => { e.preventDefault(); usPromptCsv(); };
+    return;
+  }
   const link = (label, level, fmt, final) => `<a href="/api/usage/export?${usQuery().toString()}&level=${level}&format=${fmt}${final ? "&final=1" : ""}" download class="${final && !allFinal ? "off" : ""}" ${final && !allFinal ? 'title="Only when every row is final (all days archived)" onclick="event.preventDefault()"' : ""}>${label}</a>`;
   menu.innerHTML = link("CSV — accounts", "account", "csv") + link("CSV — sites", "site", "csv") + link("Excel — accounts (sheet per product)", "account", "xlsx") + link("Excel — sites (sheet per product)", "site", "xlsx")
     + `<div style="border-top:1px solid var(--border);margin:4px 0"></div>` + link(`Finalize for billing — Excel, accounts${allFinal ? "" : " (month still provisional)"}`, "account", "xlsx", true);
 }
 
+let usReload = false;   // a load asked for while one is in flight (e.g. switching to the Prompt view) runs right after it
 async function usLoad() {
-  if (usBusy) return;
+  if (usBusy) { usReload = true; return; }
   usBusy = true; document.getElementById("us-err").textContent = "";
   if (!usData) document.getElementById("us-status").textContent = "Loading…";
   try {
-    const res = await fetch("/api/usage/summary?" + usQuery().toString());
+    const view = usState.view;
+    const res = await fetch((US_VIEWS[view] || US_VIEWS.usage).url + usQuery().toString());
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (view !== usState.view) { usReload = true; return; }   // the user switched views meanwhile; fetch the right one below
     usData = data;
     usFillControls();
     usRender();
     if (data.sync && data.sync.running) usStartPoll();
+    if (_usPv() && data.tenants_missing > 0 && data.accounts.length) usPromptRefresh(false);   // first open: fill the tenant columns by itself
     if (usState.account) usOpenAccount(...usState.account.split(":"), true);
     else if (usState.site) usOpenSite(...usState.site.split(":"), true);
   } catch (e) { document.getElementById("us-err").textContent = e.message; document.getElementById("us-status").textContent = "Could not load — " + e.message; }
-  finally { usBusy = false; }
+  finally { usBusy = false; if (usReload) { usReload = false; usLoad(); } }
 }
 function usFillControls() {
   msSetOptions("us-console", usData.consoles.map(c => ({value: c, label: _usLabel(c)})));
@@ -5392,14 +5425,22 @@ function usHealth() {
   }).join("");
 }
 function usProductsShown() { return usData.products.filter(p => usState.products.includes(p.key)); }
+function usInventoryNote(prods) {
+  // CWS columns are daily inventory snapshots (active protection = CWS), taken at sync time; the Srv column has them taken off.
+  const inv = prods.filter(p => p.source === "inventory"), split = prods.filter(p => (p.subtract || []).length);
+  if (!inv.length && !split.length) return "";
+  return ` · ${inv.map(p => p.short).join(", ")}${inv.length ? " = inventory snapshot at sync time (active protection CWS)" : ""}${split.length ? `${inv.length ? ";" : ""} ${split.map(p => p.short).join(", ")} excludes CWS-protected agents from the snapshot day on` : ""}`;
+}
 function usFiltered() {
   const q = usState.q.trim().toLowerCase();
-  return usData.accounts.filter(a => !q || [a.account, a.account_id, a.salesforce_id, a.console].join(" ").toLowerCase().includes(q));
+  const text = a => [a.account, a.account_id, a.salesforce_id, a.console, ...(a.prompt ? [a.prompt.tenant, a.prompt.console_url, ...(a.prompt.users || []).flatMap(u => [u.name, u.email])] : [])].join(" ").toLowerCase();
+  return usData.accounts.filter(a => !q || text(a).includes(q));
 }
 function usSort(rows) {
   const key = usState.sort.key || "console", dir = usState.sort.key ? usState.sort.dir : 1;
   return rows.sort((a, b) => {
-    const get = r => key.startsWith("p:") ? (r.products[key.slice(2)] ? r.products[key.slice(2)].value : null) : r[key];
+    const get = r => key.startsWith("p:") ? (r.products[key.slice(2)] ? r.products[key.slice(2)].value : null)
+      : key.startsWith("pr:") ? (r.prompt ? (key === "pr:admins" ? (r.prompt.users || []).map(u => u.name || u.email).join(", ") || null : r.prompt[key.slice(3)]) : null) : r[key];
     let x = get(a), y = get(b);
     if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
     const r = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, {sensitivity: "base", numeric: true});
@@ -5413,26 +5454,71 @@ function usRender() {
   document.querySelectorAll("#us-health .us-chip").forEach(el => el.onclick = () => { const c = el.dataset.console; usState.console = usState.console.includes(c) ? usState.console.filter(x => x !== c) : [...usState.console, c]; msSetValue("us-console", usState.console, true); usLoad(); });
   const prods = usProductsShown();
   const th = (label, key, cls) => `<th ${key ? `data-key="${key}"` : ""} class="${cls || ""}">${label}${key && usState.sort.key === key ? `<span class="arrow">${usState.sort.dir > 0 ? "▲" : "▼"}</span>` : ""}</th>`;
-  document.getElementById("us-head").innerHTML = "<tr>" + th("Console", "console") + th("Account", "account") + th("Account ID", "account_id") + th("Salesforce ID", "salesforce_id") + th("State", "state") +
+  const pv = _usPv();
+  const promptHead = pv ? th("Prompt Console", "pr:console_url") + th("Tenant", "pr:tenant") + th("Admins", "pr:admins") : "";
+  document.getElementById("us-head").innerHTML = "<tr>" + th("Console", "console") + th("Account", "account") + th("Account ID", "account_id") + th("Salesforce ID", "salesforce_id") + promptHead + th("State", "state") +
     prods.map(p => th(`${_usEsc(p.short)}<span class="eap-sub" style="font-weight:400">${_usEsc(p.unit)}</span>` +
       (p.alt_rollups.length ? `<select data-rule="${p.key}" title="Rollup rule for ${_usEsc(p.label)}" onclick="event.stopPropagation()">${[p.rollup, ...p.alt_rollups].map(r => `<option value="${r}" ${(usData.rules[p.key] || p.rollup) === r ? "selected" : ""}>${US_RULE[r]}</option>`).join("")}</select>` : `<span class="us-rule">${US_RULE[p.rollup]}</span>`), "p:" + p.key, "num")).join("") + '<th class="us-fill"></th></tr>';
   document.querySelectorAll("#us-head th[data-key]").forEach(el => el.onclick = () => { const k = el.dataset.key; usState.sort = usState.sort.key === k ? {key: k, dir: -usState.sort.dir} : {key: k, dir: 1}; usRender(); });
   document.querySelectorAll("#us-head select[data-rule]").forEach(sel => sel.onchange = () => { usState.rules[sel.dataset.rule] = sel.value; usLoad(); });
   const rows = usSort(usFiltered());
   document.getElementById("us-rows").innerHTML = rows.map(a => `<tr data-acc="${_usEsc(a.console)}:${_usEsc(a.account_id)}" class="${usState.account === `${a.console}:${a.account_id}` ? "sel" : ""}">
-      <td>${_usLink(a.console)}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>
+      <td>${_usLink(a.console)}</td><td>${_usEsc(a.account)}</td><td class="eap-muted">${_usEsc(a.account_id)}</td><td class="eap-muted">${_usEsc(a.salesforce_id || "")}</td>${pv ? usPromptCells(a) : ""}
       <td>${a.state === "final" ? '<span class="us-badge-final">final</span>' : '<span class="us-badge-prov" title="Some days are still live and can change">provisional</span>'}</td>
       ${prods.map(p => { const c = a.products[p.key]; return `<td class="num" title="${c ? `${c.days} days, ${c.live_days} live · ${US_RULE[c.rule]}` : "no data"}">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}<td class="us-fill"></td>
     </tr>`).join("");
   const tot = usData.totals || {};
-  document.getElementById("us-foot").innerHTML = rows.length ? `<tr><td colspan="5">Total · ${rows.length} account${rows.length === 1 ? "" : "s"}${usState.q ? " (filtered rows summed)" : ""}</td>` +
+  document.getElementById("us-foot").innerHTML = rows.length ? `<tr><td colspan="${pv ? 8 : 5}">Total · ${rows.length} account${rows.length === 1 ? "" : "s"}${usState.q ? " (filtered rows summed)" : ""}</td>` +
     prods.map(p => { const vals = rows.map(a => a.products[p.key] ? a.products[p.key].value : null).filter(v => v != null); const sum = vals.length ? vals.reduce((x, y) => x + y, 0) : null;
       const disp = sum == null ? "—" : (p.unit === "bytes" ? _usBytes(sum) : (usData.rules[p.key] === "average" ? sum.toLocaleString(undefined, {maximumFractionDigits: 2}) : Math.round(sum).toLocaleString())); return `<td class="num">${disp}</td>`; }).join("") + '<td class="us-fill"></td></tr>' : "";
   document.querySelectorAll("#us-rows tr").forEach(tr => tr.onclick = () => { const [c, id] = tr.dataset.acc.split(":"); usOpenAccount(c, id); });
   const synced = usData.health.some(h => h.state === "ok");
   document.getElementById("us-status").textContent = !usData.accounts.length
     ? (synced ? `No usage stored for ${usState.month}. Click “Sync month” to fetch it.` : "No console has been synced yet — click “Sync month”.")
-    : `${rows.length} of ${usData.accounts.length} accounts · rules: ${prods.map(p => `${p.short} = ${US_RULE[usData.rules[p.key]]}`).join(", ")}`;
+    : `${rows.length} of ${usData.accounts.length} accounts${pv && usData.tenants_missing ? ` · ${usData.tenants_missing} without tenant details` : ""}${pv && usData.tenants_checked ? ` · tenants read ${usData.tenants_checked}` : ""} · rules: ${prods.map(p => `${p.short} = ${US_RULE[usData.rules[p.key]]}`).join(", ")}${usInventoryNote(prods)}`;
+}
+// Prompt Security view: the three tenant cells of one account row.
+function usPromptCells(a) {
+  const t = a.prompt;
+  if (!t) return `<td colspan="3" class="us-tenant-missing">${_usPromptBusy ? "reading from the console…" : "not read yet — click “Refresh tenant details”"}</td>`;
+  if (t.error) return `<td colspan="3" class="us-tenant-missing" title="${_usEsc(t.error)}">${_usEsc(t.error)}</td>`;
+  const host = (t.console_url || "").replace(/^https?:\/\//, "");
+  const url = t.console_url ? `<a class="console-link" href="${_usEsc(t.console_url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${_usEsc([t.region ? `region ${t.region}` : "", t.usage_type ? `account type ${t.usage_type}` : ""].filter(Boolean).join(" · "))}">${_usEsc(host)}</a>`
+    : `<span class="eap-muted" title="${t.tenant ? "No Prompt console known for this SentinelOne region (the apne1 / Tokyo consoles are not in SentinelOne's Prompt region table)" : "No Prompt tenant on the account"}">—</span>`;
+  const tenant = t.tenant ? `<span title="${_usEsc(t.tenant)}">${_usEsc(t.tenant)}</span>` : '<span class="us-tenant-missing" title="The account itself has no Prompt tenant; the usage may belong to a site-level tenant">no account tenant</span>';
+  const admins = (t.users || []).length ? t.users.map(u => `<span class="us-admin" title="${_usEsc(u.email || "")}">${_usEsc(u.name || u.email || "")}${u.name && u.email ? ` <span class="eap-muted">${_usEsc(u.email)}</span>` : ""}</span>`).join("") : '<span class="eap-muted">—</span>';
+  return `<td>${url}</td><td>${tenant}</td><td>${admins}</td>`;
+}
+let _usPromptBusy = false;
+const _usPromptTried = new Set();
+async function usPromptRefresh(force) {
+  const key = `${usState.month}|${usState.console.join(",")}`;
+  if (_usPromptBusy || (!force && _usPromptTried.has(key))) return;
+  _usPromptTried.add(key); _usPromptBusy = true;
+  const btn = document.getElementById("us-prompt-refresh"); btn.disabled = true;
+  const status = document.getElementById("us-status"); status.textContent = "Reading Prompt tenant details from the consoles…";
+  if (usData) usRender();
+  try {
+    const res = await fetch("/api/usage/prompt/refresh", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({month: usState.month, consoles: usState.console, force: !!force})});
+    const r = await res.json(); if (!res.ok) throw new Error(r.error || `HTTP ${res.status}`);
+    _usPromptBusy = false;
+    await usLoad();
+    document.getElementById("us-status").textContent += ` · tenant details: ${r.checked} read${r.skipped ? `, ${r.skipped} kept` : ""}${r.errors ? `, ${r.errors} failed` : ""}`;
+  } catch (e) { document.getElementById("us-err").textContent = "Tenant details: " + e.message; }
+  finally { _usPromptBusy = false; btn.disabled = false; }
+}
+function usPromptCsv() {
+  const prods = usProductsShown(), rows = usSort(usFiltered());
+  const q = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  const head = ["Console", "Account", "Account ID", "Salesforce ID", "Prompt Console", "Tenant", "Admins", "Admin emails", "State", ...prods.map(p => `${p.label} (${US_RULE[usData.rules[p.key]]})`)];
+  const lines = [head.map(q).join(",")];
+  for (const a of rows) {
+    const t = a.prompt || {};
+    lines.push([a.console, a.account, a.account_id, a.salesforce_id || "", t.console_url || "", t.tenant || "", (t.users || []).map(u => u.name || "").join("; "), (t.users || []).map(u => u.email || "").join("; "), a.state,
+      ...prods.map(p => a.products[p.key] && a.products[p.key].value != null ? a.products[p.key].value : "")].map(q).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], {type: "text/csv"});
+  const aEl = document.createElement("a"); aEl.href = URL.createObjectURL(blob); aEl.download = `prompt-security-${usState.month}.csv`; aEl.click(); URL.revokeObjectURL(aEl.href);
 }
 const _usBytes = (n, base) => { base = base || (usData && usData.bytes_base) || 1000; const u = ["B", "KB", "MB", "GB", "TB", "PB"]; let v = n, i = 0; while (v >= base && i < u.length - 1) { v /= base; i++; } return `${v.toLocaleString(undefined, {maximumFractionDigits: 2})} ${u[i]}`; };
 
@@ -5507,8 +5593,19 @@ async function usOpenAccount(console, accountId, silent) {
     const prods = usData.products.filter(p => d.sites.some(s => s.products[p.key]));
     const sites = `<table class="rtable us-table" style="font-size:12px"><thead><tr><th>Site</th><th>Site ID</th>${prods.map(p => `<th class="num">${_usEsc(p.short)}<span class="us-rule">${US_RULE[usData.rules[p.key]]}</span></th>`).join("")}</tr></thead><tbody>${
       d.sites.map(s => `<tr data-site="${_usEsc(s.site_id)}"><td>${_usEsc(s.site)}</td><td class="eap-muted">${_usEsc(s.site_id || "—")}</td>${prods.map(p => { const c = s.products[p.key]; return `<td class="num">${c ? _usEsc(c.display) + (c.state === "provisional" ? ' <span class="us-badge-prov" style="padding:0 4px">p</span>' : "") : '<span class="eap-muted">—</span>'}</td>`; }).join("")}</tr>`).join("")}</tbody></table>`;
+    const row = (usData.accounts || []).find(a => a.console === console && String(a.account_id) === String(accountId));
+    const t = _usPv() && row ? row.prompt : null;
+    const tenantSec = !_usPv() ? "" : !t ? `<div class="eap-sec"><h4>Prompt Security tenant</h4><div class="us-tenant-missing">Not read yet — click “Refresh tenant details”.</div></div>`
+      : t.error ? `<div class="eap-sec"><h4>Prompt Security tenant</h4><div class="ae-err" style="display:block">${_usEsc(t.error)}</div></div>`
+      : `<div class="eap-sec"><h4>Prompt Security tenant</h4><div class="eap-kv">
+          <div class="k">Prompt console</div><div>${t.console_url ? `<a class="console-link" href="${_usEsc(t.console_url)}" target="_blank" rel="noopener">${_usEsc(t.console_url)}</a>` : "—"}${t.region ? ` <span class="eap-muted">· region ${_usEsc(t.region)}</span>` : ""}</div>
+          <div class="k">Tenant name</div><div>${t.tenant ? _usEsc(t.tenant) : '<span class="us-tenant-missing">none on the account</span>'}</div>
+          <div class="k">Admins</div><div>${(t.users || []).length ? t.users.map(u => `${_usEsc(u.name || "")}${u.email ? ` <span class="eap-muted">${_usEsc(u.email)}</span>` : ""}`).join("<br>") : "—"}</div>
+          <div class="k">Prompt SKUs</div><div>${(t.bundles || []).length ? _usEsc(t.bundles.join(", ")) : "—"}</div>
+          <div class="k">Account type</div><div>${_usEsc(t.usage_type || "—")}</div>
+          <div class="k">Read</div><div class="eap-muted">${_usEsc(t.checked_at || "")}</div></div></div>`;
     usOpenDrawer(d.account || accountId, `${_usLink(console)} · account ${_usEsc(accountId)}${d.salesforce_id ? ` · Salesforce ${_usEsc(d.salesforce_id)}` : ""} · ${_usEsc(d.month)}`,
-      `<div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>
+      tenantSec + `<div class="eap-sec"><h4>Billable this month</h4>${usProductCards(d)}</div>
        <div class="eap-sec"><h4>Sites · ${d.sites.length}</h4><div style="overflow-x:auto">${sites}</div><div class="eap-muted" style="margin-top:6px">Click a site for its daily trend and breakdown. “(account level)” rows are usage the report attributes to the account itself.</div></div>`);
     document.querySelectorAll("#us-d-body tr[data-site]").forEach(tr => { tr.onclick = () => { if (tr.dataset.site) usOpenSite(console, tr.dataset.site); }; });
   } catch (e) { usOpenDrawer("Account", _usEsc(accountId), `<div class="ae-err" style="display:block">${_usEsc(e.message)}</div>`); }

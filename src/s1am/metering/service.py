@@ -36,6 +36,7 @@ from pathlib import Path
 
 import requests
 
+from .. import licenses
 from ..api.config import Config
 
 PRODUCTS_FILE = Path(__file__).with_name("products.json")
@@ -48,7 +49,9 @@ TIMEOUT = 90
 ROLLUPS = ("peak", "average", "month_end", "sum")
 DAILY_AGGS = ("sum", "max")      # how several rows of one scope on one day combine
 DEFAULT_SYNC_HOUR = 14           # local; S1 publishes day X about 12:15 UTC on day X+1 (Prompt meters), loaders ≥ 13:00 UTC
-ROW_LIMIT = 100000           # the API silently caps at 1000 rows unless the query sets a limit
+ROW_LIMIT = 100000           # the API caps at 1000 rows unless the query sets a limit — and at 100,000 whatever the limit says
+SOURCES = ("metering", "inventory")
+INVENTORY_PAGE = 1000        # GET /xdr/assets max page size
 
 
 def _now():
@@ -64,6 +67,11 @@ def load_products(path=None):
         p.setdefault("key", p["report"]); p.setdefault("label", p["report"]); p.setdefault("short", p["label"])
         p.setdefault("unit", ""); p.setdefault("rollup", "peak"); p.setdefault("alt_rollups", []); p.setdefault("breakdown", None)
         p.setdefault("daily", "sum"); p.setdefault("group", None)
+        p.setdefault("source", "metering"); p.setdefault("subtract", []); p.setdefault("inventory", {})
+        if p["source"] not in SOURCES:
+            raise ValueError(f"{p['key']}: unknown source {p['source']!r}")
+        if p["source"] == "inventory" and not p["inventory"].get("coverage"):
+            raise ValueError(f"{p['key']}: an inventory product needs inventory.coverage")
         if p["rollup"] not in ROLLUPS:
             raise ValueError(f"{p['key']}: unknown rollup {p['rollup']!r}")
         if p["daily"] not in DAILY_AGGS:
@@ -76,6 +84,46 @@ def product_by_key(products, key):
         if p["key"] == key or p["report"] == key:
             return p
     return None
+
+
+def reports_for(products):
+    """Every report the given products need from the store: their own plus the ones they subtract."""
+    out = []
+    for p in products:
+        for rep in [p["report"], *p.get("subtract", [])]:
+            if rep not in out:
+                out.append(rep)
+    return out
+
+
+def product_rows(p, rows):
+    """The daily rows of one product out of a mixed list. For a product with ``subtract``, the same-day, same-site
+    counts of the subtracted reports come off its rows (off the largest breakdown row of that site and day, never
+    below zero): the metering endpoint reports count every server agent by bundle, the inventory snapshot says how
+    many of them CWS protects. Days without a snapshot are left as reported."""
+    own = [dict(r) for r in rows if r["report"] == p["report"]]
+    subs = set(p.get("subtract") or [])
+    if not subs or not own:
+        return own
+    off = {}
+    for r in rows:
+        if r["report"] in subs:
+            k = (r["account_id"], r["site_id"], r["date"])
+            off[k] = off.get(k, 0.0) + float(r["value"] or 0)
+    if not off:
+        return own
+    groups = {}
+    for r in own:
+        groups.setdefault((r["account_id"], r["site_id"], r["date"]), []).append(r)
+    for k, rs in groups.items():
+        n = off.get(k, 0.0)
+        for r in sorted(rs, key=lambda r: -float(r["value"] or 0)):
+            if n <= 0:
+                break
+            take = min(n, float(r["value"] or 0))
+            r["value"] = float(r["value"] or 0) - take
+            n -= take
+    return own
 
 
 # ── query builder ──────────────────────────────────────────────────────────
@@ -219,6 +267,9 @@ class PowerQueryClient:
                 raise MeteringError("Non-JSON response from PowerQuery", "error") from exc
             if isinstance(payload, dict) and payload.get("status") and str(payload["status"]).lower() not in ("ok", "success", "complete", "completed"):
                 raise MeteringError(f"PowerQuery status {payload['status']}: {str(payload.get('message') or payload.get('warnings') or '')[:200]}", "error")
+            if any("reached the limit" in str(w) for w in payload.get("warnings") or []):
+                # the answer is cut at 100,000 records (whatever ``limit`` says) with no ordering — callers split the window
+                raise MeteringError(f"PowerQuery answer truncated at {ROW_LIMIT:,} records", "truncated")
             return parse_response(payload)
 
 
@@ -246,7 +297,13 @@ CREATE TABLE IF NOT EXISTS reports_cache (console TEXT PRIMARY KEY, reports TEXT
 CREATE TABLE IF NOT EXISTS console_status (console TEXT PRIMARY KEY, ok INTEGER, kind TEXT, message TEXT, reports TEXT, last_sync TEXT, last_ok TEXT);
 CREATE TABLE IF NOT EXISTS sync_log (id INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT, console TEXT, report TEXT, month TEXT, days INTEGER, rows INTEGER, message TEXT);
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS prompt_tenants (
+  console TEXT NOT NULL, account_id TEXT NOT NULL, account_name TEXT, state TEXT, usage_type TEXT,
+  tenant TEXT, users TEXT, region TEXT, console_url TEXT, bundles TEXT, error TEXT, checked_at TEXT NOT NULL,
+  PRIMARY KEY (console, account_id)
+);
 """
+PROMPT_TENANT_TTL = 24 * 3600    # re-read an account's Prompt tenant details after a day (they rarely change)
 
 
 class Store:
@@ -336,6 +393,23 @@ class Store:
 
     def log(self, console, report, month, days, rows, message=""):
         self._x("INSERT INTO sync_log (at, console, report, month, days, rows, message) VALUES (?,?,?,?,?,?,?)", (_now(), console, report, month, days, rows, message))
+
+    # Prompt tenants (from GET /accounts/{id}; the metering rows only carry the S1 scope id)
+    def prompt_tenants(self, consoles=None):
+        sql, args = "SELECT * FROM prompt_tenants", []
+        if consoles:
+            sql += f" WHERE console IN ({','.join('?' * len(consoles))})"; args = list(consoles)
+        out = {}
+        for r in self._q(sql, args):
+            r["users"] = json.loads(r["users"] or "[]"); r["bundles"] = json.loads(r["bundles"] or "[]")
+            out[(r["console"], r["account_id"])] = r
+        return out
+
+    def save_prompt_tenant(self, console, account_id, info):
+        self._x("INSERT OR REPLACE INTO prompt_tenants VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (console, str(account_id), info.get("account_name"), info.get("state"), info.get("usage_type"),
+                 info.get("tenant"), json.dumps(info.get("users") or []), info.get("region"), info.get("console_url"),
+                 json.dumps(info.get("bundles") or []), info.get("error"), _now()))
 
     def set_meta(self, k, v):
         self._x("INSERT OR REPLACE INTO meta VALUES (?,?)", (k, v))
@@ -494,15 +568,102 @@ def format_bytes(n, base=1000):
     return f"{v:,.2f} {units[i]}"
 
 
+# ── inventory snapshot (CWS vs EPP) ────────────────────────────────────────
+
+def mgmt_client_for_profile(code):
+    """A MGMT API client for a console profile (the inventory is not in the metering datasource)."""
+    from ..api.client import SentinelOneClient
+    cfg = Config(profile=code)
+    if not cfg.base_url or not cfg.api_token:
+        raise MeteringError(f"Console '{code}' has no base URL or API token configured", "config")
+    return SentinelOneClient(cfg.base_url, cfg.api_token, cfg.api_path, cfg.timeout, cfg.verify_ssl, cfg.auth_prefix)
+
+
+def inventory_assets(client, coverage):
+    """Every asset whose active protection includes ``coverage`` (GET /xdr/assets, read-only), reduced to the fields
+    the snapshot needs. Decommissioned agents are dropped, like the metering reports do."""
+    out = []
+    for page in client.paginate("/xdr/assets", {"activeCoverage": coverage, "limit": INVENTORY_PAGE}):
+        for a in (page.get("data") if isinstance(page, dict) else page) or []:
+            agent = a.get("agent") if isinstance(a.get("agent"), dict) else {}
+            if agent.get("decommissioned"):
+                continue
+            out.append({"account_id": str(a.get("s1AccountId") or ""), "site_id": str(a.get("s1SiteId") or ""),
+                        "category": a.get("category") or "", "sub_category": a.get("subCategory") or "",
+                        "coverage": list(a.get("activeCoverage") or [])})
+    return out
+
+
+def inventory_rows(assets, p, day):
+    """Daily rows (one per account, site and sub-category) for an inventory product out of the asset list."""
+    spec = p["inventory"]
+    cat, subs, excl = spec.get("category"), set(spec.get("sub_categories") or []), set(spec.get("exclude_sub_categories") or [])
+    counts = {}
+    for a in assets:
+        if spec["coverage"] not in a["coverage"]:
+            continue
+        if cat and a["category"] != cat:
+            continue
+        if subs and a["sub_category"] not in subs:
+            continue
+        if a["sub_category"] in excl:
+            continue
+        k = (a["account_id"], a["site_id"], a["sub_category"])
+        counts[k] = counts.get(k, 0) + 1
+    return [{"date": day, "account_id": acc, "site_id": site, "breakdown": sub, "value": float(n), "state": "archived"}
+            for (acc, site, sub), n in sorted(counts.items())]
+
+
+def snapshot_inventory(client, store, console, day, products, month=None):
+    """Store today's inventory counts for every inventory product: one read per coverage value, rows replace the
+    day's earlier snapshot. A snapshot is final for its day (state archived). Returns {ok, assets, fetched, message}."""
+    inv = [p for p in products if p["source"] == "inventory"]
+    result = {"ok": True, "assets": 0, "fetched": {}, "message": None}
+    if not inv:
+        return result
+    try:
+        assets = {}
+        for p in inv:
+            cov = p["inventory"]["coverage"]
+            if cov not in assets:
+                assets[cov] = inventory_assets(client, cov)
+        result["assets"] = sum(len(v) for v in assets.values())
+        for p in inv:
+            rows = inventory_rows(assets[p["inventory"]["coverage"]], p, day)
+            n = store.replace_days(console, p["report"], [day], rows)
+            result["fetched"][p["report"]] = n
+            store.log(console, p["report"], month or day[:7], 1, n)
+    except Exception as exc:   # inventory permission or outage: the metering sync still counts
+        msg = str(exc)[:300]
+        result.update(ok=False, message=msg)
+        store.log(console, "inventory", month or day[:7], 0, 0, f"inventory: {msg}")
+    return result
+
+
 # ── sync ───────────────────────────────────────────────────────────────────
 
-def sync_console(client, store, console, month, products, today=None, force=False, progress=None):
+def fetch_days(client, p, days):
+    """Site-level rows of one product for the given (sorted) days. PowerQuery cuts an answer at 100,000 records
+    whatever ``limit`` says, in no particular order (workstation_endpoints: ~10,000 sites × bundle rows a day on the
+    big consoles), and flags it with a warning the client turns into a ``truncated`` error — then the window is
+    split in halves and fetched again, down to single days."""
+    try:
+        return get_usage(client, p["report"], days[0], days[-1], level="site", breakdown=p.get("breakdown"), daily=p.get("daily", "sum"))
+    except MeteringError as exc:
+        if exc.kind != "truncated" or len(days) < 2:
+            raise
+    mid = len(days) // 2
+    return fetch_days(client, p, days[:mid]) + fetch_days(client, p, days[mid:])
+
+
+def sync_console(client, store, console, month, products, today=None, force=False, progress=None, mgmt_client_for=None):
     """Fetch the month's site-level rows for every product the console reports. Archived days are kept; live or
-    missing days are re-fetched. Returns a status dict; never raises."""
+    missing days are re-fetched. When the month is the current one, today's inventory snapshot is taken as well
+    (``mgmt_client_for(console)`` gives the MGMT client). Returns a status dict; never raises."""
     today = today or date.today().isoformat()
     start, end = month_bounds(month)
     end = min(end, today)
-    status = {"console": console, "ok": False, "kind": None, "message": None, "reports": [], "fetched": {}, "skipped": []}
+    status = {"console": console, "ok": False, "kind": None, "message": None, "reports": [], "fetched": {}, "skipped": [], "inventory": None}
     try:
         reports = list_reports(client, store, console)
         available = {r["report"] for r in reports}
@@ -516,6 +677,8 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
             if exc.kind in ("permission", "unsupported"):
                 raise
         for p in products:
+            if p["source"] != "metering":
+                continue
             rep = p["report"]
             if rep not in available:
                 status["skipped"].append(rep)
@@ -528,7 +691,7 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
             if not days:
                 status["fetched"][rep] = 0
                 continue
-            rows = get_usage(client, rep, days[0], days[-1], level="site", breakdown=p.get("breakdown"), daily=p.get("daily", "sum"))
+            rows = fetch_days(client, p, days)
             # Keep archived days we already hold if they fall inside the window but were not returned (gap days).
             n = store.replace_days(console, rep, days, rows)
             # Site rows carry names only through the tenants table; the endpoint reports also give account names.
@@ -536,6 +699,19 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
             store.log(console, rep, month, len(days), n)
             if progress:
                 progress({"console": console, "report": rep, "rows": n})
+        inv = [p for p in products if p["source"] == "inventory"]
+        if inv and start <= today <= month_bounds(month)[1]:
+            try:
+                mgmt = (mgmt_client_for or mgmt_client_for_profile)(console)
+            except Exception as exc:
+                status["inventory"] = {"ok": False, "assets": 0, "fetched": {}, "message": str(exc)[:300]}
+            else:
+                status["inventory"] = snapshot_inventory(mgmt, store, console, today, products, month)
+            if status["inventory"]["ok"]:
+                status["reports"] = sorted(set(status["reports"]) | {p["report"] for p in inv})
+                status["fetched"].update(status["inventory"]["fetched"])
+                if progress:
+                    progress({"console": console, "report": "inventory", "rows": status["inventory"]["assets"]})
         status["ok"] = True
         store.set_status(console, True, reports=status["reports"])
     except MeteringError as exc:
@@ -548,7 +724,7 @@ def sync_console(client, store, console, month, products, today=None, force=Fals
     return status
 
 
-def sync_all(store, consoles, month, products, client_for=None, workers=MAX_WORKERS, force=False, progress=None):
+def sync_all(store, consoles, month, products, client_for=None, workers=MAX_WORKERS, force=False, progress=None, mgmt_client_for=None):
     client_for = client_for or client_for_profile   # resolved at call time so tests can swap the factory
 
     def one(code):
@@ -557,7 +733,7 @@ def sync_all(store, consoles, month, products, client_for=None, workers=MAX_WORK
         except MeteringError as exc:
             store.set_status(code, False, exc.kind, str(exc))
             return {"console": code, "ok": False, "kind": exc.kind, "message": str(exc), "reports": [], "fetched": {}, "skipped": []}
-        return sync_console(client, store, code, month, products, force=force, progress=progress)
+        return sync_console(client, store, code, month, products, force=force, progress=progress, mgmt_client_for=mgmt_client_for)
     with ThreadPoolExecutor(max_workers=max(1, min(workers, len(consoles) or 1))) as pool:
         results = list(pool.map(one, consoles))
     store.set_meta("last_sync", _now())
@@ -584,22 +760,23 @@ def summary(store, month, products, consoles=None, rules=None, bytes_base=1000, 
     ``hide_zero`` drops accounts whose every product rolls up to 0 (hundreds of empty test tenants on Staging)."""
     start, end = month_bounds(month)
     rules = rules or {}
-    prods = {p["report"]: p for p in products}
-    rows = store.daily(start, end, consoles=consoles, reports=list(prods))
+    rows = store.daily(start, end, consoles=consoles, reports=reports_for(products))
     names = store.names()
     acc = {}
     for r in rows:
         key = (r["console"], r["account_id"])
         a = acc.setdefault(key, {"console": r["console"], "account_id": r["account_id"], "account": _name(names, r["console"], r["account_id"]),
-                                 "salesforce_id": _sf(names, r["console"], r["account_id"]), "products": {}, "state": "final", "sites": set()})
-        a["products"].setdefault(r["report"], []).append(r)
+                                 "salesforce_id": _sf(names, r["console"], r["account_id"]), "rows": [], "products": {}, "state": "final", "sites": set()})
+        a["rows"].append(r)
         if r["site_id"]:
             a["sites"].add(r["site_id"])
     out = []
     for a in acc.values():
         cells = {}
-        for rep, rs in a["products"].items():
-            p = prods[rep]
+        for p in products:
+            rs = product_rows(p, a["rows"])
+            if not rs:
+                continue
             rule = rules.get(p["key"]) or p["rollup"]
             roll = rollup_monthly(rs, rule)
             roll["display"] = format_bytes(roll["value"], bytes_base) if p["unit"] == "bytes" else (f"{roll['value']:,.2f}" if rule == "average" else f"{roll['value']:,.0f}") if roll["value"] is not None else ""
@@ -608,7 +785,8 @@ def summary(store, month, products, consoles=None, rules=None, bytes_base=1000, 
                 a["state"] = "provisional"
         a["products"] = cells
         a["sites"] = len(a["sites"])
-        if hide_zero and not any((c["value"] or 0) > 0 for c in cells.values()):
+        del a["rows"]
+        if not cells or (hide_zero and not any((c["value"] or 0) > 0 for c in cells.values())):
             continue
         out.append(a)
     out.sort(key=lambda a: (a["console"], (a["account"] or "").lower()))
@@ -619,6 +797,108 @@ def summary(store, month, products, consoles=None, rules=None, bytes_base=1000, 
         totals[p["key"]] = {"value": tot, "display": format_bytes(tot, bytes_base) if p["unit"] == "bytes" else (f"{tot:,.0f}" if tot is not None else "")}
     return {"month": month, "accounts": out, "totals": totals, "rules": {p["key"]: rules.get(p["key"]) or p["rollup"] for p in products},
             "hidden_zero": len(acc) - len(out) if hide_zero else 0}
+
+
+# ── Prompt Security: tenant details behind the Prompt meters ──────────────
+
+def is_prompt_product(p):
+    return p["report"].startswith("ai_security_")
+
+
+def prompt_tenant_fields(account, base_url):
+    """Prompt tenant, admins and hosting console of a GET /accounts/{id} payload (``promptFields``). The Prompt
+    console is where the platform hosts the tenant: US MSSP partner tenants land in US West, everything else
+    follows the console's region (``promptRegion`` is null on accounts created before the field existed)."""
+    lic = account.get("licenses") or {}
+    pf = account.get("promptFields") or {}
+    users = pf.get("promptUsers") or (
+        [{"promptUserName": pf.get("promptUserName"), "promptUserEmail": pf.get("promptUserEmail")}]
+        if pf.get("promptUserName") or pf.get("promptUserEmail") else [])
+    s1_region = licenses.s1_region(base_url)
+    region = pf.get("promptRegion") or licenses.prompt_region(base_url)
+    return {
+        "account_name": account.get("name"), "state": account.get("state"), "usage_type": account.get("usageType"),
+        "tenant": pf.get("promptTenantName"),
+        "users": [{"name": u.get("promptUserName"), "email": u.get("promptUserEmail")} for u in users],
+        "region": region,
+        "console_url": licenses.prompt_console(region, s1_region, account.get("usageType")) if (pf.get("promptTenantName") or region) else None,
+        "bundles": [b.get("displayName") or b.get("name") for b in lic.get("bundles") or [] if licenses.is_prompt_bundle(b.get("name"))],
+        "error": None,
+    }
+
+
+def _get_account(client, account_id):
+    """The single-account view carries promptFields; the list view is the fallback."""
+    try:
+        res = client.request("GET", f"accounts/{account_id}")
+        data = res.get("data") if isinstance(res, dict) else None
+        if isinstance(data, dict) and data.get("id"):
+            return data
+    except Exception:
+        pass
+    res = client.request("GET", "accounts", params={"ids": account_id, "limit": 10})
+    accounts = (res.get("data") or []) if isinstance(res, dict) else []
+    return accounts[0] if accounts else None
+
+
+def prompt_accounts(store, month, products, consoles=None):
+    """(console, account_id) pairs with any Prompt metering row in the month."""
+    start, end = month_bounds(month)
+    rows = store.daily(start, end, consoles=consoles, reports=[p["report"] for p in products if is_prompt_product(p)])
+    return sorted({(r["console"], r["account_id"]) for r in rows if r["account_id"]})
+
+
+def refresh_prompt_tenants(store, targets, client_for, base_urls, force=False, ttl=PROMPT_TENANT_TTL, workers=MAX_WORKERS, progress=None):
+    """Read the Prompt tenant details of every (console, account_id) target (read-only GETs, one per account, in
+    parallel). Rows younger than ``ttl`` are kept unless ``force``. Never raises: failures land in the row's error."""
+    have = store.prompt_tenants()
+    now = datetime.now(timezone.utc)
+
+    def fresh(key):
+        r = have.get(key)
+        if not r or r.get("error"):
+            return False
+        try:
+            checked = datetime.strptime(r["checked_at"], "%Y-%m-%d %H:%M:%S UTC").replace(tzinfo=timezone.utc)
+            return (now - checked).total_seconds() < ttl
+        except (TypeError, ValueError):
+            return False
+
+    todo = [t for t in targets if force or not fresh(t)]
+    clients, lock = {}, threading.Lock()
+
+    def one(target):
+        console, account_id = target
+        try:
+            with lock:
+                if console not in clients:
+                    clients[console] = client_for(console)
+            account = _get_account(clients[console], account_id)
+            info = prompt_tenant_fields(account, base_urls.get(console, "")) if account else {"error": f"account {account_id} not found on {console}"}
+        except Exception as exc:
+            info = {"error": str(exc)[:300]}
+        store.save_prompt_tenant(console, account_id, info)
+        if progress:
+            progress({"console": console, "account_id": account_id, **info})
+        return info
+
+    results = list(ThreadPoolExecutor(max_workers=workers).map(one, todo)) if todo else []
+    return {"checked": len(todo), "skipped": len(targets) - len(todo), "errors": sum(1 for r in results if r.get("error"))}
+
+
+def prompt_summary(store, month, products, consoles=None, rules=None, bytes_base=1000, hide_zero=True):
+    """The Usage summary restricted to the Prompt meters, each account joined with its Prompt tenant details."""
+    prods = [p for p in products if is_prompt_product(p)]
+    s = summary(store, month, prods, consoles, rules, bytes_base, hide_zero)
+    tenants = store.prompt_tenants(consoles)
+    missing = 0
+    for a in s["accounts"]:
+        t = tenants.get((a["console"], a["account_id"]))
+        a["prompt"] = {k: t.get(k) for k in ("tenant", "users", "region", "console_url", "bundles", "usage_type", "error", "checked_at")} if t else None
+        if not t or t.get("error"):
+            missing += 1
+    s["tenants_missing"] = missing
+    return s
 
 
 def _series(rows):
@@ -642,13 +922,13 @@ def _breakdown(rows):
 def account_detail(store, month, products, console, account_id, rules=None, bytes_base=1000):
     start, end = month_bounds(month)
     rules = rules or {}
-    rows = store.daily(start, end, consoles=[console], reports=[p["report"] for p in products], account_id=account_id)
+    rows = store.daily(start, end, consoles=[console], reports=reports_for(products), account_id=account_id)
     names = store.names(console)
     out = {"console": console, "account_id": account_id, "account": _name(names, console, account_id), "salesforce_id": _sf(names, console, account_id),
            "month": month, "products": {}, "sites": []}
     sites = {}
     for p in products:
-        rs = [r for r in rows if r["report"] == p["report"]]
+        rs = product_rows(p, rows)
         if not rs:
             continue
         rule = rules.get(p["key"]) or p["rollup"]
@@ -672,14 +952,14 @@ def account_detail(store, month, products, console, account_id, rules=None, byte
 def site_detail(store, month, products, console, site_id, rules=None, bytes_base=1000):
     start, end = month_bounds(month)
     rules = rules or {}
-    rows = store.daily(start, end, consoles=[console], reports=[p["report"] for p in products], site_id=site_id)
+    rows = store.daily(start, end, consoles=[console], reports=reports_for(products), site_id=site_id)
     names = store.names(console)
     out = {"console": console, "site_id": site_id, "site": _name(names, console, site_id), "month": month, "products": {},
            "account_id": rows[0]["account_id"] if rows else None}
     if rows:
         out["account"] = _name(names, console, rows[0]["account_id"])
     for p in products:
-        rs = [r for r in rows if r["report"] == p["report"]]
+        rs = product_rows(p, rows)
         if not rs:
             continue
         rule = rules.get(p["key"]) or p["rollup"]
@@ -726,16 +1006,16 @@ def export_rows(store, month, products, level="account", consoles=None, rules=No
     else:
         start, end = month_bounds(month)
         names = store.names()
-        rows = store.daily(start, end, consoles=consoles, reports=[p["report"] for p in products])
+        rows = store.daily(start, end, consoles=consoles, reports=reports_for(products))
         by = {}
         for r in rows:
             k = (r["console"], r["account_id"], r["site_id"])
-            by.setdefault(k, {}).setdefault(r["report"], []).append(r)
-        for (console, acc, site), reps in sorted(by.items()):
+            by.setdefault(k, []).append(r)
+        for (console, acc, site), scope_rows in sorted(by.items()):
             row = {"console": console, "account_id": acc, "account": _name(names, console, acc), "site_id": site,
                    "site": _name(names, console, site, "(account level)") if site else "(account level)", "state": "final"}
             for p in products:
-                rs = reps.get(p["report"])
+                rs = product_rows(p, scope_rows)
                 if rs:
                     roll = rollup_monthly(rs, (rules or {}).get(p["key"]) or p["rollup"])
                     row[p["key"]] = roll["value"]; row[p["key"] + "_display"] = format_bytes(roll["value"], bytes_base) if p["unit"] == "bytes" else roll["value"]

@@ -74,8 +74,13 @@ def test_s1_region_from_cluster_token():
     assert licenses.s1_region("https://apse1-x.sentinelone.net") == "ap-southeast-1"
     assert licenses.s1_region("https://aps1-x.sentinelone.net") == "ap-south-1"
     assert licenses.s1_region("https://apse2-x.sentinelone.net") == "ap-southeast-2"
-    # Other spellings are not inferred.
-    assert licenses.s1_region("https://cace1-x.sentinelone.net") is None
+    # The consoles' public hostnames spell the region as usea1 / cace1 / euce1 / apse2 (2026-11).
+    assert licenses.s1_region("https://usea1-nabl11.sentinelone.net") == "us-east-1"
+    assert licenses.s1_region("https://cace1-nabl10.sentinelone.net") == "ca-central-1"
+    assert licenses.s1_region("https://euce1-swprd2.sentinelone.net") == "eu-central-1"
+    assert licenses.s1_region("https://apse2-nabl12.sentinelone.net") == "ap-southeast-2"
+    # Tokyo (apne1) has no Prompt region in SentinelOne's table; other spellings are not inferred.
+    assert licenses.s1_region("https://apne1-swprd7.sentinelone.net") is None
     assert licenses.s1_region("https://example.com") is None
     assert set(licenses.S1_REGION_BY_CLUSTER.values()) == set(licenses.PROMPT_REGION_BY_S1_REGION)
 
@@ -88,7 +93,8 @@ def test_prompt_region_is_api_enum_without_uswest():
     assert licenses.prompt_region("https://euc1-x.sentinelone.net") == "eunorth"
     assert licenses.prompt_region("https://aps1-x.sentinelone.net") == "apsouth"
     assert licenses.prompt_region("https://apse2-x.sentinelone.net") == "apsoutheast"
-    assert licenses.prompt_region("https://usea1-nabl-staging.sentinelone.net") is None
+    assert licenses.prompt_region("https://usea1-nabl-staging.sentinelone.net") == "useast"
+    assert licenses.prompt_region("https://apne1-swprd7.sentinelone.net") is None
 
 
 def test_prompt_console_routes_us_mssp_to_uswest():

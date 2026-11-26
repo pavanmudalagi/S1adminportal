@@ -118,9 +118,10 @@ def test_products_config_loads_and_validates(tmp_path):
 # ── fake console ───────────────────────────────────────────────────────────
 
 class FakePQ:
-    """Answers the discovery, tenants, names and usage queries from an in-memory table of daily rows."""
-    def __init__(self, reports, rows, fail=None):
-        self.reports, self.rows, self.fail, self.queries = reports, rows, fail, []
+    """Answers the discovery, tenants, names and usage queries from an in-memory table of daily rows. ``cap`` mimics
+    the API's 100,000-record cut: a usage answer with more rows raises the ``truncated`` error the real client does."""
+    def __init__(self, reports, rows, fail=None, cap=None):
+        self.reports, self.rows, self.fail, self.queries, self.cap = reports, rows, fail, [], cap
 
     def query(self, query, start, end):
         self.queries.append((query, start, end))
@@ -141,6 +142,8 @@ class FakePQ:
                 if "endpoint_bundle" in query:
                     row["endpoint_bundle"] = r.get("bundle", "Complete")
                 out.append(row)
+        if self.cap and len(out) > self.cap:
+            raise m.MeteringError("PowerQuery answer truncated at 100,000 records", "truncated")
         return out
 
 
@@ -154,8 +157,32 @@ def _rows():
     return rows
 
 
+def _assets():
+    def mk(acc, site, cat, sub, cov=("CWS",), dec=False):
+        return {"s1AccountId": acc, "s1SiteId": site, "category": cat, "subCategory": sub, "activeCoverage": list(cov), "agent": {"decommissioned": dec}}
+    return [mk("A1", "S1", "Server", "Virtual Machine"), mk("A1", "S1", "Server", "Virtual Machine", ("CWS", "IDR")), mk("A1", "S1", "Server", "Container Host"),
+            mk("A1", "S1", "Server", "Virtual Machine", dec=True),          # decommissioned: not counted
+            mk("A1", "S1", "Container", "Namespace"),                        # cloud object, not an agent
+            mk("A1", "S2", "Workstation", "Laptop", ("EPP",))]               # EPP: never returned for activeCoverage=CWS
+
+
+class FakeInventory:
+    """GET /xdr/assets?activeCoverage=… in two pages."""
+    def __init__(self, assets, fail=None):
+        self.assets, self.fail, self.calls = assets, fail, []
+
+    def paginate(self, path, params=None, page_limit=None):
+        self.calls.append((path, dict(params or {})))
+        if self.fail:
+            raise RuntimeError(self.fail)
+        data = [a for a in self.assets if (params or {}).get("activeCoverage") in a["activeCoverage"]]
+        return [{"data": data[:2], "pagination": {"nextCursor": "c1"}}, {"data": data[2:], "pagination": {"nextCursor": None}}]
+
+
 @pytest.fixture
-def world(tmp_path):
+def world(tmp_path, monkeypatch):
+    # no console profile is ever read in tests: the inventory snapshot needs an explicit mgmt_client_for
+    monkeypatch.setattr(m, "mgmt_client_for_profile", lambda code: (_ for _ in ()).throw(m.MeteringError(f"no profile {code} in tests", "config")))
     store = m.Store(tmp_path / "usage.db")
     products = m.load_products()["products"]
     return store, products
@@ -215,17 +242,17 @@ def test_summary_account_and_site_views(world):
     s = m.summary(store, "2026-10", products)
     a = s["accounts"][0]
     assert a["account"] == "Acme Ltd" and a["salesforce_id"] == "001X" and a["sites"] == 2 and a["state"] == "provisional"
-    srv = a["products"]["cws_servers"]
+    srv = a["products"]["servers"]
     assert srv["rule"] == "peak" and srv["value"] == 25 and srv["display"] == "25" and srv["state"] == "provisional"  # day 10: 20 + 5
     ing = a["products"]["data_ingest"]
     assert ing["rule"] == "sum" and ing["value"] == 1e10 and ing["display"] == "10.00 GB"
-    assert s["totals"]["cws_servers"]["value"] == 25 and s["rules"]["cws_servers"] == "peak"
-    s2 = m.summary(store, "2026-10", products, rules={"cws_servers": "average"})
-    assert s2["accounts"][0]["products"]["cws_servers"]["value"] == pytest.approx(20.5)
+    assert s["totals"]["servers"]["value"] == 25 and s["rules"]["servers"] == "peak"
+    s2 = m.summary(store, "2026-10", products, rules={"servers": "average"})
+    assert s2["accounts"][0]["products"]["servers"]["value"] == pytest.approx(20.5)
     d = m.account_detail(store, "2026-10", products, "Staging", "A1")
-    assert len(d["products"]["cws_servers"]["series"]) == 10 and d["products"]["cws_servers"]["series"][-1]["state"] == "live"
-    assert {b["key"] for b in d["products"]["cws_servers"]["breakdown"]} == {"Complete", "Control"}
-    assert [x["site"] for x in d["sites"]] == ["Acme HQ", "Acme Lab"] and d["sites"][1]["products"]["cws_servers"]["value"] == 5
+    assert len(d["products"]["servers"]["series"]) == 10 and d["products"]["servers"]["series"][-1]["state"] == "live"
+    assert {b["key"] for b in d["products"]["servers"]["breakdown"]} == {"Complete", "Control"}
+    assert [x["site"] for x in d["sites"]] == ["Acme HQ", "Acme Lab"] and d["sites"][1]["products"]["servers"]["value"] == 5
     sd = m.site_detail(store, "2026-10", products, "Staging", "S1")
     assert sd["site"] == "Acme HQ" and sd["account"] == "Acme Ltd" and sd["products"]["data_ingest"]["display"] == "10.00 GB"
 
@@ -235,14 +262,14 @@ def test_exports(world):
     m.sync_console(FakePQ(["server_endpoints", "xdr_ingested_bytes"], _rows()), store, "Staging", "2026-10", products, today="2026-10-10")
     rows, rules = m.export_rows(store, "2026-10", products, "account")
     csv_text = m.to_csv(rows, products, "account", "2026-10", rules)
-    assert csv_text.startswith("# SentinelOne usage 2026-10 — account level — rules:") and "CWS – Servers (agents, peak)" in csv_text
+    assert csv_text.startswith("# SentinelOne usage 2026-10 — account level — rules:") and "Endpoint – Servers (agents, peak)" in csv_text
     assert "Acme Ltd" in csv_text and ",provisional," in csv_text
     rows_s, _ = m.export_rows(store, "2026-10", products, "site")
     assert [r["site"] for r in rows_s] == ["Acme HQ", "Acme Lab"]
     import openpyxl, io
     wb = openpyxl.load_workbook(io.BytesIO(m.to_xlsx(rows_s, products, "site", "2026-10", rules)))
-    assert wb.sheetnames[0] == "Summary" and "CWS Srv" in wb.sheetnames and "Ingest" in wb.sheetnames
-    assert "rule: peak" in wb["CWS Srv"]["A1"].value and wb["CWS Srv"].max_row == 4  # header rows + 2 sites
+    assert wb.sheetnames[0] == "Summary" and {"Srv", "CWS Srv", "Ingest"} <= set(wb.sheetnames)
+    assert "rule: peak" in wb["Srv"]["A1"].value and wb["Srv"].max_row == 4  # header rows + 2 sites
 
 
 # ── integration (opt-in) ───────────────────────────────────────────────────
@@ -266,6 +293,7 @@ def api(tmp_path, monkeypatch):
     import s1am.components.app as a
     a._usage_store = None
     monkeypatch.setattr(a, "_usage_consoles", lambda: ["Staging", "USEA1"])
+    monkeypatch.setattr(a, "_build_client_for_console", lambda code: FakeInventory(_assets()))
     clients = {"Staging": FakePQ(["server_endpoints", "xdr_ingested_bytes"], _rows()), "USEA1": FakePQ([], [], fail=("Token lacks Metering Reports – View (or is invalid)", "permission", 403))}
     monkeypatch.setattr(m, "client_for_profile", lambda code, sleep=None: clients[code])
     yield a.app.test_client(), a
@@ -277,20 +305,20 @@ def test_sync_route_then_summary_health_and_drilldowns(api):
     r = client.post("/api/usage/sync", json={"month": "2026-10", "wait": True}).json
     assert {c["console"]: c["ok"] for c in r["consoles"]} == {"Staging": True, "USEA1": False}
     s = client.get("/api/usage/summary?month=2026-10").json
-    assert s["accounts"][0]["account"] == "Acme Ltd" and s["accounts"][0]["products"]["cws_servers"]["value"] == 25
+    assert s["accounts"][0]["account"] == "Acme Ltd" and s["accounts"][0]["products"]["servers"]["value"] == 25
     health = {h["console"]: h["state"] for h in s["health"]}
     assert health == {"Staging": "ok", "USEA1": "permission"} and s["last_sync_month"] == "2026-10"
-    assert [p["key"] for p in s["products"]][:2] == ["cns", "cws_servers"]
-    s2 = client.get("/api/usage/summary?month=2026-10&products=cws_servers&rules=cws_servers=month_end").json
+    assert [p["key"] for p in s["products"]][:3] == ["cns", "workstations", "servers"]
+    s2 = client.get("/api/usage/summary?month=2026-10&products=servers&rules=servers=month_end").json
     # a filtered summary still lists every product so the toggle row can re-enable the ones filtered out
-    assert [p["key"] for p in s2["products"]] == ["cws_servers"] and len(s2["all_products"]) == len(s["products"]) > 1
-    assert list(s2["accounts"][0]["products"]) == ["cws_servers"] and s2["accounts"][0]["products"]["cws_servers"]["value"] == 25 and s2["rules"]["cws_servers"] == "month_end"
+    assert [p["key"] for p in s2["products"]] == ["servers"] and len(s2["all_products"]) == len(s["products"]) > 1
+    assert list(s2["accounts"][0]["products"]) == ["servers"] and s2["accounts"][0]["products"]["servers"]["value"] == 25 and s2["rules"]["servers"] == "month_end"
     assert client.get("/api/usage/summary?month=2026-1").status_code == 400
     acc = client.get("/api/usage/accounts/Staging/A1?month=2026-10").json
     assert len(acc["sites"]) == 2 and acc["products"]["data_ingest"]["display"] == "10.00 GB"
     assert client.get("/api/usage/accounts/Staging/ZZ?month=2026-10").status_code == 404
     site = client.get("/api/usage/sites/Staging/S2?month=2026-10").json
-    assert site["site"] == "Acme Lab" and site["products"]["cws_servers"]["value"] == 5
+    assert site["site"] == "Acme Lab" and site["products"]["servers"]["value"] == 5
     assert client.post("/api/usage/sync", json={"month": "bad"}).status_code == 400
 
 
@@ -303,3 +331,216 @@ def test_export_route_formats_and_final_guard(api):
     assert x.status_code == 200 and x.data[:2] == b"PK"
     assert client.get("/api/usage/export?month=2026-10&level=account&format=csv&final=1").status_code == 409   # live days present
     assert client.get("/api/usage/export?month=2026-10&level=nope").status_code == 400
+
+
+# ── Prompt Security: tenant details behind the Prompt meters ───────────────
+
+def _prompt_rows():
+    return [{"report": "ai_security_employees_usage", "date": f"2026-10-{d:02d}", "account": acc, "site": "", "value": v, "state": "archived"}
+            for d in range(1, 6) for acc, v in (("A1", 8), ("A2", 0))]
+
+
+class FakeMgmt:
+    """GET /accounts/{id} with promptFields; A2 has no tenant, Z9 is unknown."""
+    accounts = {
+        "A1": {"id": "A1", "name": "Acme Ltd", "state": "active", "usageType": "mssp",
+               "licenses": {"bundles": [{"name": "complete"}, {"name": "prompt_employees", "displayName": "Prompt for Employees"}]},
+               "promptFields": {"promptTenantName": "acme_ltd", "promptRegion": None,
+                                "promptUsers": [{"promptUserName": "Alex Admin", "promptUserEmail": "alex@acme.example"},
+                                                {"promptUserName": "N-able Prompt Security EAP Admin", "promptUserEmail": "promptsecurity-eap-admin@n-able.com"}]}},
+        "A2": {"id": "A2", "name": "Beta", "state": "active", "usageType": "customer", "licenses": {"bundles": [{"name": "control"}]}, "promptFields": None},
+    }
+
+    def __init__(self):
+        self.calls = []
+
+    def request(self, method, path, params=None):
+        self.calls.append(path)
+        if path.startswith("accounts/"):
+            a = self.accounts.get(path.split("/")[1])
+            if a is None:
+                raise RuntimeError("404 not found")
+            return {"data": a}
+        return {"data": [a for a in self.accounts.values() if a["id"] == (params or {}).get("ids")]}
+
+
+def test_prompt_tenant_fields_reads_tenant_admins_and_hosting_console():
+    f = m.prompt_tenant_fields(FakeMgmt.accounts["A1"], "https://usea1-nabl11.sentinelone.net")
+    assert f["tenant"] == "acme_ltd" and f["bundles"] == ["Prompt for Employees"] and f["usage_type"] == "mssp"
+    assert [u["email"] for u in f["users"]] == ["alex@acme.example", "promptsecurity-eap-admin@n-able.com"]
+    # a US MSSP partner tenant is hosted in US West; the region itself is the console's (promptRegion is null on older accounts)
+    assert f["region"] == "useast" and f["console_url"] == "https://uswest.prompt.security"
+    eu = m.prompt_tenant_fields(FakeMgmt.accounts["A1"], "https://euce1-swprd2.sentinelone.net")
+    assert eu["console_url"] == "https://eunorth.prompt.security"
+    none = m.prompt_tenant_fields(FakeMgmt.accounts["A2"], "https://usea1-nabl11.sentinelone.net")
+    assert none["tenant"] is None and none["users"] == [] and none["bundles"] == []
+    # the single-admin pair is read when promptUsers is absent
+    single = dict(FakeMgmt.accounts["A1"], promptFields={"promptTenantName": "t", "promptUserName": "Solo", "promptUserEmail": "solo@x.example"})
+    assert m.prompt_tenant_fields(single, "https://apne1-swprd7.sentinelone.net")["users"] == [{"name": "Solo", "email": "solo@x.example"}]
+    assert m.prompt_tenant_fields(single, "https://apne1-swprd7.sentinelone.net")["console_url"] is None   # Tokyo has no Prompt region in S1's table
+
+
+def test_refresh_prompt_tenants_reads_each_account_once_and_keeps_fresh_rows(world):
+    store, products = world
+    store.replace_days("Staging", "ai_security_employees_usage", [f"2026-10-{d:02d}" for d in range(1, 6)],
+                       [{"date": r["date"], "account_id": r["account"], "site_id": "", "value": r["value"], "state": r["state"]} for r in _prompt_rows()])
+    store.replace_days("Staging", "ai_security_employees_usage", ["2026-10-07"], [{"date": "2026-10-07", "account_id": "Z9", "site_id": "", "value": 1, "state": "archived"}])
+    assert m.prompt_accounts(store, "2026-10", products) == [("Staging", "A1"), ("Staging", "A2"), ("Staging", "Z9")]
+    mgmt = FakeMgmt()
+    r = m.refresh_prompt_tenants(store, m.prompt_accounts(store, "2026-10", products), lambda code: mgmt, {"Staging": "https://usea1-nabl-staging.sentinelone.net"})
+    assert r == {"checked": 3, "skipped": 0, "errors": 1}
+    t = store.prompt_tenants()
+    assert t[("Staging", "A1")]["tenant"] == "acme_ltd" and t[("Staging", "A1")]["console_url"] == "https://uswest.prompt.security"
+    assert t[("Staging", "A2")]["tenant"] is None and t[("Staging", "A2")]["error"] is None
+    assert "not found" in t[("Staging", "Z9")]["error"]
+    # a second pass keeps the fresh rows and retries only the failed one; force re-reads everything
+    n = len(mgmt.calls)
+    assert m.refresh_prompt_tenants(store, m.prompt_accounts(store, "2026-10", products), lambda code: mgmt, {})["checked"] == 1
+    assert m.refresh_prompt_tenants(store, m.prompt_accounts(store, "2026-10", products), lambda code: mgmt, {}, force=True)["checked"] == 3
+    assert len(mgmt.calls) > n
+    s = m.prompt_summary(store, "2026-10", products, hide_zero=False)
+    assert [p for p in s["rules"]] == [p["key"] for p in products if p["key"].startswith("prompt_")]
+    by = {a["account_id"]: a for a in s["accounts"]}
+    assert by["A1"]["prompt"]["tenant"] == "acme_ltd" and by["A1"]["products"]["prompt_employees"]["value"] == 8
+    assert by["A2"]["prompt"]["tenant"] is None and s["tenants_missing"] == 1   # Z9 failed; A2 is read but has no tenant
+    assert len(m.prompt_summary(store, "2026-10", products)["accounts"]) == 2   # hide_zero drops A2
+
+
+def test_prompt_routes(api, monkeypatch):
+    client, a = api
+    mgmt = FakeMgmt()
+    monkeypatch.setattr(a, "_build_client_for_console", lambda code: mgmt)
+    from s1am.eap import service as eap_service
+    monkeypatch.setattr(eap_service, "profiles", lambda: {"Staging": "https://usea1-nabl-staging.sentinelone.net"})
+    svc, store, _ = a._usage()
+    store.replace_days("Staging", "ai_security_employees_usage", ["2026-10-01"], [{"date": "2026-10-01", "account_id": "A1", "site_id": "", "value": 8, "state": "archived"}])
+    s = client.get("/api/usage/prompt?month=2026-10").json
+    assert s["view"] == "prompt" and s["tenants_missing"] == 1 and s["accounts"][0]["prompt"] is None
+    assert [p["key"] for p in s["all_products"]] == ["prompt_employees", "prompt_developers", "prompt_homegrown", "prompt_agentic", "prompt_redteam"]
+    r = client.post("/api/usage/prompt/refresh", json={"month": "2026-10"}).json
+    assert r == {"accounts": 1, "checked": 1, "skipped": 0, "errors": 0}
+    s = client.get("/api/usage/prompt?month=2026-10&products=prompt_employees").json
+    p = s["accounts"][0]["prompt"]
+    assert p["tenant"] == "acme_ltd" and p["console_url"] == "https://uswest.prompt.security" and p["users"][0]["name"] == "Alex Admin"
+    assert [q["key"] for q in s["products"]] == ["prompt_employees"] and s["tenants_missing"] == 0 and s["tenants_checked"]
+    assert client.post("/api/usage/prompt/refresh", json={"month": "nope"}).status_code == 400
+    assert client.get("/api/commands").json and any(c["id"] == "prompt-security" and c.get("view") == "prompt" for c in client.get("/api/commands").json)
+
+
+# ── CWS vs EPP: inventory snapshots ────────────────────────────────────────
+
+def test_product_rows_subtracts_same_day_same_site_counts_from_the_largest_bundle_row():
+    p = {"report": "server_endpoints", "subtract": ["inventory_cws_servers", "inventory_cws_container_hosts"]}
+    rows = [{"report": "server_endpoints", "account_id": "A", "site_id": "S", "date": "2026-10-10", "breakdown": "Complete", "value": 10, "state": "archived"},
+            {"report": "server_endpoints", "account_id": "A", "site_id": "S", "date": "2026-10-10", "breakdown": "Control", "value": 1, "state": "archived"},
+            {"report": "server_endpoints", "account_id": "A", "site_id": "S", "date": "2026-10-09", "breakdown": "Complete", "value": 10, "state": "archived"},
+            {"report": "server_endpoints", "account_id": "A", "site_id": "T", "date": "2026-10-10", "breakdown": "Complete", "value": 4, "state": "archived"},
+            {"report": "inventory_cws_servers", "account_id": "A", "site_id": "S", "date": "2026-10-10", "breakdown": "Virtual Machine", "value": 9, "state": "archived"},
+            {"report": "inventory_cws_container_hosts", "account_id": "A", "site_id": "S", "date": "2026-10-10", "breakdown": "Container Host", "value": 3, "state": "archived"},
+            {"report": "inventory_cws_servers", "account_id": "A", "site_id": "T", "date": "2026-10-10", "breakdown": "Virtual Machine", "value": 9, "state": "archived"}]
+    out = {(r["site_id"], r["date"], r["breakdown"]): r["value"] for r in m.product_rows(p, rows)}
+    assert out[("S", "2026-10-10", "Complete")] == 0 and out[("S", "2026-10-10", "Control")] == 0     # 12 off 11: the whole day, never negative
+    assert out[("S", "2026-10-09", "Complete")] == 10                                                 # no snapshot that day: as reported
+    assert out[("T", "2026-10-10", "Complete")] == 0
+    assert all(r["value"] == 10 for r in m.product_rows({"report": "server_endpoints", "subtract": []}, rows) if r["date"] == "2026-10-09")
+    assert m.reports_for([p, {"report": "inventory_cws_servers", "subtract": []}]) == ["server_endpoints", "inventory_cws_servers", "inventory_cws_container_hosts"]
+
+
+def test_inventory_snapshot_splits_cws_from_epp_servers(world):
+    store, products = world
+    mgmt = FakeInventory(_assets())
+    st = m.sync_console(FakePQ(["server_endpoints", "xdr_ingested_bytes"], _rows()), store, "Staging", "2026-10", products, today="2026-10-10",
+                        mgmt_client_for=lambda code: mgmt)
+    assert st["ok"] and st["inventory"]["ok"] and st["inventory"]["assets"] == 4           # one read per coverage value, decommissioned dropped
+    assert [c[1]["activeCoverage"] for c in mgmt.calls] == ["CWS"]
+    assert st["fetched"]["inventory_cws_servers"] == 1 and st["fetched"]["inventory_cws_container_hosts"] == 1
+    assert {"inventory_cws_servers", "inventory_cws_container_hosts"} <= set(st["reports"])
+    inv = {r["report"]: r for r in store.daily("2026-10-10", "2026-10-10", reports=["inventory_cws_servers", "inventory_cws_container_hosts"])}
+    assert inv["inventory_cws_servers"]["value"] == 2 and inv["inventory_cws_servers"]["breakdown"] == "Virtual Machine" and inv["inventory_cws_servers"]["state"] == "archived"
+    assert inv["inventory_cws_container_hosts"]["value"] == 1 and inv["inventory_cws_container_hosts"]["site_id"] == "S1"
+    s = m.summary(store, "2026-10", products, rules={"servers": "month_end"})
+    a = s["accounts"][0]["products"]
+    assert a["servers"]["value"] == 22            # day 10: S1 20 agents − 3 CWS, S2 5
+    assert a["cws_servers"]["value"] == 2 and a["cws_container_hosts"]["value"] == 1 and "workstations" not in a
+    assert m.summary(store, "2026-10", products)["accounts"][0]["products"]["servers"]["value"] == 24   # peak moves to day 9 (19 + 5)
+    # the Srv column alone still needs the snapshot rows to subtract
+    only = [p for p in products if p["key"] == "servers"]
+    assert m.summary(store, "2026-10", only, rules={"servers": "month_end"})["accounts"][0]["products"]["servers"]["value"] == 22
+    d = m.account_detail(store, "2026-10", products, "Staging", "A1")
+    assert d["products"]["cws_servers"]["breakdown"] == [{"key": "Virtual Machine", "value": 2}]
+    assert d["sites"][0]["products"]["servers"]["value"] == 19 and d["sites"][0]["products"]["cws_servers"]["value"] == 2   # Acme HQ, peak: day 9 (19), day 10 is 20 − 3
+    assert m.site_detail(store, "2026-10", products, "Staging", "S1", rules={"servers": "month_end"})["products"]["servers"]["value"] == 17
+    rows, _ = m.export_rows(store, "2026-10", products, "site", rules={"servers": "month_end"})
+    hq = next(r for r in rows if r["site_id"] == "S1")
+    assert hq["servers"] == 17 and hq["cws_servers"] == 2 and hq["cws_container_hosts"] == 1
+    h = m.health(store, ["Staging"], products)[0]
+    assert h["state"] == "ok" and "inventory_cws_servers" in h["reports"] and "workstation_endpoints" in h["missing"]
+    # a second sync the same day replaces the snapshot instead of adding to it
+    mgmt.assets = _assets()[1:]
+    m.sync_console(FakePQ(["server_endpoints"], _rows()), store, "Staging", "2026-10", products, today="2026-10-10", mgmt_client_for=lambda code: mgmt)
+    assert [r["value"] for r in store.daily("2026-10-10", "2026-10-10", reports=["inventory_cws_servers"])] == [1]
+
+
+def test_inventory_snapshot_only_for_the_current_month_and_failures_are_soft(world):
+    store, products = world
+    mgmt = FakeInventory(_assets())
+    st = m.sync_console(FakePQ(["server_endpoints"], _rows()), store, "Staging", "2026-10", products, today="2026-11-03", mgmt_client_for=lambda code: mgmt)
+    assert st["ok"] and st["inventory"] is None and mgmt.calls == []
+    st = m.sync_console(FakePQ(["server_endpoints"], _rows()), store, "Staging", "2026-10", products, today="2026-10-10",
+                        mgmt_client_for=lambda code: FakeInventory([], fail="HTTP 403: inventory permission"))
+    assert st["ok"] and st["inventory"]["ok"] is False and "403" in st["inventory"]["message"]
+    assert "inventory_cws_servers" not in st["reports"] and store.daily("2026-10-10", "2026-10-10", reports=["inventory_cws_servers"]) == []
+    st = m.sync_console(FakePQ(["server_endpoints"], _rows()), store, "Staging", "2026-10", products, today="2026-10-10",
+                        mgmt_client_for=lambda code: (_ for _ in ()).throw(RuntimeError("Console 'Staging' not found")))
+    assert st["ok"] and st["inventory"]["ok"] is False and "not found" in st["inventory"]["message"]
+    assert m.health(store, ["Staging"], products)[0]["state"] == "ok"
+
+
+def test_products_config_sources(tmp_path):
+    cfg = m.load_products()
+    by = {p["key"]: p for p in cfg["products"]}
+    assert by["servers"]["source"] == "metering" and by["servers"]["subtract"] == ["inventory_cws_servers", "inventory_cws_container_hosts"]
+    assert by["cws_servers"]["source"] == "inventory" and by["cws_servers"]["inventory"]["coverage"] == "CWS"
+    assert by["cws_container_hosts"]["inventory"]["sub_categories"] == ["Container Host"] and by["cws_servers"]["inventory"]["exclude_sub_categories"] == ["Container Host"]
+    assert by["workstations"]["report"] == "workstation_endpoints" and "container_hosts" not in {p["report"] for p in cfg["products"]}
+    bad = tmp_path / "p.json"; bad.write_text(json.dumps({"products": [{"report": "x", "source": "inventory"}]}))
+    with pytest.raises(ValueError):
+        m.load_products(bad)
+    bad.write_text(json.dumps({"products": [{"report": "x", "source": "ldap"}]}))
+    with pytest.raises(ValueError):
+        m.load_products(bad)
+
+
+def test_fetch_days_splits_windows_the_api_truncates(world):
+    store, products = world
+    pq = FakePQ(["server_endpoints"], _rows(), cap=12)        # 20 rows for 10 days: the month in one query is cut
+    st = m.sync_console(pq, store, "Staging", "2026-10", products, today="2026-10-10")
+    assert st["ok"] and st["fetched"]["server_endpoints"] == 20
+    assert sorted({r["date"] for r in store.daily("2026-10-01", "2026-10-31", reports=["server_endpoints"])}) == [f"2026-10-{d:02d}" for d in range(1, 11)]
+    windows = [(q.split('date >= "')[1][:10], q.split('date <= "')[1][:10]) for q, _, _ in pq.queries if 'from "server_endpoints"' in q and "sum(value)" in q]
+    assert windows[0] == ("2026-10-01", "2026-10-10") and len(windows) >= 3 and all(a <= b for a, b in windows)
+    # a small answer is never split
+    pq2 = FakePQ(["xdr_ingested_bytes"], _rows())
+    m.sync_console(pq2, store, "USEA1", "2026-10", products, today="2026-10-10")
+    assert len([q for q, _, _ in pq2.queries if 'from "xdr_ingested_bytes"' in q and "sum(value)" in q]) == 1
+    # a single day over the cap cannot be split: the console fails with a clear message instead of storing a partial day
+    st = m.sync_console(FakePQ(["server_endpoints"], _rows(), cap=1), store, "EUCE1", "2026-10", products, today="2026-10-10")
+    assert not st["ok"] and st["kind"] == "truncated"
+
+
+def test_client_turns_the_record_cap_warning_into_a_truncated_error():
+    class Resp:
+        status_code, ok, text = 200, True, ""
+        def __init__(self, payload): self._p = payload
+        def json(self): return self._p
+    class Http:
+        def __init__(self, payload): self.payload = payload
+        def post(self, *a, **k): return Resp(self.payload)
+    full = {"status": "success", "columns": [{"name": "date"}], "values": [["2026-10-01"]],
+            "warnings": ["Returned number of records has reached the limit of 100000. You can define a higher 'limit' parameter or use the 'offset' parameter to get more records."]}
+    c = m.PowerQueryClient("https://x.sentinelone.net", "tok", sleep=lambda s: None, session=Http(full))
+    with pytest.raises(m.MeteringError) as e:
+        c.query("| datasource x", "2026-10-01", "2026-10-02")
+    assert e.value.kind == "truncated"
+    c = m.PowerQueryClient("https://x.sentinelone.net", "tok", sleep=lambda s: None, session=Http({**full, "warnings": []}))
+    assert c.query("| datasource x", "2026-10-01", "2026-10-02") == [{"date": "2026-10-01"}]

@@ -271,6 +271,21 @@ COMMANDS = [
         "build_args": lambda f: [],
     },
     {
+        "id": "prompt-security",
+        "category": "Usage & Billing",
+        "icon": "🛡️",
+        "label": "Prompt Security",
+        "description": (
+            "Prompt Security tenants behind the Prompt meters: each account's Prompt console URL, tenant name and "
+            "admins (read from the account on its console) next to its seat and usage counts for the month."
+        ),
+        "requires": "none",
+        "type": "usage",
+        "view": "prompt",
+        "fields": [],
+        "build_args": lambda f: [],
+    },
+    {
         "id": "churn",
         "category": "Churn",
         "icon": "📉",
@@ -2795,7 +2810,7 @@ def _usage_run_sync(month, consoles=None, force=False):
     consoles = consoles or _usage_consoles()
     _usage_sync_state.update(running=True, started=svc._now(), month=month, result=None)
     try:
-        result = svc.sync_all(store, consoles, month, cfg["products"], force=force)
+        result = svc.sync_all(store, consoles, month, cfg["products"], force=force, mgmt_client_for=_build_client_for_console)
         _usage_sync_state["result"] = {"consoles": [{k: v for k, v in c.items()} for c in result["consoles"]]}
         return result
     finally:
@@ -2828,15 +2843,54 @@ def usage_summary():
         svc, store, cfg, month, consoles, products, rules = _usage_args()
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
-    all_consoles = _usage_consoles()
     hide_zero = request.args.get("zero") != "1"
     s = svc.summary(store, month, products, consoles, rules, cfg["bytes_base"], hide_zero)
-    fields = ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")
-    return jsonify({**s, "products": [{k: p[k] for k in fields} for p in products],
+    fields = ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note", "source", "group", "subtract")
+    return jsonify({**s, "view": "usage", "products": [{k: p[k] for k in fields} for p in products],
                     "all_products": [{k: p[k] for k in fields} for p in cfg["products"]],   # the toggle row needs every product, not just the selected ones
-                    "health": svc.health(store, all_consoles, cfg["products"]), "consoles": all_consoles, "labels": _load_labels(),
-                    "last_sync": store.get_meta("last_sync"), "last_sync_month": store.get_meta("last_sync_month"),
-                    "sync": _usage_sync_state, "bytes_base": cfg["bytes_base"]})
+                    **_usage_meta(svc, store, cfg)})
+
+
+def _usage_meta(svc, store, cfg):
+    all_consoles = _usage_consoles()
+    return {"health": svc.health(store, all_consoles, cfg["products"]), "consoles": all_consoles, "labels": _load_labels(),
+            "last_sync": store.get_meta("last_sync"), "last_sync_month": store.get_meta("last_sync_month"),
+            "sync": _usage_sync_state, "bytes_base": cfg["bytes_base"]}
+
+
+@app.route("/api/usage/prompt")
+def usage_prompt():
+    """Prompt Security view: the Prompt meters per account joined with the account's Prompt tenant details
+    (console URL, tenant name, admins) as last read from its console."""
+    try:
+        svc, store, cfg, month, consoles, products, rules = _usage_args()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    hide_zero = request.args.get("zero") != "1"
+    s = svc.prompt_summary(store, month, products, consoles, rules, cfg["bytes_base"], hide_zero)
+    fields = ("key", "report", "label", "short", "unit", "rollup", "alt_rollups", "breakdown", "note")
+    prompt_products = [p for p in cfg["products"] if svc.is_prompt_product(p)]
+    shown = [p for p in products if svc.is_prompt_product(p)]
+    return jsonify({**s, "view": "prompt", "products": [{k: p[k] for k in fields} for p in shown],
+                    "all_products": [{k: p[k] for k in fields} for p in prompt_products],
+                    "tenants_checked": store.get_meta("prompt_tenants_checked"), **_usage_meta(svc, store, cfg)})
+
+
+@app.route("/api/usage/prompt/refresh", methods=["POST"])
+def usage_prompt_refresh():
+    """Re-read the Prompt tenant details (GET /accounts/{id}, read-only) of every account with Prompt usage in the
+    month. {month, consoles?, force?}: without force, rows read in the last 24 h are kept."""
+    svc, store, cfg = _usage()
+    body = request.get_json() or {}
+    month = body.get("month") or datetime.date.today().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-\d{2}", month):
+        return jsonify({"error": "month must be YYYY-MM"}), 400
+    consoles = [c for c in (body.get("consoles") or []) if c] or None
+    from s1am.eap import service as eap_service
+    targets = svc.prompt_accounts(store, month, cfg["products"], consoles)
+    result = svc.refresh_prompt_tenants(store, targets, _build_client_for_console, eap_service.profiles(), force=bool(body.get("force")))
+    store.set_meta("prompt_tenants_checked", svc._now())
+    return jsonify({**result, "accounts": len(targets)})
 
 
 @app.route("/api/usage/accounts/<console>/<account_id>")

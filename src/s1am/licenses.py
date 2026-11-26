@@ -63,19 +63,27 @@ S1_REGION_BY_CLUSTER = {
     "aprod-apse2-s1": "ap-southeast-2",
 }
 _S1_REGION_BY_CLUSTER_TOKEN = {c.split("-")[1]: r for c, r in S1_REGION_BY_CLUSTER.items()}
+# The consoles' public hostnames spell the region differently from the cluster names: the first label is
+# <region><n>-<tenant>, e.g. usea1-nabl11.sentinelone.net, euce1-swprd2, cace1-nabl10, apse2-nabl12,
+# apne1-swprd3 (2026-11). apne1 (Tokyo) has no Prompt region in SentinelOne's table and stays unmapped.
+_S1_REGION_BY_HOST_TOKEN = {
+    "usea1": "us-east-1", "cace1": "ca-central-1", "euce1": "eu-central-1",
+    "apse1": "ap-southeast-1", "aps1": "ap-south-1", "apse2": "ap-southeast-2",
+}
 
 
 def s1_region(base_url):
     """
     S1 cloud region for a console URL, or None if unknown.
 
-    Matches the cluster token (use1, cac1, euc1, apse1, aps1, apse2) as the first hostname
-    label, e.g. https://cac1-xxx.sentinelone.net → ca-central-1. Only the clusters in
-    S1_REGION_BY_CLUSTER are recognised; other hostname spellings are deliberately not inferred.
+    Matches the first hostname label's region token: the cluster spelling (use1, cac1, euc1, apse1,
+    aps1, apse2 — https://cac1-xxx.sentinelone.net → ca-central-1) or the public console spelling
+    (usea1, cace1, euce1, apse1, aps1, apse2 — https://usea1-nabl11.sentinelone.net → us-east-1).
+    Other spellings are deliberately not inferred.
     """
     host = urlparse(base_url if "//" in (base_url or "") else f"https://{base_url}").hostname or ""
     token = host.split(".")[0].split("-")[0].lower()
-    return _S1_REGION_BY_CLUSTER_TOKEN.get(token)
+    return _S1_REGION_BY_CLUSTER_TOKEN.get(token) or _S1_REGION_BY_HOST_TOKEN.get(token)
 
 
 def prompt_region(base_url):

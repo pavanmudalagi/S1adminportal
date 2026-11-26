@@ -249,7 +249,7 @@ other consoles still load. Consoles without metering show "not enabled"; product
 **Product config.** `src/s1am/metering/products.json` lists the billable reports: `report` (metering `report_name`),
 `label`/`short`/`unit`, `rollup` (`peak` | `average` | `month_end` | `sum`), `alt_rollups` offered in the UI, and an
 optional `breakdown` column (`endpoint_bundle`, `cloud_provider`, `source_name`…). `bytes_base` (1000 or 1024) drives
-GB/TB display. To add a report (for example `ltdr_queries`, `workstation_endpoints`, `enrolled_mobile_devices` or
+GB/TB display. To add a report (for example `ltdr_queries`, `enrolled_mobile_devices` or
 `hyper_automate_workflow_actions_ran`) append an entry and restart; discovery (`from "reports"`) decides per console
 whether it is fetched.
 
@@ -259,6 +259,29 @@ for daily seat snapshots) and stores daily
 rows in `~/.config/s1am/usage.db`. Archived days are never re-fetched; live days are. A daily background sync of the
 previous and current month runs while the web server is up (`[usage] daily_sync = false` disables it, `daily_sync_hour`
 sets the hour). Scope the consoles with `S1AM_USAGE_CONSOLES=Staging` or `[usage] consoles`.
+
+**CWS vs EPP (what the endpoint columns count).** The metering endpoint reports (`workstation_endpoints`,
+`server_endpoints`, `container_hosts`) count every installed agent by its site's bundle (`endpoint_bundle` = Control /
+Complete), whatever protects it — a Kubernetes node protected by CWS still shows up as a "Complete" server agent, and the
+`container_hosts` report counts any agent with containerized workloads, CWS or not. Only the asset inventory knows which
+agents CWS protects: `GET /xdr/assets` returns `activeCoverage` (`EPP`, `CWS`, `IDR`…) per asset, with `category`
+(Server / Workstation / Container…) and `subCategory` (Virtual Machine, Container Host…). So the Usage & Billing columns are:
+
+| Column | Source | Counts |
+|---|---|---|
+| Wks | metering `workstation_endpoints` | workstation agents by bundle (all EPP) |
+| Srv | metering `server_endpoints` **minus** the day's CWS snapshot of the same site | EPP server agents by bundle |
+| CWS Srv | inventory snapshot (`activeCoverage` CWS, category Server, not Container Host) | CWS-protected VMs / servers |
+| CWS CH | inventory snapshot (`activeCoverage` CWS, sub-category Container Host) | CWS-protected Kubernetes / Docker hosts |
+| CWS SL | metering `serverless_containers` | Fargate pods / tasks |
+
+A product with `"source": "inventory"` in `products.json` is filled by a daily **inventory snapshot** instead of a metering
+query: every sync of the current month reads the CWS-covered assets of each console once (one read per `coverage` value,
+about 2,500 assets in 10 s on the largest console, decommissioned agents dropped) and stores one row per account, site
+and sub-category for today, marked final. A product with `"subtract": [reports]` has the same-day, same-site counts of
+those reports taken off its rows (off the largest bundle row, never below zero). Days before the first snapshot are shown
+as metered, so the split starts the day the feature went live; the table footer says so. The metering `container_hosts`
+report is no longer a column (it was mostly EPP Docker hosts).
 
 **Rollups.** Agent and user counts default to the peak daily value (average and month-end selectable per column), CNS to
 the average, Data Ingest and the Prompt usage counts to the sum (average per day, peak day and month end selectable). Rows with
@@ -283,6 +306,17 @@ Seat counts are daily active counts and are never added across days (the `daily:
 12:00 UTC, so the background sync now defaults to 14:00 local (`[usage] daily_sync_hour`). Seats are counted only for
 employees and developers who have the extension or agent installed. The token needs **Metering Reports – View**; SDL
 API keys do not work for metering.
+
+**Prompt Security tab.** The second sub-tab of Usage & Billing (`#prompt-security?month=2026-11`) lists only the Prompt
+meters and adds, per account, the **Prompt console** the tenant is hosted in, the **tenant name** and the **admins** (name
+and email). Those three come from `GET /accounts/{id}` on the account's console (`promptFields`, read-only, one call per
+account on a thread pool) and are cached in the `prompt_tenants` table of `usage.db`. The tab fills them by itself the
+first time a month is opened; *Refresh tenant details* re-reads every listed account. The hosting console is derived from
+the console's region: US MSSP partner accounts land in `uswest.prompt.security`, Canada and US customer accounts in
+`useast`, EU in `eunorth`, Sydney in `apsoutheast`; the Tokyo consoles (apne1) have no entry in SentinelOne's Prompt region
+table, so their rows show "—". An account whose usage comes from a site-level tenant shows "no account tenant". Rows can
+be searched by tenant or admin, sorted by the new columns, and exported as CSV from the Export menu; the account drawer
+shows the tenant block above the daily trend.
 
 API facts observed on Staging: always send `endTime` (with only `startTime` the window is wrong); `endTime: "now"` is
 rejected, use dates; results are capped at 1000 rows unless the query sets `| limit`; `xdr_ingested_bytes` and
